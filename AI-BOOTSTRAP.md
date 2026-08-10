@@ -5,9 +5,9 @@
 ## 接管顺序
 
 1. 完整读取本文件。
-2. 读取 `docs/01-principles/project-constitution.md`、`docs/02-architecture/reference-architecture.md` 和 `docs/03-security/threat-model.md`；创建或维护实例时还要读取 `factory-package.json` 与 `docs/08-factory/instance-lifecycle.md`，安装、升级、恢复、回滚或接入已有项目时再读 `docs/11-lifecycle/installation-upgrade-and-adoption.md`，运行或恢复控制平面时读 `docs/09-control-plane/persistence-and-recovery.md`，实现或启用接入时读 `docs/10-adapters/sdk-isolation-and-approval.md`。
+2. 读取 `docs/01-principles/project-constitution.md`、`docs/02-architecture/reference-architecture.md` 和 `docs/03-security/threat-model.md`；创建或运行跨平台团队时读 `docs/13-team-creator/blueprint-compiler-and-reference-runtime.md`，创建或维护普通实例时还要读取 `factory-package.json` 与 `docs/08-factory/instance-lifecycle.md`，安装、升级、恢复、回滚或接入已有项目时再读 `docs/11-lifecycle/installation-upgrade-and-adoption.md`，运行或恢复控制平面时读 `docs/09-control-plane/persistence-and-recovery.md`，实现或启用接入时读 `docs/10-adapters/sdk-isolation-and-approval.md`。
 3. 读取 `team-packs/software-delivery/` 下的团队、工作流、风险、质量、工具和上下文策略 JSON。
-4. 根据当前角色只读取对应 `skills/<skill-id>/SKILL.md`；Factory实例日常治理使用 `manage-agent-team-factory`，版本迁移使用 `upgrade-agent-team-instance`，适配器工作使用`implement-agent-team-adapter`，不要把所有Skill同时装入上下文。
+4. 根据当前角色只读取对应 `skills/<skill-id>/SKILL.md`；创建、导出或运行团队使用 `create-agent-team`，Factory实例日常治理使用 `manage-agent-team-factory`，版本迁移使用 `upgrade-agent-team-instance`，适配器工作使用`implement-agent-team-adapter`，不要把所有Skill同时装入上下文。
 5. 根据接入平台读取一个 `adapters/<adapter-id>/adapter.json` 及其中明确引用的输入/输出Schema；不要根据entrypoint字符串加载代码。
 6. 在修改前运行 `python3 tools/agent_team.py validate`，并确认当前 Git 分支和任务授权。
 
@@ -25,6 +25,7 @@
 - 实例配置和版本绑定：实例自己的 `.agent-team/instance.json` 与 `.agent-team/instance.lock.json`；Factory和目标项目不复制它们。
 - 生命周期崩溃恢复：实例 `runtime/.factory-lifecycle-journal.json` 与它绑定的实例外恢复包；不要提交、删除或手工修改日志。
 - 外部副作用权限：同一工作项的持久审计事件、`policies/adapter-authority.json`、操作slot/项目作用域、适配器Manifest与实例绑定共同决定；outbox本身不是授权。
+- 团队编译权威：`.agent-team/team-blueprint.json`与`.agent-team/team.lock.json`；平台生成文件不能反向修改blueprint，任何漂移都必须重新提案并编译到新路径。
 
 ## 强制安全边界
 

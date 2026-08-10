@@ -31,7 +31,7 @@ DATABASE_SCHEMA_VERSION = 1
 GENESIS_HASH = "sha256:" + ("0" * 64)
 MAX_JSON_BYTES = 1_000_000
 MAX_LEASE_SECONDS = 3600
-MAX_EFFECT_LEASE_SECONDS = 600
+MAX_EFFECT_LEASE_SECONDS = 3600
 IDEMPOTENCY_KEY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$")
 
 
@@ -472,6 +472,36 @@ class ControlPlane:
             raise AuditIntegrityError(f"audit event is not an object: {sequence}")
         return value
 
+    def latest_authorization_event(self, work_item_id: str) -> dict[str, Any]:
+        """Return the newest durable event that may authorize a bound outbox effect."""
+
+        work_item_id = _validate_bounded_text("work_item_id", work_item_id, 200)
+        row = self.connection.execute(
+            """
+            SELECT sequence, payload_json FROM audit_log
+            WHERE work_item_id = ?
+              AND event_kind IN ('work.created', 'workflow.transition')
+            ORDER BY sequence DESC
+            LIMIT 1
+            """,
+            (work_item_id,),
+        ).fetchone()
+        if not row:
+            raise ControlPlaneError(
+                f"work item has no durable authorization event: {work_item_id}"
+            )
+        try:
+            event = loads_strict(str(row["payload_json"]))
+        except ValueError as exc:
+            raise AuditIntegrityError(
+                f"invalid audit JSON at sequence {row['sequence']}: {exc}"
+            ) from exc
+        if not isinstance(event, dict):
+            raise AuditIntegrityError(
+                f"audit event is not an object: {row['sequence']}"
+            )
+        return {"sequence": int(row["sequence"]), "event": event}
+
     def ingest_feedback(
         self,
         event: FeedbackEvent,
@@ -655,6 +685,24 @@ class ControlPlane:
             }
             self._record_idempotency(cursor, idempotency_key, "lease.acquire", request_hash, result)
             return result
+
+    def active_lease(self, work_item_id: str) -> dict[str, Any] | None:
+        """Return a non-expired lease for crash-safe coordinator resumption."""
+
+        work_item_id = _validate_bounded_text("work_item_id", work_item_id, 200)
+        row = self.connection.execute(
+            "SELECT * FROM leases WHERE work_item_id = ?", (work_item_id,)
+        ).fetchone()
+        if not row or float(row["expires_at"]) <= self.clock():
+            return None
+        return {
+            "lease_id": str(row["lease_id"]),
+            "work_item_id": str(row["work_item_id"]),
+            "actor_id": str(row["actor_id"]),
+            "actor_role": str(row["actor_role"]),
+            "revision": int(row["revision"]),
+            "expires_at": float(row["expires_at"]),
+        }
 
     def renew_lease(
         self,
@@ -1096,8 +1144,16 @@ class ControlPlane:
             )
         return len(rows)
 
-    def claim_effect(self, worker_id: str, *, lease_seconds: int = 60) -> dict[str, Any] | None:
+    def claim_effect(
+        self,
+        worker_id: str,
+        *,
+        lease_seconds: int = 60,
+        effect_id: str | None = None,
+    ) -> dict[str, Any] | None:
         worker_id = _validate_bounded_text("worker_id", worker_id, 200)
+        if effect_id is not None:
+            effect_id = _validate_bounded_text("effect_id", effect_id, 200)
         if not 1 <= lease_seconds <= MAX_EFFECT_LEASE_SECONDS:
             raise ControlPlaneError(
                 f"effect lease must be between 1 and {MAX_EFFECT_LEASE_SECONDS} seconds"
@@ -1106,17 +1162,30 @@ class ControlPlane:
             self._require_running(cursor)
             now_epoch = self.clock()
             self._recover_expired_effects(cursor, now_epoch)
-            row = cursor.execute(
-                """
-                SELECT * FROM outbox
-                WHERE state IN ('PENDING', 'FAILED')
-                  AND available_at <= ?
-                  AND attempts < max_attempts
-                ORDER BY available_at, effect_id
-                LIMIT 1
-                """,
-                (now_epoch,),
-            ).fetchone()
+            if effect_id is None:
+                row = cursor.execute(
+                    """
+                    SELECT * FROM outbox
+                    WHERE state IN ('PENDING', 'FAILED')
+                      AND available_at <= ?
+                      AND attempts < max_attempts
+                    ORDER BY available_at, effect_id
+                    LIMIT 1
+                    """,
+                    (now_epoch,),
+                ).fetchone()
+            else:
+                row = cursor.execute(
+                    """
+                    SELECT * FROM outbox
+                    WHERE effect_id = ?
+                      AND state IN ('PENDING', 'FAILED')
+                      AND available_at <= ?
+                      AND attempts < max_attempts
+                    LIMIT 1
+                    """,
+                    (effect_id, now_epoch),
+                ).fetchone()
             if not row:
                 return None
             claim_token = f"claim-{uuid.uuid4()}"

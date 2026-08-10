@@ -617,9 +617,7 @@ class AdapterWorker:
         self.lease_seconds = lease_seconds
         self.retry_delay_seconds = retry_delay_seconds
 
-    def run_once(self) -> dict[str, Any] | None:
-        self.control_plane.verify_audit()
-        claim = self.control_plane.claim_effect(self.worker_id, lease_seconds=self.lease_seconds)
+    def _run_claim(self, claim: dict[str, Any] | None) -> dict[str, Any] | None:
         if claim is None:
             return None
         effect = claim["effect"]
@@ -681,3 +679,19 @@ class AdapterWorker:
             retry_delay_seconds=self.retry_delay_seconds,
             permanent=permanent,
         )
+
+    def run_once(self) -> dict[str, Any] | None:
+        self.control_plane.verify_audit()
+        claim = self.control_plane.claim_effect(self.worker_id, lease_seconds=self.lease_seconds)
+        return self._run_claim(claim)
+
+    def run_effect(self, effect_id: str) -> dict[str, Any] | None:
+        """Run exactly one queued effect without consuming unrelated work."""
+
+        self.control_plane.verify_audit()
+        claim = self.control_plane.claim_effect(
+            self.worker_id,
+            lease_seconds=self.lease_seconds,
+            effect_id=effect_id,
+        )
+        return self._run_claim(claim)

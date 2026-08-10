@@ -15,7 +15,8 @@
     "docs/02-architecture/reference-architecture.md",
     "docs/03-security/threat-model.md",
     "docs/08-factory/instance-lifecycle.md",
-    "docs/11-lifecycle/installation-upgrade-and-adoption.md"
+    "docs/11-lifecycle/installation-upgrade-and-adoption.md",
+    "docs/13-team-creator/blueprint-compiler-and-reference-runtime.md"
   ],
   "context_roles": [
     "public-intake",
@@ -35,7 +36,11 @@
     "target-repository.unchanged",
     "adoption.proposal-verified",
     "candidate.remains-proposal-only",
-    "external-integrations.remain-disabled"
+    "external-integrations.remain-disabled",
+    "team.compiles-all-platforms",
+    "team.stops-before-human-approval",
+    "team.reference-loop-reaches-reviewed-draft-pr",
+    "team.replay-has-no-new-side-effects"
   ],
   "human_replay_required": true
 }

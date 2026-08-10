@@ -246,6 +246,31 @@ class ControlPlanePersistenceTests(unittest.TestCase):
 
 
 class ControlPlaneOutboxTests(unittest.TestCase):
+    def test_targeted_claim_never_consumes_an_unrelated_effect(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            with ControlPlane(Path(temporary) / "state.sqlite3") as control:
+                created = control.ingest_feedback(
+                    feedback(), idempotency_key="feedback:targeted-claim:1"
+                )
+                work_id = created["work_item"]["id"]
+                effects = []
+                for number in (1, 2):
+                    effects.append(
+                        control.queue_effect(
+                            work_id,
+                            authorization_event_sequence=created["audit_sequence"],
+                            adapter_slot="notification",
+                            operation="feedback.notify",
+                            payload={"work_item_id": work_id, "number": number},
+                            idempotency_key=f"effect:targeted-claim:{number}",
+                        )["effect"]
+                    )
+                claim = control.claim_effect(
+                    "worker-targeted", effect_id=effects[1]["effect_id"]
+                )
+                self.assertEqual(claim["effect"]["effect_id"], effects[1]["effect_id"])
+                self.assertEqual(control.get_effect(effects[0]["effect_id"])["state"], "PENDING")
+
     def test_expired_claim_recovers_and_effect_completes_once(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             clock = FakeClock()

@@ -1,0 +1,43 @@
+{
+  "schema_version": "2.0.0",
+  "id": "adapter.cli-model-router",
+  "version": "0.6.0",
+  "kind": "agent-provider",
+  "status": "REFERENCE",
+  "authority": "replaceable-interface",
+  "slots": ["model"],
+  "config_schema": "schemas/cli-model-router-config.schema.json",
+  "operations": [
+    {
+      "name": "agent.invoke",
+      "slots": ["model"],
+      "direction": "outbound",
+      "external_effect": "compute",
+      "delivery": "at-most-once",
+      "capability": "agent.invoke",
+      "input_schema": "schemas/agent-step-task.schema.json",
+      "output_schema": "schemas/agent-step-result.schema.json",
+      "timeout_seconds": 3600,
+      "project_scope": {
+        "match_by": "id",
+        "payload_field": "project_id",
+        "provider": null,
+        "allowed_modes": ["observe", "proposal-only"],
+        "default_branch_field": null,
+        "source_ref_field": null
+      }
+    }
+  ],
+  "trust_boundaries": ["control-worker", "isolated-executor", "provider-api"],
+  "credentials": ["local-agent-session"],
+  "implementation": {
+    "mode": "python-reference",
+    "entrypoint": "core.agent_drivers:CliModelRouterAdapter"
+  },
+  "security_notes": [
+    "The router selects only a role engine declared in the locked team blueprint.",
+    "Codex and Claude execute without bypass-permission flags and must run in an external per-task sandbox for untrusted repositories.",
+    "A model result is schema-bound evidence and can never act as a human approval assertion.",
+    "At-most-once execution prevents blind replay after an uncertain model or tool result."
+  ]
+}

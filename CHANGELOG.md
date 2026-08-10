@@ -2,6 +2,25 @@
 
 本项目遵循语义化版本。版本标签只在仓库验证、测试、Skill校验和空目录冷启动全部通过后创建；已发布标签不移动。
 
+## 0.6.0 — 2026-08-10
+
+Agent Team Factory 首个“团队创建器 + 可执行参考闭环”版本：
+
+- 新增严格 Team Blueprint 与 Team Lock。`team create/validate/inspect/export` 能把一个无秘密蓝图确定性编译为锁定的 Team Instance，并生成 OpenClaw `agents.list`/workspaces、Codex `.codex/agents/*.toml`、Claude `.claude/agents/*.md` 和 Generic AI 角色包；输出与 export 都不覆盖已有路径，逐文件摘要检测漂移。
+- 新增 `create-agent-team` Skill、示例蓝图、平台说明和 ADR-0007，明确 Factory、Team Instance、Target Project 的边界以及 OpenClaw、Codex、Claude、Generic AI 的准确支持范围。
+- 新增 schema-bound CLI Model Router 和 `agent.invoke` 适配器。按角色绑定选择 Codex/Claude，固定项目、base commit、revision、能力、预算和结果Schema；Codex禁用项目规则并保留sandbox，Claude read-only角色使用safe/plan mode且没有Bash，模型进程使用不含继承API密钥的最小环境，所有模型结果拒绝身份漂移与凭据样证据。
+- 新增可重启 Team Runtime：反馈规范化、triage、规格、人工计划批准、隔离 Git worktree、实现提交、Draft PR、声明式测试、QA 和独立 reviewer 由同一 SQLite 修订/租约/outbox/审计链约束，最终固定停止在 `REVIEW_APPROVED`，没有 team merge 或生产部署入口。
+- 新增本地 owner 审批命令。操作者必须回填完整 specification scope hash，短期断言绑定 owner、动作、工作项、revision 和 evidence；本地模式明确依赖操作系统账号，远程环境必须替换为认证身份适配器。
+- 新增 Runner Profile 与显式 `--allow-host-runner`。项目、本地仓库、默认分支及其准确base commit、模型模式、交付模式、Runner Profile摘要和command IDs全部进入人工批准scope；批准后、worktree创建前基线移动会安全停止。命令使用 argv 而非 Shell，以无凭据最小环境执行并保存脱敏证据。证据摘要继续绑定SQLite审计事件，篡改、自行重算摘要、失败或测试后worktree漂移都不能记录或维持CI通过。本机执行器仍不是生产沙箱。
+- 新增 GitHub CLI Transport。只有实例显式启用、项目/remote/default branch 匹配且命令同时提供 `--provider github --allow-provider-writes` 时，才允许 Issue、隔离 branch push 和 Draft PR；创建使用稳定标记在重试前对账，不提供 merge。
+- 新增无网络 `team demo` 冷启动：自动运行到 `SPEC_READY` 并证明实现尚未开始，准确人工计划批准后才运行 builder/tests/reviewer，最终产生本地 Draft PR 证据。端到端验收覆盖错误 hash、缺少 Runner 同意、测试失败、作者与 reviewer 分离、证据篡改、worktree/commit落盘中断恢复和重复运行无副作用。
+- outbox Worker 可以按准确 effect ID 领取，避免协调器误消费无关任务；模型 at-most-once 不确定结果保持人工处置。effect lease 上限与最长模型操作统一为一小时，运行时保留安全余量。
+- Factory、能力包和 Python 项目版本升级为 `0.6.0`；新增从 `0.5.1` 以及既有 v0.2/v0.3/v0.4/v0.5.0 的显式实例迁移路径。实例 Schema、锁 Schema、SQLite Schema 与 `software-delivery 0.2.0` 团队包保持兼容。
+
+限制：v0.6 不包含常驻调度器、OpenClaw Gateway/频道自动接线、分布式多租户控制面、生产级隔离 Runner、自动 merge 或生产部署。live CLI 与 GitHub 模式必须先在采用者的临时 Private 项目验证身份、权限、沙箱和恢复路径。
+
+回退：Team Blueprint 编译结果和 runtime worktree 是新增资产，不由旧版本解释。升级过的普通实例可使用 v0.6 升级时生成的恢复包与新救援包执行标准 rollback；SQLite Schema 未改变，但回退前仍需停止所有 writer、备份数据库并对账外部 Issue/PR。
+
 ## 0.5.1 — 2026-08-10
 
 `v0.5.0`远端标签验收后的补丁版本：

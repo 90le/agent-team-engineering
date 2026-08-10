@@ -1,0 +1,153 @@
+{
+  "$schema": "urn:agent-team:schema:team-blueprint:1.0.0",
+  "schema_version": "1.0.0",
+  "team_id": "team.example-product-delivery",
+  "instance": {
+    "$schema": "urn:agent-team:schema:team-instance:1.0.0",
+    "schema_version": "1.0.0",
+    "instance_id": "instance.example-product-delivery",
+    "display_name": "Example Product Delivery Team",
+    "owner": {
+      "id": "human.project-owner",
+      "display_name": "Project Owner",
+      "kind": "human"
+    },
+    "team_pack": {
+      "id": "team-pack.software-delivery",
+      "version": "0.2.0"
+    },
+    "autonomy": {
+      "initial": "A1",
+      "maximum": "A2",
+      "production_requires_human": true
+    },
+    "approvals": {
+      "plan_approvers": ["human.project-owner"],
+      "production_approvers": ["human.project-owner"]
+    },
+    "projects": [
+      {
+        "id": "project.example-product",
+        "provider": "github",
+        "locator": "example-owner/example-product",
+        "default_branch": "main",
+        "mode": "proposal-only"
+      }
+    ],
+    "adapters": [
+      {
+        "slot": "intake",
+        "adapter_id": "adapter.file-inbox",
+        "enabled": false,
+        "config": {},
+        "secret_refs": []
+      },
+      {
+        "slot": "approval",
+        "adapter_id": "adapter.openclaw",
+        "enabled": false,
+        "config": {},
+        "secret_refs": []
+      },
+      {
+        "slot": "code-hosting",
+        "adapter_id": "adapter.github",
+        "enabled": false,
+        "config": {},
+        "secret_refs": []
+      },
+      {
+        "slot": "model",
+        "adapter_id": "adapter.cli-model-router",
+        "enabled": false,
+        "config": {},
+        "secret_refs": []
+      },
+      {
+        "slot": "runner",
+        "adapter_id": "adapter.local-dry-run",
+        "enabled": false,
+        "config": {},
+        "secret_refs": []
+      }
+    ],
+    "runtime": {
+      "state_backend": "sqlite",
+      "state_location": "runtime/state/control-plane.sqlite3",
+      "workspace_root": "runtime/workspaces",
+      "artifact_root": "runtime/artifacts"
+    },
+    "limits": {
+      "max_concurrent_tasks": 4,
+      "max_attempts": 3,
+      "max_task_seconds": 1800,
+      "max_budget_units": 100
+    }
+  },
+  "platform_targets": ["openclaw", "codex", "claude", "generic-ai"],
+  "role_bindings": [
+    {
+      "role": "public-intake",
+      "engine": "openclaw",
+      "model": null,
+      "reasoning_effort": "low",
+      "sandbox_mode": "read-only"
+    },
+    {
+      "role": "triage",
+      "engine": "codex",
+      "model": null,
+      "reasoning_effort": "medium",
+      "sandbox_mode": "read-only"
+    },
+    {
+      "role": "product",
+      "engine": "codex",
+      "model": null,
+      "reasoning_effort": "high",
+      "sandbox_mode": "read-only"
+    },
+    {
+      "role": "builder",
+      "engine": "codex",
+      "model": null,
+      "reasoning_effort": "high",
+      "sandbox_mode": "workspace-write"
+    },
+    {
+      "role": "qa",
+      "engine": "claude",
+      "model": null,
+      "reasoning_effort": "medium",
+      "sandbox_mode": "read-only"
+    },
+    {
+      "role": "reviewer",
+      "engine": "claude",
+      "model": null,
+      "reasoning_effort": "high",
+      "sandbox_mode": "read-only"
+    },
+    {
+      "role": "release",
+      "engine": "generic-ai",
+      "model": null,
+      "reasoning_effort": "inherit",
+      "sandbox_mode": "read-only"
+    },
+    {
+      "role": "operations",
+      "engine": "generic-ai",
+      "model": null,
+      "reasoning_effort": "inherit",
+      "sandbox_mode": "read-only"
+    }
+  ],
+  "delivery": {
+    "stop_after": "draft-pr",
+    "create_issue": true,
+    "plan_approval": "required",
+    "merge": "forbidden",
+    "production_deployment": "forbidden"
+  }
+}

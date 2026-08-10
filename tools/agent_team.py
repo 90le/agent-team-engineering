@@ -42,6 +42,18 @@ from core.lifecycle import (  # noqa: E402
 )
 from core.models import Actor, FeedbackEvent  # noqa: E402
 from core.simulation import run_feedback_to_release  # noqa: E402
+from core.team_creator import (  # noqa: E402
+    create_team,
+    export_team_target,
+    inspect_team,
+    validate_team_directory,
+)
+from core.team_runtime import (  # noqa: E402
+    approve_team_plan,
+    create_reference_demo,
+    ingest_team_feedback,
+    run_team,
+)
 from core.validation import validate_repository  # noqa: E402
 
 
@@ -198,6 +210,72 @@ def command_instance_rollback(args: argparse.Namespace) -> int:
 def command_instance_recovery_inspect(args: argparse.Namespace) -> int:
     manifest = inspect_recovery_bundle(Path(args.bundle))
     print(json.dumps(manifest, ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_team_create(args: argparse.Namespace) -> int:
+    summary = create_team(Path(args.blueprint), Path(args.output))
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_team_validate(args: argparse.Namespace) -> int:
+    root = Path(args.root)
+    findings = validate_team_directory(root)
+    for finding in findings:
+        print(f"{finding.severity} {finding.path}: {finding.message}")
+    errors = sum(finding.severity == "ERROR" for finding in findings)
+    warnings = sum(finding.severity == "WARNING" for finding in findings)
+    print(f"validated_team={root} errors={errors} warnings={warnings}")
+    return 1 if errors else 0
+
+
+def command_team_inspect(args: argparse.Namespace) -> int:
+    print(json.dumps(inspect_team(Path(args.root)), ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_team_export(args: argparse.Namespace) -> int:
+    result = export_team_target(Path(args.root), args.target, Path(args.output))
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_team_ingest(args: argparse.Namespace) -> int:
+    result = ingest_team_feedback(
+        Path(args.root),
+        Path(args.event),
+        idempotency_key=args.idempotency_key,
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_team_run(args: argparse.Namespace) -> int:
+    result = run_team(
+        Path(args.root),
+        args.work_item,
+        Path(args.repo),
+        Path(args.runner_profile),
+        project_id=args.project_id,
+        model_mode=args.model_mode,
+        provider=args.provider,
+        allow_host_runner=args.allow_host_runner,
+        allow_provider_writes=args.allow_provider_writes,
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_team_approve_plan(args: argparse.Namespace) -> int:
+    result = approve_team_plan(Path(args.root), args.work_item, args.scope_hash)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_team_demo(args: argparse.Namespace) -> int:
+    result = create_reference_demo(Path(args.output))
+    print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
 
@@ -508,6 +586,68 @@ def build_parser() -> argparse.ArgumentParser:
     )
     instance_recovery.add_argument("--bundle", required=True)
     instance_recovery.set_defaults(func=command_instance_recovery_inspect)
+
+    team = subparsers.add_parser(
+        "team", help="compile and verify a runnable cross-platform agent team"
+    )
+    team_commands = team.add_subparsers(dest="team_command", required=True)
+    team_create = team_commands.add_parser(
+        "create", help="atomically compile a strict team blueprint into a new directory"
+    )
+    team_create.add_argument("--blueprint", required=True)
+    team_create.add_argument("--output", required=True)
+    team_create.set_defaults(func=command_team_create)
+    team_validate = team_commands.add_parser(
+        "validate", help="verify blueprint, instance, lock, and every compiled platform file"
+    )
+    team_validate.add_argument("--root", required=True)
+    team_validate.set_defaults(func=command_team_validate)
+    team_inspect = team_commands.add_parser(
+        "inspect", help="show a non-secret summary of a compiled team"
+    )
+    team_inspect.add_argument("--root", required=True)
+    team_inspect.set_defaults(func=command_team_inspect)
+    team_export = team_commands.add_parser(
+        "export", help="copy one locked platform overlay to a new review directory"
+    )
+    team_export.add_argument("--root", required=True)
+    team_export.add_argument(
+        "--target", choices=("openclaw", "codex", "claude", "generic-ai"), required=True
+    )
+    team_export.add_argument("--output", required=True)
+    team_export.set_defaults(func=command_team_export)
+    team_ingest = team_commands.add_parser(
+        "ingest", help="ingest one untrusted feedback event into a compiled team"
+    )
+    team_ingest.add_argument("--root", required=True)
+    team_ingest.add_argument("--event", required=True)
+    team_ingest.add_argument("--idempotency-key", required=True)
+    team_ingest.set_defaults(func=command_team_ingest)
+    team_run = team_commands.add_parser(
+        "run", help="advance one work item to its next human or Draft PR stop"
+    )
+    team_run.add_argument("--root", required=True)
+    team_run.add_argument("--work-item", required=True)
+    team_run.add_argument("--repo", required=True)
+    team_run.add_argument("--project-id")
+    team_run.add_argument("--runner-profile", required=True)
+    team_run.add_argument("--model-mode", choices=("reference", "live"), default="reference")
+    team_run.add_argument("--provider", choices=("local", "github"), default="local")
+    team_run.add_argument("--allow-host-runner", action="store_true")
+    team_run.add_argument("--allow-provider-writes", action="store_true")
+    team_run.set_defaults(func=command_team_run)
+    team_approve = team_commands.add_parser(
+        "approve-plan", help="bind a local human approval to the exact specification scope"
+    )
+    team_approve.add_argument("--root", required=True)
+    team_approve.add_argument("--work-item", required=True)
+    team_approve.add_argument("--scope-hash", required=True)
+    team_approve.set_defaults(func=command_team_approve_plan)
+    team_demo = team_commands.add_parser(
+        "demo", help="create a no-network reference team and stop at its human plan gate"
+    )
+    team_demo.add_argument("--output", required=True)
+    team_demo.set_defaults(func=command_team_demo)
 
     runtime = subparsers.add_parser("runtime", help="operate the persistent control plane")
     runtime_commands = runtime.add_subparsers(dest="runtime_command", required=True)

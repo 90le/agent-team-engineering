@@ -13,6 +13,11 @@ class CrossAiTakeoverTests(unittest.TestCase):
         self.assertTrue(report["human_replay_required"])
         self.assertTrue(report["target_repository_unchanged"])
         self.assertFalse(report["external_integrations_enabled"])
+        self.assertEqual(report["team_reference"]["initial_stop"], "SPEC_READY")
+        self.assertEqual(report["team_reference"]["final_state"], "REVIEW_APPROVED")
+        self.assertEqual(report["team_reference"]["tests"], "PASSED")
+        self.assertTrue(report["team_reference"]["independent_reviewer"])
+        self.assertTrue(report["team_reference"]["replay_events_unchanged"])
 
 
 if __name__ == "__main__":

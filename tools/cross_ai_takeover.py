@@ -216,6 +216,95 @@ def run_takeover_acceptance() -> dict[str, Any]:
         if any(adapter["enabled"] for adapter in candidate["adapters"]):
             raise TakeoverAcceptanceError("candidate enabled an external adapter")
 
+        demo = workspace / "reference-team-demo"
+        first_run = _run(
+            sys.executable,
+            str(ROOT / "tools" / "agent_team.py"),
+            "team",
+            "demo",
+            "--output",
+            str(demo),
+        )
+        first_report = loads_strict(first_run.stdout)
+        if (
+            first_report.get("status") != "WAITING_FOR_HUMAN"
+            or first_report.get("work_item", {}).get("state") != "SPEC_READY"
+        ):
+            raise TakeoverAcceptanceError("reference team did not stop at the human plan gate")
+        if (demo / "team" / "runtime" / "workspaces").exists():
+            raise TakeoverAcceptanceError("reference team created a writer workspace before approval")
+        work_item_id = str(first_report["work_item_id"])
+        scope_hash = str(first_report["specification"]["scope_hash"])
+        _run(
+            sys.executable,
+            str(ROOT / "tools" / "agent_team.py"),
+            "team",
+            "approve-plan",
+            "--root",
+            str(demo / "team"),
+            "--work-item",
+            work_item_id,
+            "--scope-hash",
+            scope_hash,
+        )
+        completed_run = _run(
+            sys.executable,
+            str(ROOT / "tools" / "agent_team.py"),
+            "team",
+            "run",
+            "--root",
+            str(demo / "team"),
+            "--work-item",
+            work_item_id,
+            "--repo",
+            str(demo / "project"),
+            "--runner-profile",
+            str(demo / "runner-profile.json"),
+            "--model-mode",
+            "reference",
+            "--provider",
+            "local",
+            "--allow-host-runner",
+        )
+        team_report = loads_strict(completed_run.stdout)
+        if (
+            team_report.get("status") != "DRAFT_PR_READY"
+            or team_report.get("work_item", {}).get("state") != "REVIEW_APPROVED"
+            or team_report.get("runner_evidence", {}).get("result") != "PASSED"
+            or team_report.get("pull_request", {}).get("draft") is not True
+        ):
+            raise TakeoverAcceptanceError("reference team did not reach a reviewed Draft PR")
+        author = team_report["work_item"].get("author_id")
+        reviewer = next(
+            event["actor_id"]
+            for event in team_report["work_item"]["audit"]
+            if event["action"] == "approve_review"
+        )
+        if not author or author == reviewer:
+            raise TakeoverAcceptanceError("reference author and reviewer are not independent")
+        replay_run = _run(
+            sys.executable,
+            str(ROOT / "tools" / "agent_team.py"),
+            "team",
+            "run",
+            "--root",
+            str(demo / "team"),
+            "--work-item",
+            work_item_id,
+            "--repo",
+            str(demo / "project"),
+            "--runner-profile",
+            str(demo / "runner-profile.json"),
+            "--model-mode",
+            "reference",
+            "--provider",
+            "local",
+            "--allow-host-runner",
+        )
+        replay_report = loads_strict(replay_run.stdout)
+        if replay_report.get("audit", {}).get("events") != team_report["audit"]["events"]:
+            raise TakeoverAcceptanceError("reference team replay created a new side effect")
+
     return {
         "schema_version": "1.0.0",
         "status": "PASS",
@@ -229,6 +318,15 @@ def run_takeover_acceptance() -> dict[str, Any]:
         "adoption_package_id": package["package_id"],
         "target_repository_unchanged": True,
         "external_integrations_enabled": False,
+        "team_reference": {
+            "initial_stop": first_report["work_item"]["state"],
+            "final_state": team_report["work_item"]["state"],
+            "draft": team_report["pull_request"]["draft"],
+            "tests": team_report["runner_evidence"]["result"],
+            "independent_reviewer": author != reviewer,
+            "replay_events_unchanged": True,
+            "synthetic_local_approval": True,
+        },
     }
 
 
