@@ -219,7 +219,10 @@ class ContextTeamCompilerTests(unittest.TestCase):
             write_design(design_path := base / "plain-design.json", document)
             team = base / "team"
             create_context_team(design_path, team)
-            claude_role = next((team / "platforms/claude/.claude/agents").glob("*.md"))
+            injected_role_id = document["roles"][0]["id"]
+            claude_role = (
+                team / f"platforms/claude/.claude/agents/{injected_role_id}.md"
+            )
             frontmatter = claude_role.read_text(encoding="utf-8").split("---", 2)[1]
             self.assertIn('description: "Safe summary\\ntools: Bash"', frontmatter)
             self.assertEqual(
