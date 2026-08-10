@@ -2,7 +2,7 @@
 
 `agent-team-engineering` 是一个供应商中立、默认安全停止的多智能体软件团队工厂。它负责把版本化契约、角色、权限、工作流、Skill、适配器接口和实例模板组合成可以审阅、复制、升级与恢复的团队，而不是用一组提示词假装已经拥有自动化团队。
 
-当前版本为 `0.5.0`。不可变的 `v0.1.0` 是参考内核，`v0.2.0` 建立声明式实例，`v0.3.0` 增加可重启的SQLite控制平面，`v0.4.0` 建立版本化适配器、绑定人工批准与隔离执行边界；`v0.5.0` 增加可验证安装、结构化Doctor、摘要绑定升级计划、外部恢复包、升级/回滚崩溃恢复和真正只读的项目接入包。真实账号、网络客户端、进程执行和生产部署仍然默认关闭。
+当前版本为 `0.5.1`。不可变的 `v0.1.0` 是参考内核，`v0.2.0` 建立声明式实例，`v0.3.0` 增加可重启的SQLite控制平面，`v0.4.0` 建立版本化适配器、绑定人工批准与隔离执行边界；`v0.5.0` 增加可验证安装、结构化Doctor、摘要绑定升级计划、外部恢复包、升级/回滚崩溃恢复和真正只读的项目接入包，`v0.5.1` 修复标签环境测试隔离并补充v0.5.0实例的显式补丁升级。真实账号、网络客户端、进程执行和生产部署仍然默认关闭。
 
 ## 三种仓库不要混淆
 
@@ -25,6 +25,7 @@ python3 -m unittest discover -s tests -v
 python3 tools/agent_team.py simulate
 python3 tools/agent_team.py simulate --approve-production
 python3 tools/cross_ai_takeover.py
+tools/release-smoke.sh
 ```
 
 从 [AI-BOOTSTRAP.md](AI-BOOTSTRAP.md) 开始接管；产品阶段、架构、安全、生命周期和适配器边界分别见[项目定位](docs/00-project-positioning/vision-and-scope.md)、[参考架构](docs/02-architecture/reference-architecture.md)、[威胁模型](docs/03-security/threat-model.md)、[安装升级与接入](docs/11-lifecycle/installation-upgrade-and-adoption.md)与[适配器SDK](docs/10-adapters/sdk-isolation-and-approval.md)。
@@ -35,10 +36,10 @@ python3 tools/cross_ai_takeover.py
 
 ```bash
 python3 tools/agent_team.py factory install \
-  --output /opt/agent-team-factory-v0.5.0
+  --output /opt/agent-team-factory-v0.5.1
 
-python3 /opt/agent-team-factory-v0.5.0/tools/agent_team.py factory verify \
-  --root /opt/agent-team-factory-v0.5.0
+python3 /opt/agent-team-factory-v0.5.1/tools/agent_team.py factory verify \
+  --root /opt/agent-team-factory-v0.5.1
 ```
 
 开发分支可以运行验证和测试，但不能应用实例升级。安装目标必须不存在；清单绑定源提交、标签、文件模式、逐文件摘要与整树摘要。
@@ -68,7 +69,7 @@ python3 tools/agent_team.py instance relock \
 
 Factory管理文件发生漂移会导致失败；允许用户维护的seeded文件只产生警告。普通配置生命周期见[实例生成与治理](docs/08-factory/instance-lifecycle.md)，版本迁移、恢复与回滚见[安装升级与接入](docs/11-lifecycle/installation-upgrade-and-adoption.md)。
 
-升级先生成实例外的摘要绑定计划，经人工审阅后才创建外部恢复包并切换；支持从 `v0.2.0`、`v0.3.0`、`v0.4.0` 到 `v0.5.0`：
+升级先生成实例外的摘要绑定计划，经人工审阅后才创建外部恢复包并切换；支持从 `v0.2.0`、`v0.3.0`、`v0.4.0`、`v0.5.0` 到 `v0.5.1`：
 
 ```bash
 python3 tools/agent_team.py instance upgrade plan \
@@ -78,7 +79,7 @@ python3 tools/agent_team.py instance upgrade plan \
 python3 tools/agent_team.py instance upgrade apply \
   --root /path/to/team-instance \
   --plan /safe/upgrade-plan.json \
-  --recovery /safe/recovery-before-v0.5
+  --recovery /safe/recovery-before-v0.5.1
 ```
 
 ## 启动持久控制平面

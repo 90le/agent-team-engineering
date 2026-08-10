@@ -16,7 +16,7 @@ class DoctorTests(unittest.TestCase):
     def test_factory_report_is_structured_and_production_remains_disabled(self) -> None:
         report = build_doctor_report()
         self.assertIn(report["overall"], {"PASS", "WARN"})
-        self.assertEqual(report["factory_version"], "0.5.0")
+        self.assertEqual(report["factory_version"], "0.5.1")
         self.assertFalse(report["production_integrations_enabled"])
         self.assertTrue(any(check["id"] == "factory.contract" for check in report["checks"]))
         self.assertEqual(doctor_exit_code(report), 0)
@@ -26,7 +26,7 @@ class DoctorTests(unittest.TestCase):
             instance = Path(temporary) / "instance"
             init_instance(EXAMPLE, instance)
             report = build_doctor_report(instance)
-            self.assertEqual(report["instance"]["factory_version"], "0.5.0")
+            self.assertEqual(report["instance"]["factory_version"], "0.5.1")
             self.assertFalse(report["instance"]["upgrade_available"])
             self.assertEqual(report["instance"]["runtime"]["state"], "ABSENT")
             self.assertIn(report["overall"], {"PASS", "WARN"})

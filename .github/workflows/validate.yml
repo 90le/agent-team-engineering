@@ -27,3 +27,5 @@ jobs:
         run: make instance-smoke
       - name: Verify clean-clone bootstrap
         run: tools/cold-start.sh
+      - name: Verify exact release-tag context
+        run: tools/release-smoke.sh
