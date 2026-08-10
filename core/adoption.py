@@ -7,7 +7,6 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-
 MARKERS = {
     "node": ("package.json", "pnpm-lock.yaml", "yarn.lock"),
     "python": ("pyproject.toml", "requirements.txt", "Pipfile"),
@@ -39,9 +38,13 @@ def scan_project(repo: Path) -> dict[str, Any]:
         for technology, markers in MARKERS.items()
         if any(marker in files for marker in markers)
     )
-    ai_entries = sorted(name for name in ("AGENTS.md", "CLAUDE.md", "AI-BOOTSTRAP.md") if name in files)
+    ai_entries = sorted(
+        name for name in ("AGENTS.md", "CLAUDE.md", "AI-BOOTSTRAP.md") if name in files
+    )
     workflow_dir = root / ".github" / "workflows"
-    workflows = sorted(path.name for path in workflow_dir.glob("*.y*ml")) if workflow_dir.is_dir() else []
+    workflows = (
+        sorted(path.name for path in workflow_dir.glob("*.y*ml")) if workflow_dir.is_dir() else []
+    )
 
     return {
         "schema_version": "1.0.0",
@@ -51,7 +54,9 @@ def scan_project(repo: Path) -> dict[str, Any]:
         "ai_entrypoints": ai_entries,
         "github_workflows": workflows,
         "has_tests": any((root / name).exists() for name in ("tests", "test", "spec")),
-        "has_architecture_docs": any((root / name).exists() for name in ("docs", "doc", "architecture")),
+        "has_architecture_docs": any(
+            (root / name).exists() for name in ("docs", "doc", "architecture")
+        ),
         "hazards": [
             "Do not copy .env files, credentials, runtime databases, logs, or production data.",
             "Do not infer deployment authority from repository write access.",
@@ -92,7 +97,14 @@ def write_adoption_proposal(repo: Path, output: Path) -> dict[str, Any]:
     risk_policy = {
         "schema_version": "1.0.0",
         "default_risk": "MEDIUM",
-        "manual_only": ["secrets", "auth", "payments", "destructive-migration", "production-data", "infrastructure"],
+        "manual_only": [
+            "secrets",
+            "auth",
+            "payments",
+            "destructive-migration",
+            "production-data",
+            "infrastructure",
+        ],
     }
     (destination / ".agent-team" / "risk-policy.json").write_text(
         json.dumps(risk_policy, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable
 
-from core.models import Actor, AuditEvent, WorkItem, WorkflowState, utc_now
+from core.models import Actor, AuditEvent, WorkflowState, WorkItem, utc_now
 from core.policy import require_capability, require_independent_reviewer
 
 
@@ -38,22 +38,90 @@ class Transition:
 
 
 TRANSITIONS: dict[str, Transition] = {
-    "normalize": Transition("normalize", frozenset({WorkflowState.RECEIVED}), WorkflowState.NORMALIZED, "feedback.normalize"),
-    "queue_triage": Transition("queue_triage", frozenset({WorkflowState.NORMALIZED}), WorkflowState.TRIAGE_PENDING, "feedback.queue"),
-    "accept_triage": Transition("accept_triage", frozenset({WorkflowState.TRIAGE_PENDING}), WorkflowState.ACCEPTED, "work.triage"),
-    "write_spec": Transition("write_spec", frozenset({WorkflowState.ACCEPTED}), WorkflowState.SPEC_READY, "spec.write"),
-    "approve_plan": Transition("approve_plan", frozenset({WorkflowState.SPEC_READY}), WorkflowState.PLAN_APPROVED, "plan.approve"),
-    "start_implementation": Transition("start_implementation", frozenset({WorkflowState.PLAN_APPROVED}), WorkflowState.IMPLEMENTING, "implementation.start"),
-    "open_pr": Transition("open_pr", frozenset({WorkflowState.IMPLEMENTING}), WorkflowState.PR_OPEN, "pr.open"),
-    "record_ci_pass": Transition("record_ci_pass", frozenset({WorkflowState.PR_OPEN}), WorkflowState.CI_PASSED, "ci.record"),
-    "approve_review": Transition("approve_review", frozenset({WorkflowState.CI_PASSED}), WorkflowState.REVIEW_APPROVED, "review.approve"),
-    "deploy_staging": Transition("deploy_staging", frozenset({WorkflowState.REVIEW_APPROVED}), WorkflowState.STAGING_DEPLOYED, "staging.deploy"),
-    "accept_staging": Transition("accept_staging", frozenset({WorkflowState.STAGING_DEPLOYED}), WorkflowState.PROD_APPROVAL_PENDING, "staging.accept"),
-    "approve_production": Transition("approve_production", frozenset({WorkflowState.PROD_APPROVAL_PENDING}), WorkflowState.PROD_APPROVED, "production.approve"),
-    "deploy_production": Transition("deploy_production", frozenset({WorkflowState.PROD_APPROVED}), WorkflowState.DEPLOYED, "production.deploy"),
-    "verify_production": Transition("verify_production", frozenset({WorkflowState.DEPLOYED}), WorkflowState.VERIFIED, "production.verify"),
-    "close": Transition("close", frozenset({WorkflowState.VERIFIED}), WorkflowState.CLOSED, "work.close"),
-    "rollback": Transition("rollback", frozenset({WorkflowState.DEPLOYED, WorkflowState.VERIFIED}), WorkflowState.ROLLED_BACK, "production.rollback"),
+    "normalize": Transition(
+        "normalize",
+        frozenset({WorkflowState.RECEIVED}),
+        WorkflowState.NORMALIZED,
+        "feedback.normalize",
+    ),
+    "queue_triage": Transition(
+        "queue_triage",
+        frozenset({WorkflowState.NORMALIZED}),
+        WorkflowState.TRIAGE_PENDING,
+        "feedback.queue",
+    ),
+    "accept_triage": Transition(
+        "accept_triage",
+        frozenset({WorkflowState.TRIAGE_PENDING}),
+        WorkflowState.ACCEPTED,
+        "work.triage",
+    ),
+    "write_spec": Transition(
+        "write_spec", frozenset({WorkflowState.ACCEPTED}), WorkflowState.SPEC_READY, "spec.write"
+    ),
+    "approve_plan": Transition(
+        "approve_plan",
+        frozenset({WorkflowState.SPEC_READY}),
+        WorkflowState.PLAN_APPROVED,
+        "plan.approve",
+    ),
+    "start_implementation": Transition(
+        "start_implementation",
+        frozenset({WorkflowState.PLAN_APPROVED}),
+        WorkflowState.IMPLEMENTING,
+        "implementation.start",
+    ),
+    "open_pr": Transition(
+        "open_pr", frozenset({WorkflowState.IMPLEMENTING}), WorkflowState.PR_OPEN, "pr.open"
+    ),
+    "record_ci_pass": Transition(
+        "record_ci_pass", frozenset({WorkflowState.PR_OPEN}), WorkflowState.CI_PASSED, "ci.record"
+    ),
+    "approve_review": Transition(
+        "approve_review",
+        frozenset({WorkflowState.CI_PASSED}),
+        WorkflowState.REVIEW_APPROVED,
+        "review.approve",
+    ),
+    "deploy_staging": Transition(
+        "deploy_staging",
+        frozenset({WorkflowState.REVIEW_APPROVED}),
+        WorkflowState.STAGING_DEPLOYED,
+        "staging.deploy",
+    ),
+    "accept_staging": Transition(
+        "accept_staging",
+        frozenset({WorkflowState.STAGING_DEPLOYED}),
+        WorkflowState.PROD_APPROVAL_PENDING,
+        "staging.accept",
+    ),
+    "approve_production": Transition(
+        "approve_production",
+        frozenset({WorkflowState.PROD_APPROVAL_PENDING}),
+        WorkflowState.PROD_APPROVED,
+        "production.approve",
+    ),
+    "deploy_production": Transition(
+        "deploy_production",
+        frozenset({WorkflowState.PROD_APPROVED}),
+        WorkflowState.DEPLOYED,
+        "production.deploy",
+    ),
+    "verify_production": Transition(
+        "verify_production",
+        frozenset({WorkflowState.DEPLOYED}),
+        WorkflowState.VERIFIED,
+        "production.verify",
+    ),
+    "close": Transition(
+        "close", frozenset({WorkflowState.VERIFIED}), WorkflowState.CLOSED, "work.close"
+    ),
+    "rollback": Transition(
+        "rollback",
+        frozenset({WorkflowState.DEPLOYED, WorkflowState.VERIFIED}),
+        WorkflowState.ROLLED_BACK,
+        "production.rollback",
+    ),
 }
 
 
@@ -89,6 +157,8 @@ def transition(
         _require_fields(evidence, ("check_run", "result"))
     elif action == "approve_plan":
         _require_fields(evidence, ("approval_id", "scope_hash"))
+        if actor.kind != "human":
+            raise ApprovalRequired("plan approval requires a human owner")
         item.plan_approved_by = actor.id
     elif action == "start_implementation":
         if not item.plan_approved_by:
@@ -101,6 +171,8 @@ def transition(
         item.artifact_digest = evidence["artifact_digest"]
     elif action == "approve_production":
         _require_fields(evidence, ("approval_id", "artifact_digest"))
+        if actor.kind != "human":
+            raise ApprovalRequired("production approval requires a human owner")
         if evidence["artifact_digest"] != item.artifact_digest:
             raise ApprovalRequired("approval is not bound to the staged artifact digest")
         item.production_approved_by = actor.id

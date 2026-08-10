@@ -24,7 +24,9 @@
 
 ## 运行配置
 
-参考模拟器仅依赖 Python 标准库。真实长期工作流可以实现新的控制器后端，例如持久任务引擎；不得改变开放契约和角色分离原则。OpenClaw 是消息与协调适配器，不是默认安全边界。
+参考模拟器与v0.3控制平面仅依赖Python标准库。控制平面使用SQLite事务保存工作项、幂等记录、租约、暂停状态、outbox和哈希链审计；该实现面向单实例与有限并发Worker，不宣称多节点高可用。未来替换持久引擎不得改变开放契约、修订检查和角色分离原则。OpenClaw是消息与协调适配器，不是默认安全边界。
+
+控制平面先在一个事务中提交状态与待执行outbox记录，再由Worker领取外部副作用。进程在提交前中断时两者都不生效；提交后中断时outbox仍可恢复。外部提供者仍需接受幂等键，因为进程可能在副作用成功后、确认写回前中断。
 
 ## Factory、实例与项目
 
@@ -32,4 +34,6 @@ Factory发布通用实现和迁移；实例锁定明确Factory版本，保存团
 
 实例由 `.agent-team/instance.json` 声明，`.agent-team/instance.lock.json` 绑定Factory版本、源修订、契约摘要和生成文件摘要。Factory管理文件漂移时安全停止；用户维护文件允许自定义但会报告差异。详细决定见 [ADR-0003](../adr/ADR-0003-factory-instance-project-boundaries.md)。
 
-决策依据见 [ADR-0001](../adr/ADR-0001-vendor-neutral-core.md)、[ADR-0002](../adr/ADR-0002-authority-runtime-separation.md) 和 [ADR-0003](../adr/ADR-0003-factory-instance-project-boundaries.md)。
+持久状态与恢复决定见 [ADR-0004](../adr/ADR-0004-sqlite-control-plane-and-outbox.md)。
+
+决策依据见 [ADR-0001](../adr/ADR-0001-vendor-neutral-core.md)、[ADR-0002](../adr/ADR-0002-authority-runtime-separation.md)、[ADR-0003](../adr/ADR-0003-factory-instance-project-boundaries.md) 和 [ADR-0004](../adr/ADR-0004-sqlite-control-plane-and-outbox.md)。

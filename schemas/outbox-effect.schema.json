@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:outbox-effect:1.0.0",
+  "title": "Transactional adapter outbox effect",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["effect_id", "work_item_id", "authorization_event_sequence", "adapter_slot", "operation", "idempotency_key", "payload", "state", "attempts", "max_attempts", "available_at", "claim_owner", "claim_token", "claim_expires_at", "result", "last_error"],
+  "properties": {
+    "effect_id": {"type": "string", "pattern": "^effect-[a-f0-9-]+$"},
+    "work_item_id": {"type": "string", "minLength": 1},
+    "authorization_event_sequence": {"type": "integer", "minimum": 1},
+    "adapter_slot": {"type": "string", "minLength": 1},
+    "operation": {"type": "string", "minLength": 1},
+    "idempotency_key": {"type": "string", "minLength": 1},
+    "payload": {"type": "object"},
+    "state": {"enum": ["PENDING", "CLAIMED", "FAILED", "COMPLETED", "DEAD"]},
+    "attempts": {"type": "integer", "minimum": 0},
+    "max_attempts": {"type": "integer", "minimum": 1, "maximum": 10},
+    "available_at": {"type": "number", "minimum": 0},
+    "claim_owner": {"type": ["string", "null"]},
+    "claim_token": {"type": ["string", "null"]},
+    "claim_expires_at": {"type": ["number", "null"]},
+    "result": {"type": ["object", "null"]},
+    "last_error": {"type": ["string", "null"]}
+  }
+}

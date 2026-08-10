@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:control-plane-audit:1.0.0",
+  "title": "Persistent control-plane audit event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "sequence", "event_id", "event_kind", "work_item_id", "created_at", "data"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "sequence": {"type": "integer", "minimum": 1},
+    "event_id": {"type": "string", "pattern": "^audit-[a-f0-9-]+$"},
+    "event_kind": {"type": "string", "pattern": "^[a-z][a-z0-9.-]+$"},
+    "work_item_id": {"type": ["string", "null"]},
+    "created_at": {"type": "string", "minLength": 1},
+    "data": {"type": "object"}
+  }
+}

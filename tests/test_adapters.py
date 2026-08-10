@@ -6,7 +6,6 @@ from pathlib import Path
 
 from core.policy import ROLE_CAPABILITIES
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -31,9 +30,7 @@ class AdapterAndAuthorityTests(unittest.TestCase):
         team = json.loads(
             (ROOT / "team-packs/software-delivery/team-pack.json").read_text(encoding="utf-8")
         )
-        expected = {
-            role["id"]: frozenset(role["capabilities"]) for role in team["roles"]
-        }
+        expected = {role["id"]: frozenset(role["capabilities"]) for role in team["roles"]}
         self.assertEqual(ROLE_CAPABILITIES, expected)
 
     def test_openclaw_public_intake_is_feedback_only(self) -> None:

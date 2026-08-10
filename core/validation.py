@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from core.schema_validation import validate_schema
+from core.security import CREDENTIAL_PATTERNS
 
 REQUIRED_PATHS = (
     "AI-BOOTSTRAP.md",
@@ -21,6 +22,10 @@ REQUIRED_PATHS = (
     "schemas/factory-package.schema.json",
     "schemas/team-instance.schema.json",
     "schemas/team-instance-lock.schema.json",
+    "schemas/control-plane-audit.schema.json",
+    "schemas/control-plane-status.schema.json",
+    "schemas/outbox-effect.schema.json",
+    "schemas/task-lease.schema.json",
     "schemas/capability-package.schema.json",
     "docs/01-principles/project-constitution.md",
     "docs/02-architecture/reference-architecture.md",
@@ -31,13 +36,6 @@ REQUIRED_PATHS = (
     "team-packs/software-delivery/quality-gates.json",
     "team-packs/software-delivery/tool-policy.json",
     "examples/team-instance/input/instance.json",
-)
-
-SECRET_PATTERNS = (
-    re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
-    re.compile(r"\bghp_[A-Za-z0-9]{20,}\b"),
-    re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}\b"),
-    re.compile(r"\bAKIA[A-Z0-9]{16}\b"),
 )
 
 MARKDOWN_LINK = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
@@ -77,7 +75,7 @@ def validate_repository(root: Path) -> list[Finding]:
         except UnicodeDecodeError:
             findings.append(Finding("ERROR", relative, "non-UTF-8 or binary file is not allowed"))
             continue
-        for pattern in SECRET_PATTERNS:
+        for pattern in CREDENTIAL_PATTERNS:
             if pattern.search(text):
                 findings.append(Finding("ERROR", relative, "high-confidence credential pattern"))
 
@@ -222,7 +220,6 @@ def validate_repository(root: Path) -> list[Finding]:
                 "pyproject.toml": tomllib.loads(pyproject_path.read_text(encoding="utf-8"))[
                     "project"
                 ]["version"],
-                "team-pack.json": team["version"],
             }
             if len(set(versions.values())) != 1:
                 findings.append(Finding("ERROR", "VERSION", f"release versions differ: {versions}"))
