@@ -23,8 +23,12 @@ class AdoptionTests(unittest.TestCase):
             base = Path(temporary)
             source = base / "existing-app"
             source.mkdir()
-            (source / "package.json").write_text('{"scripts":{"test":"node --test"}}\n', encoding="utf-8")
-            (source / "pyproject.toml").write_text('[project]\nname="mixed-app"\n', encoding="utf-8")
+            (source / "package.json").write_text(
+                '{"scripts":{"test":"node --test"}}\n', encoding="utf-8"
+            )
+            (source / "pyproject.toml").write_text(
+                '[project]\nname="mixed-app"\n', encoding="utf-8"
+            )
             (source / ".env").write_text("TEST_ONLY_SECRET=not-copied\n", encoding="utf-8")
             workflow = source / ".github" / "workflows"
             workflow.mkdir(parents=True)
@@ -59,7 +63,9 @@ class AdoptionTests(unittest.TestCase):
             (output / "owned-by-user.txt").write_text("preserve\n", encoding="utf-8")
             with self.assertRaises(ValueError):
                 write_adoption_proposal(source, output)
-            self.assertEqual((output / "owned-by-user.txt").read_text(encoding="utf-8"), "preserve\n")
+            self.assertEqual(
+                (output / "owned-by-user.txt").read_text(encoding="utf-8"), "preserve\n"
+            )
 
     def test_missing_project_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

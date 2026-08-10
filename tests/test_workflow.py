@@ -29,7 +29,9 @@ class WorkflowSimulationTests(unittest.TestCase):
         self.assertEqual(item.state, WorkflowState.CLOSED)
         self.assertEqual(item.production_approved_by, "owner-demo")
         self.assertEqual(item.revision, len(item.audit))
-        self.assertEqual([event.sequence for event in item.audit], list(range(1, len(item.audit) + 1)))
+        self.assertEqual(
+            [event.sequence for event in item.audit], list(range(1, len(item.audit) + 1))
+        )
 
     def test_feedback_identity_is_idempotent(self) -> None:
         first = create_work_item(sample_event())

@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from core.schema_validation import validate_schema
+from core.security import CREDENTIAL_PATTERNS, is_secret_key
 
 ROOT = Path(__file__).resolve().parents[1]
 INSTANCE_SCHEMA = ROOT / "schemas" / "team-instance.schema.json"
@@ -24,22 +25,6 @@ TEMPLATE_ROOT = ROOT / "templates" / "team-instance"
 AUTONOMY_ORDER = {f"A{level}": level for level in range(6)}
 FACTORY_MAXIMUM_AUTONOMY = "A2"
 SAFE_RELATIVE_PATH = re.compile(r"^[A-Za-z0-9._/-]+$")
-SECRET_PATTERNS = (
-    re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
-    re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}\b"),
-    re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}\b"),
-    re.compile(r"\bAKIA[A-Z0-9]{16}\b"),
-    re.compile(r"\bsk-[A-Za-z0-9_-]{32,}\b"),
-)
-FORBIDDEN_SECRET_KEYS = {
-    "access_key",
-    "api_key",
-    "client_secret",
-    "password",
-    "private_key",
-    "secret_value",
-    "token",
-}
 FORBIDDEN_RUNTIME_NAMES = {".env", "id_rsa", "id_ed25519"}
 FORBIDDEN_RUNTIME_SUFFIXES = {".db", ".key", ".pem", ".sqlite", ".sqlite3"}
 
@@ -101,22 +86,6 @@ def _walk_values(value: Any, path: str = "$") -> list[tuple[str, str, Any]]:
         for index, child in enumerate(value):
             records.extend(_walk_values(child, f"{path}[{index}]"))
     return records
-
-
-def _is_secret_key(key: str) -> bool:
-    normalized = key.casefold().replace("-", "_")
-    return normalized in FORBIDDEN_SECRET_KEYS or any(
-        normalized.endswith(suffix)
-        for suffix in (
-            "_access_key",
-            "_api_key",
-            "_client_secret",
-            "_password",
-            "_private_key",
-            "_secret",
-            "_token",
-        )
-    )
 
 
 def validate_instance_document(document: dict[str, Any]) -> list[InstanceFinding]:
@@ -185,9 +154,28 @@ def validate_instance_document(document: dict[str, Any]) -> list[InstanceFinding
             findings.append(
                 InstanceFinding("ERROR", f"$.runtime.{field}", "must be a safe relative path")
             )
+        elif Path(runtime[field]).parts[0] != "runtime":
+            findings.append(
+                InstanceFinding(
+                    "ERROR",
+                    f"$.runtime.{field}",
+                    "must remain below the reserved runtime/ directory",
+                )
+            )
+    if (
+        _is_safe_relative(runtime["state_location"])
+        and Path(runtime["state_location"]).suffix != ".sqlite3"
+    ):
+        findings.append(
+            InstanceFinding(
+                "ERROR",
+                "$.runtime.state_location",
+                "control-plane state must use a .sqlite3 filename",
+            )
+        )
 
     for value_path, key, value in _walk_values(document):
-        if _is_secret_key(key):
+        if is_secret_key(key):
             findings.append(
                 InstanceFinding(
                     "ERROR",
@@ -195,7 +183,7 @@ def validate_instance_document(document: dict[str, Any]) -> list[InstanceFinding
                     "inline secret field is forbidden; use secret_refs with an external identifier",
                 )
             )
-        if isinstance(value, str) and any(pattern.search(value) for pattern in SECRET_PATTERNS):
+        if isinstance(value, str) and any(pattern.search(value) for pattern in CREDENTIAL_PATTERNS):
             findings.append(
                 InstanceFinding("ERROR", value_path, "credential-like value is forbidden")
             )
@@ -466,9 +454,23 @@ def validate_instance_directory(
             )
             findings.append(InstanceFinding(severity, relative, message))
 
+    runtime = document["runtime"]
+    runtime_roots = [
+        Path(runtime["workspace_root"]),
+        Path(runtime["artifact_root"]),
+    ]
+    state_path = Path(runtime["state_location"])
     for path in sorted(item for item in instance_root.rglob("*") if item.is_file()):
-        relative = path.relative_to(instance_root).as_posix()
-        if ".git" in path.parts or "runtime" in path.parts:
+        relative_path = path.relative_to(instance_root)
+        relative = relative_path.as_posix()
+        is_state_file = relative == state_path.as_posix() or relative.startswith(
+            state_path.as_posix() + "-"
+        )
+        is_runtime_child = any(
+            relative_path == runtime_root or runtime_root in relative_path.parents
+            for runtime_root in runtime_roots
+        )
+        if ".git" in relative_path.parts or is_state_file or is_runtime_child:
             continue
         if (
             path.name in FORBIDDEN_RUNTIME_NAMES
@@ -491,7 +493,7 @@ def validate_instance_directory(
                 )
             )
             continue
-        if any(pattern.search(content) for pattern in SECRET_PATTERNS):
+        if any(pattern.search(content) for pattern in CREDENTIAL_PATTERNS):
             findings.append(
                 InstanceFinding("ERROR", relative, "credential-like value is forbidden")
             )

@@ -27,7 +27,7 @@ class FactoryCliTests(unittest.TestCase):
         result = run_cli("doctor")
         self.assertEqual(result.returncode, 0, result.stderr)
         report = json.loads(result.stdout)
-        self.assertEqual(report["factory_version"], "0.2.0")
+        self.assertEqual(report["factory_version"], (ROOT / "VERSION").read_text().strip())
         self.assertFalse(report["production_integrations_enabled"])
 
     def test_instance_cli_round_trip(self) -> None:
@@ -55,6 +55,105 @@ class FactoryCliTests(unittest.TestCase):
             self.assertEqual(result.returncode, 2)
             self.assertIn("cannot exceed A2", result.stderr)
             self.assertFalse(output.exists())
+
+    def test_persistent_runtime_cli_survives_commands_and_verified_restore(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            instance = base / "instance"
+            restored_instance = base / "restored-instance"
+            backup = base / "state-backup.sqlite3"
+            evidence = base / "evidence.json"
+            evidence.write_text('{"source":"feedback-example-001"}\n', encoding="utf-8")
+
+            self.assertEqual(
+                run_cli(
+                    "instance", "init", "--config", str(EXAMPLE), "--output", str(instance)
+                ).returncode,
+                0,
+            )
+            self.assertEqual(
+                run_cli("runtime", "init", "--instance", str(instance)).returncode,
+                0,
+            )
+            ingested = run_cli(
+                "runtime",
+                "ingest",
+                "--instance",
+                str(instance),
+                "--event",
+                str(ROOT / "examples/feedback-to-release/input/feedback.json"),
+                "--idempotency-key",
+                "cli:feedback:1",
+            )
+            self.assertEqual(ingested.returncode, 0, ingested.stderr)
+            work_id = json.loads(ingested.stdout)["work_item"]["id"]
+            leased = run_cli(
+                "runtime",
+                "lease",
+                "--instance",
+                str(instance),
+                "--work-item",
+                work_id,
+                "--actor-id",
+                "agent-intake-cli",
+                "--role",
+                "public-intake",
+                "--expected-revision",
+                "0",
+                "--idempotency-key",
+                "cli:lease:1",
+            )
+            self.assertEqual(leased.returncode, 0, leased.stderr)
+            lease_id = json.loads(leased.stdout)["lease"]["lease_id"]
+            applied = run_cli(
+                "runtime",
+                "apply",
+                "--instance",
+                str(instance),
+                "--work-item",
+                work_id,
+                "--action",
+                "normalize",
+                "--actor-id",
+                "agent-intake-cli",
+                "--role",
+                "public-intake",
+                "--expected-revision",
+                "0",
+                "--idempotency-key",
+                "cli:transition:1",
+                "--evidence",
+                str(evidence),
+                "--lease-id",
+                lease_id,
+            )
+            self.assertEqual(applied.returncode, 0, applied.stderr)
+            self.assertEqual(json.loads(applied.stdout)["work_item"]["state"], "NORMALIZED")
+            verified = run_cli("runtime", "audit-verify", "--instance", str(instance))
+            self.assertEqual(verified.returncode, 0, verified.stderr)
+            self.assertTrue(json.loads(verified.stdout)["valid"])
+            backed_up = run_cli(
+                "runtime", "backup", "--instance", str(instance), "--output", str(backup)
+            )
+            self.assertEqual(backed_up.returncode, 0, backed_up.stderr)
+
+            self.assertEqual(
+                run_cli(
+                    "instance", "init", "--config", str(EXAMPLE), "--output", str(restored_instance)
+                ).returncode,
+                0,
+            )
+            restored = run_cli(
+                "runtime",
+                "restore",
+                "--instance",
+                str(restored_instance),
+                "--backup",
+                str(backup),
+            )
+            self.assertEqual(restored.returncode, 0, restored.stderr)
+            restored_status = run_cli("runtime", "status", "--instance", str(restored_instance))
+            self.assertEqual(json.loads(restored_status.stdout)["work_items"], {"NORMALIZED": 1})
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@
 ## 接管顺序
 
 1. 完整读取本文件。
-2. 读取 `docs/01-principles/project-constitution.md`、`docs/02-architecture/reference-architecture.md` 和 `docs/03-security/threat-model.md`；创建或维护实例时还要读取 `factory-package.json` 与 `docs/08-factory/instance-lifecycle.md`。
+2. 读取 `docs/01-principles/project-constitution.md`、`docs/02-architecture/reference-architecture.md` 和 `docs/03-security/threat-model.md`；创建或维护实例时还要读取 `factory-package.json` 与 `docs/08-factory/instance-lifecycle.md`，运行或恢复控制平面时再读 `docs/09-control-plane/persistence-and-recovery.md`。
 3. 读取 `team-packs/software-delivery/` 下的团队、工作流、风险、质量、工具和上下文策略 JSON。
 4. 根据当前角色只读取对应 `skills/<skill-id>/SKILL.md`；Factory实例生命周期使用 `manage-agent-team-factory`，不要把所有 Skill 同时装入上下文。
 5. 根据接入平台读取一个 `adapters/<adapter-id>/adapter.json`。
@@ -15,6 +15,7 @@
 
 - 原则和权限：项目宪法、威胁模型、团队包策略。
 - 流程状态：工作流控制器和结构化工作项；聊天不是状态权威。
+- 持久运行状态：实例配置指定的SQLite数据库及其已验证备份；数据库不进入普通Git。
 - 项目事实：被接入项目自己的入口、架构、ADR 和实时仓库。
 - 可复用方法：本仓库 `skills/`。
 - 历史证据：Git、Issue、PR、CI、发布记录和审计事件。

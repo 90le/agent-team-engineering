@@ -6,8 +6,8 @@ import hashlib
 
 from core.models import Actor, FeedbackEvent, WorkItem
 from core.policy import contains_untrusted_directive, infer_risk
+from core.security import redact_credential_like
 from core.workflow import transition
-
 
 ACTORS = {
     "intake": Actor("agent-intake", "public-intake"),
@@ -28,7 +28,7 @@ def _digest(value: str) -> str:
 
 def create_work_item(event: FeedbackEvent) -> WorkItem:
     stable_id = _digest(f"{event.channel}:{event.message_id}")[:16]
-    summary = " ".join(event.content.split())[:240]
+    summary = redact_credential_like(" ".join(event.content.split()))[:240]
     return WorkItem(
         id=f"work-{stable_id}",
         source_event_id=event.event_id,
@@ -55,22 +55,59 @@ def run_feedback_to_release(event: FeedbackEvent, *, approve_production: bool = 
     artifact_digest = f"sha256:{_digest(commit)}"
 
     _step(item, "normalize", "intake", {"source": event.event_id, "content_mode": "untrusted-data"})
-    _step(item, "queue_triage", "intake", {"queue": "software-delivery", "idempotency_key": item.id})
+    _step(
+        item, "queue_triage", "intake", {"queue": "software-delivery", "idempotency_key": item.id}
+    )
     _step(item, "accept_triage", "triage", {"decision": "accept-for-demo", "risk": item.risk.value})
     _step(item, "write_spec", "product", {"spec_id": f"spec-{item.id}", "acceptance_count": "2"})
-    _step(item, "approve_plan", "owner", {"approval_id": "approval-plan-demo", "scope_hash": _digest(item.summary)})
-    _step(item, "start_implementation", "builder", {"workspace": "ephemeral-demo", "branch": f"agent/demo/{item.id}"})
+    _step(
+        item,
+        "approve_plan",
+        "owner",
+        {"approval_id": "approval-plan-demo", "scope_hash": _digest(item.summary)},
+    )
+    _step(
+        item,
+        "start_implementation",
+        "builder",
+        {"workspace": "ephemeral-demo", "branch": f"agent/demo/{item.id}"},
+    )
     _step(item, "open_pr", "builder", {"pull_request": "demo://pull/1", "commit": commit})
     _step(item, "record_ci_pass", "qa", {"check_run": "demo://checks/1", "result": "passed"})
-    _step(item, "approve_review", "reviewer", {"review_id": "demo://reviews/1", "decision": "approved"})
-    _step(item, "deploy_staging", "release", {"artifact_digest": artifact_digest, "environment": "staging-demo"})
+    _step(
+        item,
+        "approve_review",
+        "reviewer",
+        {"review_id": "demo://reviews/1", "decision": "approved"},
+    )
+    _step(
+        item,
+        "deploy_staging",
+        "release",
+        {"artifact_digest": artifact_digest, "environment": "staging-demo"},
+    )
     _step(item, "accept_staging", "qa", {"acceptance": "passed", "evidence": "demo://acceptance/1"})
 
     if not approve_production:
         return item
 
-    _step(item, "approve_production", "owner", {"approval_id": "approval-production-demo", "artifact_digest": artifact_digest})
-    _step(item, "deploy_production", "release", {"artifact_digest": artifact_digest, "environment": "production-demo"})
-    _step(item, "verify_production", "operations", {"health": "healthy", "observation_window": "simulated"})
+    _step(
+        item,
+        "approve_production",
+        "owner",
+        {"approval_id": "approval-production-demo", "artifact_digest": artifact_digest},
+    )
+    _step(
+        item,
+        "deploy_production",
+        "release",
+        {"artifact_digest": artifact_digest, "environment": "production-demo"},
+    )
+    _step(
+        item,
+        "verify_production",
+        "operations",
+        {"health": "healthy", "observation_window": "simulated"},
+    )
     _step(item, "close", "operations", {"closure": "verified", "feedback_notified": "simulated"})
     return item

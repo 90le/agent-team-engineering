@@ -105,6 +105,12 @@ class InstanceFactoryTests(unittest.TestCase):
         findings = validate_instance_document(document)
         self.assertTrue(any("safe relative path" in finding.message for finding in findings))
 
+    def test_runtime_state_cannot_overlap_instance_authority(self) -> None:
+        document = load_example()
+        document["runtime"]["state_location"] = ".agent-team/instance.json"
+        findings = validate_instance_document(document)
+        self.assertTrue(any("reserved runtime" in finding.message for finding in findings))
+
     def test_managed_drift_fails_but_seeded_drift_warns(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             instance = Path(temporary) / "instance"

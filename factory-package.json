@@ -3,7 +3,7 @@
   "schema_version": "1.0.0",
   "id": "factory.agent-team-engineering",
   "name": "Agent Team Engineering Factory",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "status": "STABLE",
   "instance_schema_version": "1.0.0",
   "maximum_bootstrap_autonomy": "A2",
@@ -23,6 +23,11 @@
     "team-packs/software-delivery/risk-policy.json",
     "team-packs/software-delivery/team-pack.json",
     "team-packs/software-delivery/tool-policy.json",
-    "team-packs/software-delivery/workflow.json"
+    "team-packs/software-delivery/workflow.json",
+    "schemas/control-plane-audit.schema.json",
+    "schemas/control-plane-status.schema.json",
+    "schemas/outbox-effect.schema.json",
+    "schemas/task-lease.schema.json",
+    "docs/09-control-plane/persistence-and-recovery.md"
   ]
 }

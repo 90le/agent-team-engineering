@@ -9,4 +9,5 @@
 - [发布与迁移](06-portability/release-and-migration.md)
 - [验证与恢复](07-operations/verification-and-recovery.md)
 - [实例生成与治理](08-factory/instance-lifecycle.md)
+- [持久化与故障恢复](09-control-plane/persistence-and-recovery.md)
 - [架构决策](adr/README.md)

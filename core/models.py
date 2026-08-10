@@ -47,6 +47,9 @@ class Actor:
     role: str
     kind: str = "agent"
 
+    def to_dict(self) -> dict[str, str]:
+        return asdict(self)
+
 
 @dataclass(frozen=True)
 class FeedbackEvent:
@@ -56,6 +59,9 @@ class FeedbackEvent:
     received_at: str
     content: str
     sender_ref: str = "anonymous"
+
+    def to_dict(self) -> dict[str, str]:
+        return asdict(self)
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "FeedbackEvent":
@@ -85,6 +91,20 @@ class AuditEvent:
     revision: int
     evidence: dict[str, str]
 
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> AuditEvent:
+        return cls(
+            sequence=int(value["sequence"]),
+            timestamp=str(value["timestamp"]),
+            actor_id=str(value["actor_id"]),
+            actor_role=str(value["actor_role"]),
+            action=str(value["action"]),
+            from_state=str(value["from_state"]),
+            to_state=str(value["to_state"]),
+            revision=int(value["revision"]),
+            evidence={str(key): str(item) for key, item in value["evidence"].items()},
+        )
+
 
 @dataclass
 class WorkItem:
@@ -107,3 +127,31 @@ class WorkItem:
         value["risk"] = self.risk.value
         value["state"] = self.state.value
         return value
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> WorkItem:
+        return cls(
+            id=str(value["id"]),
+            source_event_id=str(value["source_event_id"]),
+            title=str(value["title"]),
+            summary=str(value["summary"]),
+            risk=RiskLevel(str(value["risk"])),
+            state=WorkflowState(str(value.get("state", WorkflowState.RECEIVED.value))),
+            revision=int(value.get("revision", 0)),
+            untrusted_directive_detected=bool(value.get("untrusted_directive_detected", False)),
+            author_id=str(value["author_id"]) if value.get("author_id") is not None else None,
+            plan_approved_by=(
+                str(value["plan_approved_by"])
+                if value.get("plan_approved_by") is not None
+                else None
+            ),
+            production_approved_by=(
+                str(value["production_approved_by"])
+                if value.get("production_approved_by") is not None
+                else None
+            ),
+            artifact_digest=(
+                str(value["artifact_digest"]) if value.get("artifact_digest") is not None else None
+            ),
+            audit=[AuditEvent.from_dict(event) for event in value.get("audit", [])],
+        )

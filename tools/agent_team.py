@@ -15,6 +15,7 @@ if str(ROOT) not in sys.path:
 
 from core.adoption import write_adoption_proposal  # noqa: E402
 from core.context import write_context_bundle  # noqa: E402
+from core.control_plane import ControlPlane  # noqa: E402
 from core.instance import (  # noqa: E402
     factory_contract_digest,
     init_instance,
@@ -22,7 +23,7 @@ from core.instance import (  # noqa: E402
     relock_instance,
     validate_instance_directory,
 )
-from core.models import FeedbackEvent  # noqa: E402
+from core.models import Actor, FeedbackEvent  # noqa: E402
 from core.simulation import run_feedback_to_release  # noqa: E402
 from core.validation import validate_repository  # noqa: E402
 
@@ -115,6 +116,134 @@ def command_instance_relock(args: argparse.Namespace) -> int:
     return 0
 
 
+def _load_json_object(path: str) -> dict:
+    target = Path(path).resolve()
+    value = json.loads(target.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise ValueError(f"JSON root must be an object: {target}")
+    return value
+
+
+def _runtime_database(instance: str) -> tuple[Path, Path]:
+    instance_root = Path(instance).resolve()
+    findings = validate_instance_directory(instance_root)
+    errors = [finding for finding in findings if finding.severity == "ERROR"]
+    if errors:
+        details = "; ".join(f"{finding.path}: {finding.message}" for finding in errors)
+        raise RuntimeError(f"instance is invalid: {details}")
+    document = _load_json_object(str(instance_root / ".agent-team" / "instance.json"))
+    database = (instance_root / document["runtime"]["state_location"]).resolve()
+    if instance_root not in database.parents:
+        raise RuntimeError("runtime database must remain inside the instance root")
+    return instance_root, database
+
+
+def command_runtime_init(args: argparse.Namespace) -> int:
+    instance_root, database = _runtime_database(args.instance)
+    with ControlPlane(database, create=True) as control:
+        report = control.status()
+        report["instance_root"] = str(instance_root)
+        report["database"] = str(database)
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_runtime_status(args: argparse.Namespace) -> int:
+    _, database = _runtime_database(args.instance)
+    with ControlPlane(database, create=False) as control:
+        print(json.dumps(control.status(), ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_runtime_ingest(args: argparse.Namespace) -> int:
+    _, database = _runtime_database(args.instance)
+    event = FeedbackEvent.from_dict(_load_json_object(args.event))
+    with ControlPlane(database, create=False) as control:
+        result = control.ingest_feedback(event, idempotency_key=args.idempotency_key)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_runtime_lease(args: argparse.Namespace) -> int:
+    _, database = _runtime_database(args.instance)
+    actor = Actor(args.actor_id, args.role, kind="agent")
+    with ControlPlane(database, create=False) as control:
+        result = control.acquire_lease(
+            args.work_item,
+            actor,
+            expected_revision=args.expected_revision,
+            ttl_seconds=args.ttl_seconds,
+            idempotency_key=args.idempotency_key,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_runtime_apply(args: argparse.Namespace) -> int:
+    _, database = _runtime_database(args.instance)
+    actor = Actor(args.actor_id, args.role, kind=args.actor_kind)
+    evidence = _load_json_object(args.evidence)
+    with ControlPlane(database, create=False) as control:
+        result = control.apply_transition(
+            args.work_item,
+            args.action,
+            actor,
+            evidence,
+            expected_revision=args.expected_revision,
+            idempotency_key=args.idempotency_key,
+            lease_id=args.lease_id,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_runtime_pause(args: argparse.Namespace) -> int:
+    _, database = _runtime_database(args.instance)
+    owner = Actor(args.owner_id, "owner", kind="human")
+    with ControlPlane(database, create=False) as control:
+        result = control.set_paused(
+            args.paused,
+            owner,
+            reason=args.reason,
+            idempotency_key=args.idempotency_key,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_runtime_reconcile(args: argparse.Namespace) -> int:
+    _, database = _runtime_database(args.instance)
+    with ControlPlane(database, create=False) as control:
+        print(json.dumps(control.reconcile(), ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_runtime_verify_audit(args: argparse.Namespace) -> int:
+    _, database = _runtime_database(args.instance)
+    with ControlPlane(database, create=False) as control:
+        print(json.dumps(control.verify_audit(), ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_runtime_backup(args: argparse.Namespace) -> int:
+    _, database = _runtime_database(args.instance)
+    with ControlPlane(database, create=False) as control:
+        print(json.dumps(control.backup(Path(args.output)), ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_runtime_restore(args: argparse.Namespace) -> int:
+    _, database = _runtime_database(args.instance)
+    print(
+        json.dumps(
+            ControlPlane.restore(Path(args.backup), database),
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="agent-team", description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -179,6 +308,85 @@ def build_parser() -> argparse.ArgumentParser:
     )
     instance_relock.add_argument("--root", required=True)
     instance_relock.set_defaults(func=command_instance_relock)
+
+    runtime = subparsers.add_parser("runtime", help="operate the persistent control plane")
+    runtime_commands = runtime.add_subparsers(dest="runtime_command", required=True)
+
+    runtime_init = runtime_commands.add_parser(
+        "init", help="initialize the instance state database"
+    )
+    runtime_init.add_argument("--instance", required=True)
+    runtime_init.set_defaults(func=command_runtime_init)
+
+    runtime_status = runtime_commands.add_parser("status", help="show non-secret runtime status")
+    runtime_status.add_argument("--instance", required=True)
+    runtime_status.set_defaults(func=command_runtime_status)
+
+    runtime_ingest = runtime_commands.add_parser("ingest", help="persist one feedback event")
+    runtime_ingest.add_argument("--instance", required=True)
+    runtime_ingest.add_argument("--event", required=True)
+    runtime_ingest.add_argument("--idempotency-key", required=True)
+    runtime_ingest.set_defaults(func=command_runtime_ingest)
+
+    runtime_lease = runtime_commands.add_parser("lease", help="acquire an agent task lease")
+    runtime_lease.add_argument("--instance", required=True)
+    runtime_lease.add_argument("--work-item", required=True)
+    runtime_lease.add_argument("--actor-id", required=True)
+    runtime_lease.add_argument("--role", required=True)
+    runtime_lease.add_argument("--expected-revision", required=True, type=int)
+    runtime_lease.add_argument("--ttl-seconds", type=int, default=300)
+    runtime_lease.add_argument("--idempotency-key", required=True)
+    runtime_lease.set_defaults(func=command_runtime_lease)
+
+    runtime_apply = runtime_commands.add_parser("apply", help="commit one authorized transition")
+    runtime_apply.add_argument("--instance", required=True)
+    runtime_apply.add_argument("--work-item", required=True)
+    runtime_apply.add_argument("--action", required=True)
+    runtime_apply.add_argument("--actor-id", required=True)
+    runtime_apply.add_argument("--role", required=True)
+    runtime_apply.add_argument("--actor-kind", choices=("agent", "human"), default="agent")
+    runtime_apply.add_argument("--expected-revision", required=True, type=int)
+    runtime_apply.add_argument("--idempotency-key", required=True)
+    runtime_apply.add_argument("--evidence", required=True)
+    runtime_apply.add_argument("--lease-id")
+    runtime_apply.set_defaults(func=command_runtime_apply)
+
+    for name, paused, help_text in (
+        ("pause", True, "activate the global owner stop"),
+        ("resume", False, "resume work after owner review"),
+    ):
+        runtime_pause = runtime_commands.add_parser(name, help=help_text)
+        runtime_pause.add_argument("--instance", required=True)
+        runtime_pause.add_argument("--owner-id", required=True)
+        runtime_pause.add_argument("--reason", required=True)
+        runtime_pause.add_argument("--idempotency-key", required=True)
+        runtime_pause.set_defaults(func=command_runtime_pause, paused=paused)
+
+    runtime_reconcile = runtime_commands.add_parser(
+        "reconcile", help="recover expired leases and claims"
+    )
+    runtime_reconcile.add_argument("--instance", required=True)
+    runtime_reconcile.set_defaults(func=command_runtime_reconcile)
+
+    runtime_verify = runtime_commands.add_parser(
+        "audit-verify", help="verify the persistent audit hash chain"
+    )
+    runtime_verify.add_argument("--instance", required=True)
+    runtime_verify.set_defaults(func=command_runtime_verify_audit)
+
+    runtime_backup = runtime_commands.add_parser(
+        "backup", help="create a verified non-overwriting SQLite backup"
+    )
+    runtime_backup.add_argument("--instance", required=True)
+    runtime_backup.add_argument("--output", required=True)
+    runtime_backup.set_defaults(func=command_runtime_backup)
+
+    runtime_restore = runtime_commands.add_parser(
+        "restore", help="restore into an absent configured state path"
+    )
+    runtime_restore.add_argument("--instance", required=True)
+    runtime_restore.add_argument("--backup", required=True)
+    runtime_restore.set_defaults(func=command_runtime_restore)
     return parser
 
 
