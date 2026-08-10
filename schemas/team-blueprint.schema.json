@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:team-blueprint:1.0.0",
+  "title": "Portable Agent Team blueprint",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "schema_version", "team_id", "instance", "platform_targets", "role_bindings", "delivery"],
+  "properties": {
+    "$schema": {"const": "urn:agent-team:schema:team-blueprint:1.0.0"},
+    "schema_version": {"const": "1.0.0"},
+    "team_id": {"type": "string", "pattern": "^team\\.[a-z0-9][a-z0-9.-]*$"},
+    "instance": {"type": "object"},
+    "platform_targets": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4,
+      "uniqueItems": true,
+      "items": {"enum": ["openclaw", "codex", "claude", "generic-ai"]}
+    },
+    "role_bindings": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["role", "engine", "model", "reasoning_effort", "sandbox_mode"],
+        "properties": {
+          "role": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+          "engine": {"enum": ["openclaw", "codex", "claude", "generic-ai"]},
+          "model": {"type": ["string", "null"], "maxLength": 200},
+          "reasoning_effort": {"enum": ["inherit", "low", "medium", "high", "xhigh", "max", "ultra"]},
+          "sandbox_mode": {"enum": ["read-only", "workspace-write"]}
+        }
+      }
+    },
+    "delivery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stop_after", "create_issue", "plan_approval", "merge", "production_deployment"],
+      "properties": {
+        "stop_after": {"const": "draft-pr"},
+        "create_issue": {"type": "boolean"},
+        "plan_approval": {"const": "required"},
+        "merge": {"const": "forbidden"},
+        "production_deployment": {"const": "forbidden"}
+      }
+    }
+  }
+}

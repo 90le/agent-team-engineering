@@ -10,6 +10,15 @@ v0.4提供一个不动态加载插件的Python参考宿主、版本化Manifest�
 python3 tools/agent_team.py adapter catalog
 ```
 
+## v0.6的受控实现
+
+v0.6在不改变五层放行条件的前提下，增加两个必须由Team Runtime显式注入的实现：
+
+- `CliModelRouterAdapter`执行`agent.invoke`，按锁定role binding选择Codex或Claude CLI；调用、身份、revision、项目、预算和结果都由Schema绑定，投递为at-most-once。
+- `GitHubCliTransport`把既有GitHub Reference Adapter连接到采用环境已经认证的`gh`，并在重试前分页查找稳定标记。只有Team命令的显式provider写入开关才会注册它。
+
+Manifest仍然不能自行加载上述代码。模型slot、code-hosting slot和Runner同意彼此独立。outbox Worker还可按准确effect ID领取协调器刚排队的任务，避免抢走其他Worker的PENDING效果。
+
 ## 五层放行条件
 
 | 层 | 权威 | 失败结果 |

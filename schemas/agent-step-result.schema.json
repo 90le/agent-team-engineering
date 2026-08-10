@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:agent-step-result:1.0.0",
+  "title": "Bound executable agent step result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "task_id", "work_item_id", "role", "action", "expected_revision", "status", "summary", "evidence", "artifact_refs", "cost_units"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "task_id": {"type": "string", "minLength": 1, "maxLength": 200},
+    "work_item_id": {"type": "string", "minLength": 1, "maxLength": 200},
+    "role": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+    "action": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+    "expected_revision": {"type": "integer", "minimum": 0},
+    "status": {"enum": ["COMPLETED", "BLOCKED", "FAILED"]},
+    "summary": {"type": "string", "minLength": 1, "maxLength": 4000},
+    "evidence": {"type": "object"},
+    "artifact_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 1000}},
+    "cost_units": {"type": "number", "minimum": 0}
+  }
+}

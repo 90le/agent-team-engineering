@@ -34,6 +34,13 @@
 | 回滚本身失败 | 回滚前捕获当前版本救援包并写事务日志；中断时返回回滚前版本 |
 | 恢复材料泄露或被替换 | 恢复目录/文件强制0700/0600，绑定实例、计划、锁和逐文件摘要，拒绝额外内容及符号链接 |
 | “只读接入”隐式修改目标仓库 | Git发现禁用optional locks；提案和候选输出必须位于目标仓库外且目标路径不存在 |
+| 蓝图编译覆盖用户文件或静默漂移 | team create/export只接受不存在路径；blueprint与全部生成文件由team lock摘要绑定 |
+| 协调器误领取其他Worker任务 | outbox支持按准确effect ID领取；未匹配任务保持PENDING |
+| 模型把项目说明当成更高权限 | Codex live忽略项目规则；Claude使用safe mode；任务信封、宿主策略和状态机而非项目提示决定权限 |
+| 测试命令读取主机秘密 | Runner Profile无秘密、argv不经Shell、执行环境只保留最小非秘密变量；高风险项目必须改用外部隔离Runner |
+| Agent在批准前开始修改代码 | SPEC_READY固定返回人工计划门禁；worktree只在PLAN_APPROVED后创建，scope hash不匹配不能批准 |
+| GitHub写入被模型权限隐式开启 | code-hosting实例绑定、项目/remote/default branch和显式provider写入开关必须同时成立；模型slot与GitHub slot分离 |
+| 自动化越过Draft PR合并上线 | Team delivery contract固定merge/production forbidden；Reference Runtime停止在独立review，未实现team merge/deploy命令 |
 
 ## 永久人工门禁
 
@@ -48,3 +55,7 @@ SQLite运行库可能含有用户反馈、摘要和外部引用，至少按采�
 生命周期文件互斥依赖POSIX `fcntl`，只约束遵守Factory协议的本机命令。操作者必须在升级、恢复或回滚前停止所有调度器、Worker和适配器；数据库pause不能作为进程停止证明。恢复包只保护Factory转换文件，不能替代SQLite、目标项目、秘密、外部提供者或整机灾备。
 
 CLI的暂停/恢复操作假定调用者已经通过本机操作系统权限进入可信管理边界。工作流owner转换即使声明`actor-kind=human`也不会通过，除非同时提供由已配置验证器校验的短期绑定断言。v0.4的HMAC验证器是本地参考实现；对外提供审批入口仍必须由认证适配器校验用户、会话、操作内容、有效期与一次性挑战，不能把公开IM消息或Agent自报身份直接转换成人工批准。
+
+v0.6 `team approve-plan`进一步要求操作者回填完整规格scope hash，但其身份仍只来自本机操作系统权限。它适合单机参考和受控管理，不是互联网审批协议。OpenClaw approval relay必须与公开intake使用不同账号、频道、workspace，并把远程认证结果转换为同等绑定的短期断言。
+
+Host Runner刻意需要单独开关，也不会继承Token、SSH Agent、云凭据或用户HOME。它仍共享主机内核和网络，不能执行恶意第三方代码；`--allow-host-runner`表示操作者接受这一参考边界，不会把它提升为生产沙箱。
