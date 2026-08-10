@@ -22,6 +22,7 @@ REQUIRED_PATHS = (
     "team-packs/software-delivery/workflow.json",
     "team-packs/software-delivery/risk-policy.json",
     "team-packs/software-delivery/quality-gates.json",
+    "team-packs/software-delivery/tool-policy.json",
 )
 
 SECRET_PATTERNS = (
@@ -109,5 +110,17 @@ def validate_repository(root: Path) -> list[Finding]:
         for skill_id in team.get("skill_ids", []):
             if not (root / "skills" / skill_id / "SKILL.md").is_file():
                 findings.append(Finding("ERROR", team_path.relative_to(root).as_posix(), f"missing skill: {skill_id}"))
+        tool_policy_path = team_path.parent / team.get("tool_policy", "")
+        if not tool_policy_path.is_file():
+            findings.append(Finding("ERROR", team_path.relative_to(root).as_posix(), "tool policy is missing"))
+        else:
+            tool_policy = json.loads(tool_policy_path.read_text(encoding="utf-8"))
+            tool_roles = set(tool_policy.get("roles", {}))
+            if roles != tool_roles:
+                findings.append(Finding("ERROR", tool_policy_path.relative_to(root).as_posix(), "tool policy roles differ from team roles"))
+            for role_id, policy in tool_policy.get("roles", {}).items():
+                overlap = set(policy.get("allowed", [])) & set(policy.get("denied", []))
+                if overlap:
+                    findings.append(Finding("ERROR", tool_policy_path.relative_to(root).as_posix(), f"role {role_id} both allows and denies: {sorted(overlap)}"))
 
     return findings

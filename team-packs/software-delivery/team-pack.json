@@ -15,16 +15,17 @@
     "deploy-and-rollback"
   ],
   "roles": [
-    {"id": "public-intake", "owner": "platform", "capabilities": ["feedback.normalize", "feedback.queue"], "cannot": ["shell", "git-write", "deploy"]},
-    {"id": "triage", "owner": "product", "capabilities": ["work.triage"], "cannot": ["code-write", "merge", "deploy"]},
-    {"id": "product", "owner": "product", "capabilities": ["spec.write"], "cannot": ["self-approve", "merge", "deploy"]},
-    {"id": "owner", "owner": "human", "capabilities": ["plan.approve", "production.approve"], "cannot": ["delegate-final-risk-by-default"]},
-    {"id": "builder", "owner": "engineering", "capabilities": ["implementation.start", "pr.open"], "cannot": ["main-push", "self-review", "deploy"]},
-    {"id": "qa", "owner": "quality", "capabilities": ["ci.record", "staging.accept"], "cannot": ["bypass-failed-checks", "production-deploy"]},
-    {"id": "reviewer", "owner": "quality", "capabilities": ["review.approve"], "cannot": ["author-branch-write", "self-review", "deploy"]},
-    {"id": "release", "owner": "release", "capabilities": ["staging.deploy", "production.deploy"], "cannot": ["source-write", "artifact-rebuild", "arbitrary-shell"]},
-    {"id": "operations", "owner": "operations", "capabilities": ["production.verify", "production.rollback", "work.close"], "cannot": ["source-merge", "approval-forgery"]}
+    {"id": "public-intake", "owner": "platform", "capabilities": ["feedback.normalize", "feedback.queue"]},
+    {"id": "triage", "owner": "product", "capabilities": ["work.triage"]},
+    {"id": "product", "owner": "product", "capabilities": ["spec.write"]},
+    {"id": "owner", "owner": "human", "capabilities": ["plan.approve", "production.approve"]},
+    {"id": "builder", "owner": "engineering", "specializations": ["frontend", "backend", "full-stack", "documentation"], "capabilities": ["implementation.start", "pr.open"]},
+    {"id": "qa", "owner": "quality", "capabilities": ["ci.record", "staging.accept"]},
+    {"id": "reviewer", "owner": "quality", "capabilities": ["review.approve"]},
+    {"id": "release", "owner": "release", "capabilities": ["staging.deploy", "production.deploy"]},
+    {"id": "operations", "owner": "operations", "capabilities": ["production.verify", "production.rollback", "work.close"]}
   ],
+  "tool_policy": "tool-policy.json",
   "separation_rules": [
     "author_id must differ from reviewer_id",
     "release role deploys only a previously verified immutable artifact digest",

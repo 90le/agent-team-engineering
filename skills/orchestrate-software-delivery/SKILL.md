@@ -5,7 +5,7 @@ description: Coordinate a governed software work item across intake, triage, spe
 
 # Orchestrate Software Delivery
 
-Read `AI-BOOTSTRAP.md` and the four JSON policies in `team-packs/software-delivery/` before routing work.
+Read `AI-BOOTSTRAP.md` and all policy JSON files in `team-packs/software-delivery/` before routing work.
 
 ## Run the workflow
 

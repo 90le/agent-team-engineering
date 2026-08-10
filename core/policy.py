@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from pathlib import Path
 
 from core.models import Actor, RiskLevel, WorkItem
 
@@ -25,36 +27,26 @@ class ToolPolicy:
     denied: frozenset[str]
 
 
-ROLE_CAPABILITIES: dict[str, frozenset[str]] = {
-    "public-intake": frozenset({"feedback.normalize", "feedback.queue"}),
-    "triage": frozenset({"work.triage"}),
-    "product": frozenset({"spec.write"}),
-    "builder": frozenset({"implementation.start", "pr.open"}),
-    "qa": frozenset({"ci.record", "staging.accept"}),
-    "reviewer": frozenset({"review.approve"}),
-    "release": frozenset({"staging.deploy", "production.deploy"}),
-    "operations": frozenset({"production.verify", "production.rollback", "work.close"}),
-    "owner": frozenset({"plan.approve", "production.approve"}),
-}
+PACK_ROOT = Path(__file__).resolve().parents[1] / "team-packs" / "software-delivery"
 
-ROLE_TOOLS: dict[str, ToolPolicy] = {
-    "public-intake": ToolPolicy(
-        allowed=frozenset({"feedback.submit"}),
-        denied=frozenset({"shell", "git.write", "github.write", "deploy", "secrets.read"}),
-    ),
-    "builder": ToolPolicy(
-        allowed=frozenset({"workspace.write", "git.branch", "git.commit", "pr.create"}),
-        denied=frozenset({"git.main.push", "pr.merge", "deploy", "secrets.read"}),
-    ),
-    "reviewer": ToolPolicy(
-        allowed=frozenset({"repository.read", "pr.comment", "check.report"}),
-        denied=frozenset({"author.branch.write", "pr.merge", "deploy"}),
-    ),
-    "release": ToolPolicy(
-        allowed=frozenset({"artifact.read", "staging.deploy", "production.deploy-approved"}),
-        denied=frozenset({"source.write", "artifact.build", "shell.arbitrary"}),
-    ),
-}
+
+def _load_policy() -> tuple[dict[str, frozenset[str]], dict[str, ToolPolicy]]:
+    team = json.loads((PACK_ROOT / "team-pack.json").read_text(encoding="utf-8"))
+    tools = json.loads((PACK_ROOT / "tool-policy.json").read_text(encoding="utf-8"))
+    capabilities = {
+        role["id"]: frozenset(role.get("capabilities", [])) for role in team.get("roles", [])
+    }
+    tool_policies = {
+        role_id: ToolPolicy(
+            allowed=frozenset(policy.get("allowed", [])),
+            denied=frozenset(policy.get("denied", [])),
+        )
+        for role_id, policy in tools.get("roles", {}).items()
+    }
+    return capabilities, tool_policies
+
+
+ROLE_CAPABILITIES, ROLE_TOOLS = _load_policy()
 
 
 UNTRUSTED_DIRECTIVE_MARKERS = (

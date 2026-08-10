@@ -16,6 +16,9 @@ BASE_FILES = (
     "team-packs/software-delivery/team-pack.json",
     "team-packs/software-delivery/workflow.json",
     "team-packs/software-delivery/risk-policy.json",
+    "team-packs/software-delivery/quality-gates.json",
+    "team-packs/software-delivery/tool-policy.json",
+    "team-packs/software-delivery/context-policy.json",
 )
 
 

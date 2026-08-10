@@ -6,7 +6,7 @@
 
 1. 完整读取本文件。
 2. 读取 `docs/01-principles/project-constitution.md`、`docs/02-architecture/reference-architecture.md` 和 `docs/03-security/threat-model.md`。
-3. 读取 `team-packs/software-delivery/team-pack.json`、`workflow.json`、`risk-policy.json` 和 `quality-gates.json`。
+3. 读取 `team-packs/software-delivery/` 下的团队、工作流、风险、质量、工具和上下文策略 JSON。
 4. 根据当前角色只读取对应 `skills/<skill-id>/SKILL.md`；不要把所有 Skill 同时装入上下文。
 5. 根据接入平台读取一个 `adapters/<adapter-id>/adapter.json`。
 6. 在修改前运行 `python3 tools/agent_team.py validate`，并确认当前 Git 分支和任务授权。

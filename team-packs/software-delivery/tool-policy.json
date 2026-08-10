@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0.0",
+  "id": "tool-policy.software-delivery",
+  "default": "deny",
+  "roles": {
+    "public-intake": {
+      "allowed": ["feedback.submit"],
+      "denied": ["shell", "git.write", "github.write", "deploy", "secrets.read", "agent-to-agent"]
+    },
+    "triage": {
+      "allowed": ["work.read", "work.search", "work.propose-disposition"],
+      "denied": ["source.write", "pr.merge", "deploy", "secrets.read"]
+    },
+    "product": {
+      "allowed": ["repository.read", "spec.write-proposal", "adr.write-proposal"],
+      "denied": ["source.write", "self-approve", "pr.merge", "deploy"]
+    },
+    "owner": {
+      "allowed": ["plan.approve", "production.approve", "workflow.pause", "workflow.cancel"],
+      "denied": ["approval.delegate-by-default"]
+    },
+    "builder": {
+      "allowed": ["workspace.write", "git.branch", "git.commit", "pr.create"],
+      "denied": ["git.main.push", "pr.merge", "deploy", "secrets.read", "production.data"]
+    },
+    "qa": {
+      "allowed": ["repository.read", "runner.execute", "check.report", "staging.read"],
+      "denied": ["required-check.waive", "production.deploy", "secrets.read"]
+    },
+    "reviewer": {
+      "allowed": ["repository.read", "pr.comment", "check.report"],
+      "denied": ["author.branch.write", "pr.merge", "deploy", "self-review"]
+    },
+    "release": {
+      "allowed": ["artifact.read", "staging.deploy", "production.deploy-approved"],
+      "denied": ["source.write", "artifact.build", "shell.arbitrary", "approval.create"]
+    },
+    "operations": {
+      "allowed": ["deployment.read", "health.read", "production.rollback-approved", "work.close"],
+      "denied": ["source.merge", "approval.create", "shell.arbitrary"]
+    }
+  }
+}

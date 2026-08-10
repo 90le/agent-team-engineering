@@ -18,4 +18,6 @@
 | 是否进入生产 | 发布Agent | 受限发布控制器 | 风险政策指定的人 |
 | 是否回滚 | 监控/运维Agent | 运维控制器 | 预授权策略或人工 |
 
-角色的机器权限以 `team-packs/software-delivery/team-pack.json` 为准，本文只解释责任，不授予工具权限。
+前端、后端、全栈和文档开发是 `builder` 的专业化实例；每个实例仍使用独立任务租约、分支和工作区，可以并行但不能共享可写目录。
+
+角色能力以 `team-packs/software-delivery/team-pack.json` 为准，实际工具白名单以同目录 `tool-policy.json` 为准；本文只解释责任，不授予机器权限。
