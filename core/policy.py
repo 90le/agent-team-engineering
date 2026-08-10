@@ -61,7 +61,7 @@ UNTRUSTED_DIRECTIVE_MARKERS = (
 )
 
 CRITICAL_MARKERS = ("删除所有数据", "泄露密钥", "关闭审计", "绕过审批")
-HIGH_MARKERS = ("密码", "权限", "支付", "生产数据库", "删除用户", "pve", "群晖")
+HIGH_MARKERS = ("密码", "权限", "支付", "生产数据库", "删除用户", "虚拟化", "nas")
 MEDIUM_MARKERS = ("数据库", "接口变更", "登录", "迁移", "依赖升级")
 
 

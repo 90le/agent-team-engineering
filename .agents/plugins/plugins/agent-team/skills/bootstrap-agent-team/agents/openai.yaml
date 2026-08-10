@@ -1,0 +1,4 @@
+interface:
+  display_name: "Bootstrap Agent Team"
+  short_description: "Create a portable context-first AI team"
+  default_prompt: "Use $bootstrap-agent-team to create a governed AI team for this project."

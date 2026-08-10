@@ -1,0 +1,22 @@
+{
+  "name": "agent-team-engineering",
+  "owner": {
+    "name": "90le",
+    "url": "https://github.com/90le"
+  },
+  "description": "Context-first, vendor-neutral Agent Team creation tools.",
+  "version": "1.0.0",
+  "plugins": [
+    {
+      "name": "agent-team",
+      "source": "./.agents/plugins/plugins/agent-team",
+      "description": "Create portable context-first AI teams for Codex, Claude, OpenClaw, and Generic AI.",
+      "version": "0.7.0",
+      "author": {
+        "name": "90le"
+      },
+      "category": "development",
+      "tags": ["multi-agent", "context-engineering", "software-delivery"]
+    }
+  ]
+}

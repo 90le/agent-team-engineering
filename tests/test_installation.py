@@ -36,7 +36,7 @@ class FactoryInstallationTests(unittest.TestCase):
             manifest = verify_factory_installation(destination)
 
             self.assertEqual(report["status"], "INSTALLED")
-            self.assertEqual(report["factory_version"], "0.6.0")
+            self.assertEqual(report["factory_version"], "0.7.0")
             self.assertFalse(report["release_verified"])
             self.assertEqual(report["installation_id"], manifest["installation_id"])
             self.assertTrue((destination / "tools" / "agent_team.py").is_file())

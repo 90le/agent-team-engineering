@@ -17,7 +17,6 @@ from core.instance import (
     _factory_metadata,
     _git_revision,
     _is_safe_relative,
-    _load_json,
     init_instance,
     validate_instance_directory,
     validate_instance_document,

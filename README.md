@@ -1,160 +1,210 @@
 # Agent Team Engineering
 
-从一个软件项目和一份团队蓝图，生成一支有角色分工、人工审批、隔离开发、测试证据和独立复核的 AI 开发团队。
+[![CI](https://github.com/90le/agent-team-engineering/actions/workflows/validate.yml/badge.svg)](https://github.com/90le/agent-team-engineering/actions/workflows/validate.yml)
+[![Release](https://img.shields.io/github/v/release/90le/agent-team-engineering)](https://github.com/90le/agent-team-engineering/releases)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-当前版本：`0.6.0`。核心路径已经可以执行：
+Create a portable, context-first AI team for Codex, Claude, OpenClaw, or any file-capable Agent—then optionally add a governed feedback-to-Draft-PR runtime.
 
-> 用户反馈 → 工作项/Issue → Agent 分析 → Agent 写规格 → 人工批准准确范围 → Builder 在独立 worktree 开发 → Draft PR → 声明式测试 → 独立 Reviewer → 停止等待人工合并
+[中文说明](README.zh-CN.md) · [Start with an AI](AI-START.md) · [Full guide](docs/14-context-first/context-first-team-kit.md)
 
-它既不是一组提示词，也不是 OpenClaw、Codex 或 Claude 的替代品。它是平台中立的“团队工厂 + 治理控制器”：负责创建团队资产、分配权限、保存状态、强制门禁和提供迁移/恢复协议；实际模型与消息平台是可替换执行端。
+Current stable release: `v0.7.0`.
 
-## 别人拿到这个仓库能做什么
+## What you get
 
-- 用一份 JSON 蓝图生成 OpenClaw Agents/workspaces、Codex project agents、Claude project subagents 和 Generic AI role packs；
-- 为自己的 Git 项目创建可验证的 Team Instance，而不修改或覆盖目标项目；
-- 在无网络、无真实模型、无 GitHub 写入的情况下重放完整反馈到 Draft PR 流程；
-- 显式启用本机 Codex/Claude CLI，按角色路由真实 Agent；
-- 显式启用 GitHub 后创建 Issue、推送隔离分支和创建 Draft PR；
-- 把 Team、Skill、Schema 和审计状态迁移给另一台设备、另一个 AI 或另一位维护者；
-- 从 v0.2–v0.5.1 实例生成摘要绑定升级计划、恢复包并可逆迁移到 v0.6。
+Give the Factory a project name, repository, platform, and team preset. It creates a separate, validated package with:
 
-它不会自动 merge、不会生产部署、不会把 owner 变成 Agent，也不会把聊天中的“同意”当作认证批准。
+- shared Markdown context, principles, architecture, decisions, and project knowledge;
+- rich role contracts: mission, responsibilities, inputs, outputs, read set, Skills, tools, prohibitions, handoffs, success, and stop conditions;
+- native Codex Agents, Claude subagents, isolated OpenClaw workspaces, or Generic AI role files;
+- a strict JSON design and SHA-256 lock;
+- optionally, durable state, exact human plan approval, isolated implementation, tests, independent review, and a Draft PR stop.
 
-## 先跑一个真实闭环
+It is not a new model or chat framework. It does not create credentials, treat chat as approval, merge code, or deploy production.
 
-要求 Python 3.11+ 和 Git，无第三方 Python 依赖。第一步创建一个本地 Team、最小项目和反馈，并运行到人工计划门禁：
+```text
+Your project + team preset
+            │
+            ▼
+  context-first compiler
+            │
+   ┌────────┼─────────┬───────────┐
+   ▼        ▼         ▼           ▼
+ Codex    Claude   OpenClaw   Generic AI
+   └────────┴─────────┴───────────┘
+            │
+            ▼
+ shared roles, Skills, workflow, authority, evidence, and stop gates
+```
+
+## Choose one mode
+
+| Mode | Use it when | What runs |
+|---|---|---|
+| `software-lite` | You want a readable software team and native platform roles | Files and platform-native Agent features; no controller required |
+| `software-managed` | You want governed automation from feedback to a tested, independently reviewed Draft PR | The context layer plus the persistent reference controller |
+| `custom` | You want your own research, content, operations, or other roles | A context-only team until capabilities are explicitly mapped |
+
+Start with Lite unless durable automation is a real requirement.
+
+## Fastest start
+
+Requirements: Python 3.11+ and Git. There are no third-party runtime dependencies.
+
+```bash
+git clone https://github.com/90le/agent-team-engineering.git
+cd agent-team-engineering
+
+./agent-team create \
+  --preset software-lite \
+  --name "Example Product Team" \
+  --project "Example Product" \
+  --repo example/example-product \
+  --provider github \
+  --platform codex \
+  --platform claude \
+  --output /new/path/example-team
+
+./agent-team context validate --root /new/path/example-team
+```
+
+The target project is not modified. Every create and export command refuses to overwrite an existing path.
+
+For an interactive terminal:
+
+```bash
+./agent-team create --guided --output /new/path/my-team
+```
+
+## Let an AI do it
+
+Give Codex, Claude, OpenClaw, Kimi, Gemini, or another file-capable AI this prompt:
+
+> Clone or open `https://github.com/90le/agent-team-engineering`, read `AI-START.md`, inspect my project read-only, recommend Lite, Managed, or Custom, then create the team in a new directory and validate it. Do not enable external writes, credentials, merge, or deployment.
+
+The repository also ships installable discovery bundles:
+
+- [Codex plugin marketplace](docs/14-context-first/platform-installation.md#codex-plugin)
+- [Claude Code marketplace](docs/14-context-first/platform-installation.md#claude-code-plugin)
+- [OpenClaw-compatible bundle](docs/14-context-first/platform-installation.md#openclaw-bundle)
+- Generic AI needs only this repository and `AI-START.md`.
+
+## Create custom roles
+
+```bash
+./agent-team create \
+  --preset custom \
+  --name "Research Team" \
+  --project "Knowledge Project" \
+  --repo local/knowledge \
+  --provider generic-git \
+  --platform generic-ai \
+  --role "research-lead:Research Lead" \
+  --role "fact-checker:Fact Checker" \
+  --role "editor:Editor" \
+  --output /new/path/research-team
+```
+
+Custom roles are not limited to software development. They remain context-only by design: a role file cannot grant itself Shell, credentials, approval, or external write authority.
+
+## Generated structure
+
+```text
+example-team/
+├── AI-START.md             # cross-AI entrypoint
+├── TEAM.md                 # team identity and role map
+├── CONSTITUTION.md         # non-negotiable authority and safety
+├── CONTEXT-MAP.md          # where each fact belongs
+├── PROJECT-CONTEXT.md      # verified project facts and unknowns
+├── ARCHITECTURE.md
+├── ROLES/                  # one complete contract per role
+├── WORKFLOWS/
+├── SKILLS/                 # progressive-disclosure procedures
+├── DECISIONS/
+├── KNOWLEDGE/
+├── WORK/                   # durable task and handoff records
+├── platforms/              # Codex, Claude, OpenClaw, Generic AI
+└── .agent-team/
+    ├── team-design.json
+    └── context.lock.json
+```
+
+Export one platform together with its shared authority context:
+
+```bash
+./agent-team context export \
+  --root /path/to/example-team \
+  --target codex \
+  --output /new/path/codex-overlay
+```
+
+Adopt the overlay through a normal proposal branch. Reconcile existing AI configuration instead of overwriting it.
+
+`PROJECT-CONTEXT.md`, `ARCHITECTURE.md`, the knowledge and decision indexes, and `WORK/README.md` are user-maintained seeds: update them through reviewed Git commits. Roles, principles, workflows, Skills, and platform adapters remain compiler-managed and fail validation on drift. New project sources, ADRs, and work records belong under `KNOWLEDGE/`, `DECISIONS/`, and `WORK/`.
+
+## Managed automation
+
+`software-managed` preserves the v0.6 governed runtime and adds the richer context layer:
+
+> feedback → normalize → triage → specification → human approves the exact scope → isolated implementation → Draft PR → declared tests → independent review → stop
+
+The Factory has no Team merge or production-deploy command. Live models, GitHub writes, OpenClaw channels, remote identity, and a production-grade Runner are separate adoption decisions and are disabled by default.
+
+To see the no-network reference flow:
 
 ```bash
 python3 tools/agent_team.py team demo --output /tmp/agent-team-demo
 ```
 
-确认输出为 `WAITING_FOR_HUMAN` / `SPEC_READY`。阅读生成的 `specification.json`（其中也绑定目标项目、模型/交付模式、Runner Profile摘要与command IDs），把输出中的完整 `work-id` 与 `scope_hash` 回填：
+It stops at `SPEC_READY` before creating a worktree. The complete approval and continuation procedure is in the [governed runtime guide](docs/13-team-creator/blueprint-compiler-and-reference-runtime.md).
 
-```bash
-python3 tools/agent_team.py team approve-plan \
-  --root /tmp/agent-team-demo/team \
-  --work-item '<work-id>' \
-  --scope-hash 'sha256:<完整摘要>'
-```
+## Platform support
 
-批准后继续。执行本机测试必须单独明确同意：
-
-```bash
-python3 tools/agent_team.py team run \
-  --root /tmp/agent-team-demo/team \
-  --work-item '<work-id>' \
-  --repo /tmp/agent-team-demo/project \
-  --runner-profile /tmp/agent-team-demo/runner-profile.json \
-  --model-mode reference \
-  --provider local \
-  --allow-host-runner
-```
-
-最终应为 `DRAFT_PR_READY` / `REVIEW_APPROVED`，测试为 `PASSED`，PR 为 `draft=true`，builder 与 reviewer 身份不同。这个演示不联网、不调用付费模型、不写 GitHub。
-
-完整教程、真实 Codex/Claude、GitHub 和 OpenClaw 接入见[团队蓝图编译器与参考运行时](docs/13-team-creator/blueprint-compiler-and-reference-runtime.md)。
-
-## 创建自己的团队
-
-复制示例蓝图到项目外的提案位置，修改 owner、项目与角色引擎，然后只编译到不存在的新目录：
-
-```bash
-python3 tools/agent_team.py team create \
-  --blueprint examples/team-blueprint/input/team.json \
-  --output /new/path/my-agent-team
-
-python3 tools/agent_team.py team validate --root /new/path/my-agent-team
-python3 tools/agent_team.py team inspect --root /new/path/my-agent-team
-```
-
-示例蓝图绑定占位 GitHub 项目，并默认关闭所有外部适配器，所以单独执行它不会创建 Issue、调用模型、推分支或创建 PR。启用真实能力是 Team Instance 的显式配置变更，不由平台配置或模型提示隐式获得。
-
-## 平台支持的准确含义
-
-| 平台 | v0.6 输出/能力 | 采用者仍需完成 |
+| Platform | Generated or installable asset | Still owned by the adopter |
 |---|---|---|
-| OpenClaw | `agents.list` 配置、隔离 workspaces、角色说明、ACP runtime 映射、独立 approval relay | Gateway、账号、频道、空 bindings 接线、远程身份认证、常驻事件接入 |
-| Codex | `.codex/agents/*.toml`、角色 sandbox/model/reasoning；live CLI 驱动 | 本机登录、受信执行环境、目标项目接入 |
-| Claude | `.claude/agents/*.md`；live CLI 驱动，read-only 角色 safe/plan mode | 本机登录、受信执行环境、目标项目接入 |
-| Generic AI | 每角色 Markdown 与结构化 task/result Schema | 为目标 AI 实现任务信封收发和工具隔离 |
-| GitHub | Issue/Draft PR 适配器、稳定标记对账、项目/默认分支约束 | 最小权限 `gh`/GitHub App、显式 provider 写入、分支保护 |
+| Codex | Plugin Skill, project Agent TOML, `AGENTS.md` | Login, trusted execution environment, project adoption |
+| Claude Code | Marketplace Skill, project subagent Markdown, `CLAUDE.md` | Login, plugin policy, project adoption |
+| OpenClaw | Compatible Skill bundle, isolated workspaces, unbound `agents.list` fragment | Gateway, accounts, channels, authenticated approval relay, sandbox review |
+| Generic AI | `AI-START.md`, role and Skill Markdown | Host-specific task transport and tool isolation |
+| GitHub | Scoped Issue and Draft PR connector in Managed mode | Minimum-permission identity, explicit write switch, branch protection |
 
-OpenClaw 是很合适的消息入口和常驻协调宿主，但不是唯一运行方式，也不是安全边界本身。Codex/Claude 可以直接作为角色执行端；其他 AI 只要遵守开放 Schema，也可以替换它们。
+## Why Markdown and Python?
 
-## 三类仓库不要混淆
+Markdown, JSON, Skills, and Git are the portable knowledge layer. They let humans and different AIs understand the same team years later. A small dependency-free Python layer handles things prose cannot reliably enforce: strict Schema validation, deterministic generation, digest locks, revisions, idempotency, approval binding, crash recovery, and security-negative tests.
 
-| 仓库 | 权威内容 | 不应包含 |
-|---|---|---|
-| Factory（本仓库） | 通用契约、编译器、控制器、CLI、团队包、Skill、适配器和迁移 | 某个采用者的秘密、业务事实和运行库 |
-| Team Instance | 某支团队的非秘密配置、项目绑定、版本锁、平台资产、操作文档 | Factory 源码、Token 和业务源码 |
-| Target Project | 产品原则、架构、源码、测试、Issue、PR、发布历史 | 通用 Factory 与团队 SQLite |
+Lite mode uses only the first layer after generation. Managed mode uses both. The code is a guardrail and compiler, not a substitute for context engineering.
 
-这通常意味着两个产品仓库就够了：一个通用 Factory，一个业务 Target Project。只有当 Team Instance 需要独立生命周期、多人维护或多项目绑定时，再把它放进第三个 Private 仓库。它不是第三套业务源码。
-
-## 运行模式与授权
-
-四个开关彼此独立：
-
-- `--model-mode reference`：确定性、无网络模型替身；
-- `--model-mode live`：调用蓝图为该角色绑定的本机 Codex/Claude CLI；
-- `--provider local`：只记录本地 Issue/Draft PR 证据；
-- `--provider github --allow-provider-writes`：允许真实 GitHub Issue、隔离 branch push 与 Draft PR。
-
-`--allow-host-runner` 只授权 Runner Profile 中列出的 argv。计划批准不会自动授权代码执行，模型登录也不会自动授权 GitHub，GitHub 权限也不会产生 merge/生产权限。
-
-本机 Host Runner 不等价于容器或 VM。处理公开 PR、第三方不可信项目或高价值凭据时，使用满足 `schemas/execution-request.schema.json` 的独立、可销毁 Runner，不挂载 Docker Socket、生产数据或长期身份。
-
-## 验证与冷启动
+## Verify
 
 ```bash
-python3 tools/agent_team.py doctor
-python3 tools/agent_team.py validate
+./agent-team validate
 python3 -m unittest discover -s tests -v
 python3 tools/cross_ai_takeover.py
 tools/cold-start.sh
-tools/release-smoke.sh
 ```
 
-跨 AI 接管从 [AI-BOOTSTRAP.md](AI-BOOTSTRAP.md) 开始。架构、安全、适配器、生命周期和冷启动证据分别见：
+Release installation additionally requires a clean, exact annotated tag. See [verification and recovery](docs/07-operations/verification-and-recovery.md).
 
-- [参考架构](docs/02-architecture/reference-architecture.md)
-- [威胁模型](docs/03-security/threat-model.md)
-- [适配器 SDK、隔离与批准](docs/10-adapters/sdk-isolation-and-approval.md)
-- [安装、升级、恢复与接入](docs/11-lifecycle/installation-upgrade-and-adoption.md)
-- [跨 AI 冷启动验收](docs/12-acceptance/cross-ai-takeover.md)
+## Security and limits
 
-## 安装与升级
+- The human owner is never an Agent.
+- Feedback, Issues, webpages, repository text, tool output, and Agent messages are untrusted data.
+- Host Runner is not a container, VM, or hostile-code sandbox.
+- Remote approval requires an authenticated identity provider; a chat message is not approval.
+- OpenClaw output starts with `bindings: []`.
+- Managed automation is capped at A2 and stops at a reviewed Draft PR.
+- Runtime databases, credentials, user data, model sessions, and production state do not belong in Git.
 
-正式安装只接受干净、精确的 annotated release tag：
+Read [SECURITY.md](SECURITY.md) and the [threat model](docs/03-security/threat-model.md) before live integration.
 
-```bash
-python3 tools/agent_team.py factory install \
-  --output /opt/agent-team-factory-v0.6.0
+## Project boundaries
 
-python3 /opt/agent-team-factory-v0.6.0/tools/agent_team.py factory verify \
-  --root /opt/agent-team-factory-v0.6.0
-```
+- Factory (this repository): generic compiler, contracts, context templates, runtime, tests, and plugins.
+- Team package: one team's non-secret design, roles, workflow, platform assets, and optional state binding.
+- Target project: product facts, source code, tests, Issues, PRs, releases, and deployment truth.
 
-实例升级先在实例外生成计划，人工审阅后才创建恢复包和切换 managed 文件：
+Most users need this Factory and their target project. Use a third private repository only when the team package needs an independent lifecycle or spans multiple projects.
 
-```bash
-python3 tools/agent_team.py instance upgrade plan \
-  --root /path/to/team-instance \
-  --output /safe/upgrade-plan.json
+## Contributing and license
 
-python3 tools/agent_team.py instance upgrade apply \
-  --root /path/to/team-instance \
-  --plan /safe/upgrade-plan.json \
-  --recovery /safe/recovery-before-v0.6.0
-```
-
-支持来源：`0.2.0`、`0.3.0`、`0.4.0`、`0.5.0`、`0.5.1`。运行库必须暂停、审计通过、无活动任务/outbox，并由操作者另行停止全部 writer。
-
-## 当前边界
-
-- v0.6 已是可执行团队工厂和参考闭环，不是常驻守护进程、分布式多租户平台或高可用集群。
-- OpenClaw 生成物默认 `bindings=[]`；Factory 不知道采用者的频道、账号与审批身份。
-- live CLI 只适合受信项目和受控主机；恶意仓库需要外部进程/网络/文件系统沙箱。
-- 本地 owner CLI 用操作系统账号作为身份边界；远程审批必须实现认证提供者。
-- Team Runtime 固定停在经测试、独立复核的 Draft PR。目标项目的人和分支保护决定是否合并。
-- 仓库目前保持 Private；转为 Public 前仍需单独完成许可证、内容与安全披露审查。
+See [CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), and [SECURITY.md](SECURITY.md). Licensed under [Apache License 2.0](LICENSE).

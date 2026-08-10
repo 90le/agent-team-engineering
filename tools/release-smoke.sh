@@ -29,6 +29,11 @@ python3 tools/agent_team.py factory install --output "$temp_root/installed" >/de
 python3 "$temp_root/installed/tools/agent_team.py" factory verify \
   --root "$temp_root/installed" >/dev/null
 python3 "$temp_root/installed/tools/agent_team.py" doctor >/dev/null
+"$temp_root/installed/agent-team" create \
+  --design "$temp_root/installed/examples/context-first/team-design.json" \
+  --output "$temp_root/context-team" >/dev/null
+"$temp_root/installed/agent-team" context validate \
+  --root "$temp_root/context-team" >/dev/null
 python3 "$temp_root/installed/tools/agent_team.py" instance init \
   --config "$temp_root/installed/examples/team-instance/input/instance.json" \
   --output "$temp_root/instance" >/dev/null

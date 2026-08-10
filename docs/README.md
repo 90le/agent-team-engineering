@@ -14,4 +14,6 @@
 - [Factory安装、实例升级、恢复与项目接入](11-lifecycle/installation-upgrade-and-adoption.md)
 - [跨AI冷启动接管验收](12-acceptance/cross-ai-takeover.md)
 - [团队蓝图编译器与参考运行时](13-team-creator/blueprint-compiler-and-reference-runtime.md)
+- [上下文优先Agent Team Kit](14-context-first/context-first-team-kit.md)
+- [Codex、Claude、OpenClaw与通用AI安装](14-context-first/platform-installation.md)
 - [架构决策](adr/README.md)

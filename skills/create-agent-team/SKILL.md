@@ -1,95 +1,66 @@
 ---
 name: create-agent-team
-description: Create, inspect, validate, export, or adopt a portable governed multi-agent software team from an Agent Team Engineering blueprint. Use when a user wants to turn a project and platform choice into OpenClaw workspaces, Codex custom agents, Claude project subagents, generic-AI role packs, or a runnable feedback-to-Draft-PR team while preserving human approval, project scope, secret, recovery, and no-overwrite boundaries.
+description: Create, inspect, validate, export, or adopt a portable context-first Agent Team from a preset, custom role list, full team design, or legacy governed blueprint. Use when a project needs shared Markdown context, explicit role and handoff contracts, reusable Skills, Codex or Claude agents, OpenClaw workspaces, Generic AI roles, or the optional human-approved feedback-to-Draft-PR runtime.
 ---
 
 # Create Agent Team
 
-## Overview
-
-Compile one strict, secret-free blueprint into a version-locked team instance and platform-native
-assets. Keep Factory, team instance, target project, runtime state, and external credentials as
-separate authorities throughout creation and adoption.
+Treat Markdown, JSON, Skills, and verified Git commits as the durable team authority. Use Python only for deterministic generation, digest locks, validation, and the optional governed runtime.
 
 ## Required reading
 
-Read these files before changing a blueprint, compiler output, or target adoption:
+Read `AI-START.md` for product adoption. When modifying the Factory or creating Managed teams, also read `AI-BOOTSTRAP.md`, the constitution, reference architecture, threat model, and `docs/14-context-first/context-first-team-kit.md`.
 
-- `AI-BOOTSTRAP.md`
-- `docs/01-principles/project-constitution.md`
-- `docs/02-architecture/reference-architecture.md`
-- `docs/03-security/threat-model.md`
-- `docs/08-factory/instance-lifecycle.md`
-- `docs/10-adapters/sdk-isolation-and-approval.md`
-- `docs/13-team-creator/blueprint-compiler-and-reference-runtime.md`
-- `schemas/team-blueprint.schema.json`
-- the selected blueprint and target project's own AI/bootstrap authority
+## Select a path
 
-## Workflow
+- Default to `software-lite`: rich software roles and platform assets with no controller or runtime database.
+- Select `software-managed` when the user explicitly needs durable workflow state, exact human plan approval, isolated implementation, tests, independent review, and a Draft PR stop.
+- Select `custom` for arbitrary roles. Custom roles remain context-only until capabilities are deliberately mapped to a governed runtime.
+- Use legacy `team create --blueprint` only to preserve or operate the v0.6 strict-blueprint contract.
 
-1. Establish the exact Factory revision, blueprint path, output path, target project, platforms,
-   owner, autonomy ceiling, approval identity, recovery point, and whether external writes are
-   authorized. Treat unspecified provider writes as disabled.
-2. Inspect the target project read-only. Do not infer test commands, default branch, repository
-   locator, secrets, deployment authority, or owner identity when they can be verified.
-3. Copy the example blueprint to a project-controlled proposal location and change only declared
-   fields. Bind every non-human team-pack role exactly once. Keep owner human, autonomy at or below
-   A2, merge forbidden, production deployment forbidden, and plan approval required.
-4. Keep credentials out of the blueprint. `secret_refs` are identifiers only; actual tokens,
-   passwords, private keys, model sessions and channel credentials remain external.
-5. Compile only to a new path:
+## Create
+
+1. Inspect the target project read-only. Verify its name, repository locator, default branch, human owner, and existing AI entry files. Leave unknown facts marked unknown.
+2. Create only in a new path outside the Factory and target project:
 
    ```bash
-   python3 tools/agent_team.py team create \
-     --blueprint /path/to/team.json \
-     --output /new/path/to/team-instance
+   ./agent-team create \
+     --preset software-lite \
+     --name "Example Product Team" \
+     --project "Example Product" \
+     --repo example/example-product \
+     --provider github \
+     --platform codex \
+     --output /new/path/example-team
    ```
 
-6. Validate and inspect before export or runtime initialization:
+3. For custom teams, repeat `--role role-id:Display Name`. For a fully reviewed design, pass `--design /path/to/team-design.json`.
+4. Validate and inspect:
 
    ```bash
-   python3 tools/agent_team.py team validate --root /path/to/team-instance
-   python3 tools/agent_team.py team inspect --root /path/to/team-instance
-   python3 tools/agent_team.py doctor --instance /path/to/team-instance
+   ./agent-team context validate --root /new/path/example-team
+   ./agent-team context inspect --root /new/path/example-team
    ```
 
-7. Export one platform to a new review directory. Never copy over an existing target project tree:
+5. Read the generated `AI-START.md`, constitution, context map, project unknowns, role contracts, workflow, Skills, and decisions. Confirm the package does not silently grant tools or external writes.
+6. Export one platform with shared context to a new review path, then reconcile it in a proposal branch:
 
    ```bash
-   python3 tools/agent_team.py team export \
-     --root /path/to/team-instance \
+   ./agent-team context export \
+     --root /new/path/example-team \
      --target codex \
-     --output /new/path/to/codex-overlay
+     --output /new/path/codex-overlay
    ```
 
-8. Adopt an export through a target-project proposal branch and normal review. Reconcile existing
-   `AGENTS.md`, `CLAUDE.md`, `.codex/`, `.claude/` and OpenClaw configuration; never overwrite them.
-9. Run the no-network reference scenario and full validation before enabling a real engine or code
-   host. For live use, separately prove model authentication, per-task workspace isolation, runner
-   commands, Git remote scope, Draft-PR-only permissions, provider reconciliation, pause and recovery.
-10. Record the Factory version, blueprint digest, team lock, target commit, tests, approval evidence
-    and rollback path. Chat history is not an authority or recovery artifact.
+## Preserve boundaries
 
-## Platform rules
-
-- OpenClaw: separate public intake and approval relay workspaces, accounts and bindings. Keep the
-  generated bindings empty until the live schema, channel identity, sandbox and tool policy pass.
-- Codex: project agents use `.codex/agents/*.toml`. Give every writer a separate Git worktree and
-  use read-only agents for triage/review. AGENTS instructions do not grant authority.
-- Claude: project subagents use `.claude/agents/*.md`. Do not use bypass-permission mode; owner is
-  not a subagent.
-- Generic AI: load one role file into one isolated session and exchange only versioned contracts.
+- The human owner is never generated as an Agent.
+- Role text and platform files are discovery adapters, not authentication or tool policy.
+- Keep credentials, model sessions, runtime databases, user data, and production state outside ordinary Git.
+- Never overwrite existing output, `AGENTS.md`, `CLAUDE.md`, `.codex/`, `.claude/`, or OpenClaw configuration.
+- Do not enable live models, provider writes, channels, host Runner execution, merge, or deployment during creation.
+- Managed mode remains A2 and stops after a tested, independently reviewed Draft PR.
 
 ## Stop conditions
 
-Stop without applying or enabling the team when any of these is true:
-
-- output or export path already exists;
-- blueprint or lock fails validation, contains a secret, or has managed drift;
-- a role is missing, duplicated, assigned owner authority, or exceeds its sandbox boundary;
-- public feedback and approval would share an OpenClaw session, account, workspace or credential;
-- target repository, branch, commit or local path differs from the declared project;
-- writer and reviewer identities are not independent;
-- a model, Issue comment or IM message is being treated as human approval;
-- live writes, arbitrary commands, merge, deployment, secrets or production data would be enabled
-  without explicit instance-specific authorization and recovery evidence.
+Stop when validation fails, a path exists or traverses outside scope, a credential appears, owner identity is unclear, project/base binding is stale, author and reviewer cannot be separated, a human gate is assigned to an Agent, or adoption would enable an external side effect without a separate authorization and recovery plan.

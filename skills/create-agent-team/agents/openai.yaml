@@ -1,4 +1,4 @@
 interface:
   display_name: "Create Agent Team"
-  short_description: "Compile and validate a portable governed agent team"
-  default_prompt: "Create or update a governed multi-agent software team from a team blueprint, then validate the generated platform assets and runtime boundary."
+  short_description: "Create portable context-first AI teams"
+  default_prompt: "Use $create-agent-team to create and validate a context-first AI team for this project."

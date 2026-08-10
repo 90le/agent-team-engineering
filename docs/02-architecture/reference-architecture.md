@@ -8,7 +8,15 @@
 4. 平台适配器：消息、代码托管、AI提供者、Runner和部署接口。
 5. 项目与环境覆盖层：产品原则、实际架构、命令、基础设施和秘密引用。
 
-v0.6在这五层之外提供“编译与采用入口”：Team Blueprint把2–5层的选择编译为一个Team Instance和平台原生覆盖层；Reference Runtime读取锁定蓝图并调用既有控制面，而不是创建第二套权限或工作流事实。
+v0.7在这五层之前增加“上下文平面和采用入口”：Team Design把长期可读的原则、角色、Skill、工作流、知识来源和平台目标编译为一个锁定的上下文团队包。Lite只使用这个平面；Managed再把准确角色映射编译为v0.6已经验证的Team Instance和Reference Runtime。两者共享一套权限原则，不创建第二套隐含授权。
+
+## 上下文平面与执行平面
+
+上下文平面由Markdown、严格JSON、Skill、Git提交和摘要锁组成，回答“团队是谁、为什么这样工作、每个角色读什么、交付什么、何时停止”。它可被人类、Codex、Claude、OpenClaw和只具备文件读取能力的AI共同理解，也是跨设备迁移后的冷启动权威。
+
+执行平面只负责自然语言不能可靠保证的确定性性质：Schema、生成一致性、摘要漂移、修订、租约、幂等、批准绑定、隔离工作区、测试证据和崩溃恢复。Python实现是编译器与护栏，不替代上下文工程。角色文件声明的工具只是请求能力，不能自行产生凭据、宿主权限或人工批准。
+
+`software-lite`、`software-managed` 和 `custom` 是公开稳定入口。Custom始终从Lite开始；只有新的受审状态转换、适配器授权、身份和恢复协议全部明确后，才可引入受治理执行映射。
 
 ## 稳定接口
 
@@ -25,6 +33,8 @@ v0.6在这五层之外提供“编译与采用入口”：Team Blueprint把2–5
 ## 上下文
 
 所有角色使用同一个框架提交和项目提交，但只加载职责需要的文件。`tools/agent_team.py export-context` 可为无文件访问的 AI 生成带 SHA-256 的最小包。搜索与向量索引只能从这些源文件重建。
+
+上下文团队由 `.agent-team/team-design.json` 声明，`.agent-team/context.lock.json` 绑定设计摘要、Factory来源、文件初始摘要和管理类型。编译器管理的角色、原则、工作流、Skill和平台文件必须经设计变更后重新编译；项目上下文、架构、知识/决策索引与工作记录由用户通过受审Git提交维护。平台原生文件是适配视图，不是新权威；导出时必须连同 `.agent-team/context/` 共享源一起交付。未声明位置的额外文件和生成资产漂移都会安全停止。
 
 ## 运行配置
 
@@ -44,6 +54,6 @@ Factory发布可安装为不含Git元数据的验证副本，`.factory-installat
 
 Team Runtime在方案批准后为writer创建独立Git worktree；source仓库必须干净。规格、workspace、commit、Draft PR、Runner Evidence和review分别持久化，崩溃后按当前revision与outbox继续。local/reference模式无网络外部写入；live与GitHub provider分别授权。协调器只到`REVIEW_APPROVED`，不会进入通用状态机后续的staging/production状态。
 
-持久状态与恢复决定见 [ADR-0004](../adr/ADR-0004-sqlite-control-plane-and-outbox.md)，适配器和认证批准决定见 [ADR-0005](../adr/ADR-0005-versioned-adapter-host-and-bound-approval.md)，安装与事务化实例生命周期见 [ADR-0006](../adr/ADR-0006-verified-install-and-transactional-instance-lifecycle.md)，团队编译与参考运行时见 [ADR-0007](../adr/ADR-0007-team-blueprint-compiler-and-governed-reference-runtime.md)。
+持久状态与恢复决定见 [ADR-0004](../adr/ADR-0004-sqlite-control-plane-and-outbox.md)，适配器和认证批准决定见 [ADR-0005](../adr/ADR-0005-versioned-adapter-host-and-bound-approval.md)，安装与事务化实例生命周期见 [ADR-0006](../adr/ADR-0006-verified-install-and-transactional-instance-lifecycle.md)，团队编译与参考运行时见 [ADR-0007](../adr/ADR-0007-team-blueprint-compiler-and-governed-reference-runtime.md)，上下文优先双模式与发现插件见 [ADR-0008](../adr/ADR-0008-context-first-team-kits-and-discovery-bundles.md)。
 
 决策依据见[架构决策索引](../adr/README.md)。

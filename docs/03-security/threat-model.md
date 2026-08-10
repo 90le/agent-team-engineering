@@ -41,6 +41,13 @@
 | Agent在批准前开始修改代码 | SPEC_READY固定返回人工计划门禁；worktree只在PLAN_APPROVED后创建，scope hash不匹配不能批准 |
 | GitHub写入被模型权限隐式开启 | code-hosting实例绑定、项目/remote/default branch和显式provider写入开关必须同时成立；模型slot与GitHub slot分离 |
 | 自动化越过Draft PR合并上线 | Team delivery contract固定merge/production forbidden；Reference Runtime停止在独立review，未实现team merge/deploy命令 |
+| 角色Markdown或Skill自行扩权 | Team Design把角色文件视为上下文声明而非授权；宿主权限、状态转换、适配器策略和人工断言仍独立校验 |
+| Custom角色被误当成受治理运行时角色 | Custom模式强制Lite且`managed_role=null`；没有显式状态机映射、身份、适配器和恢复协议就不能进入Managed |
+| 平台原生文件与共享上下文分叉 | 平台输出和共享权威全部进入context lock；导出必须携带`.agent-team/context/`，漂移或符号链接验证失败 |
+| 插件安装隐式执行代码或获得凭据 | 官方发现包只包含Manifest、Skill和参考资料，不含MCP、hook、后台进程或秘密；创建与外部接线是两个独立动作 |
+| 上下文包覆盖目标项目已有AI规则 | create/export只写不存在路径；采用者必须在提案分支人工协调已有`AGENTS.md`、`CLAUDE.md`和平台目录 |
+| 恶意Team Design穿越路径、携带秘密或伪造人工门禁 | 严格Schema、相对路径检查、inline secret扫描、人工actor/approval一致性检查和无覆盖原子发布 |
+| 可维护上下文被用来替换生成的角色或平台规则 | Context Lock区分管理类型；用户新增文件只允许在知识、决策和工作目录，额外根文件或生成资产自重算摘要仍会失败 |
 
 ## 永久人工门禁
 
@@ -48,7 +55,7 @@
 
 ## 环境隔离
 
-不可信代码必须在独立、可销毁的 Runner 中执行。Runner 不得挂载生产 Docker Socket、生产数据目录、PVE/DSM密钥或任意生产SSH身份。发布接口只接受经过批准的发布编号和制品摘要，不接受任意Shell。
+不可信代码必须在独立、可销毁的 Runner 中执行。Runner 不得挂载生产 Docker Socket、生产数据目录、虚拟化/NAS管理密钥或任意生产SSH身份。发布接口只接受经过批准的发布编号和制品摘要，不接受任意Shell。
 
 SQLite运行库可能含有用户反馈、摘要和外部引用，至少按采用项目的Private数据处理。它不应包含凭据值，但仍必须限制文件权限、加密异地备份并遵守保留政策。不要把运行库放在不提供正确文件锁语义的共享文件系统上。
 
@@ -59,3 +66,5 @@ CLI的暂停/恢复操作假定调用者已经通过本机操作系统权限进�
 v0.6 `team approve-plan`进一步要求操作者回填完整规格scope hash，但其身份仍只来自本机操作系统权限。它适合单机参考和受控管理，不是互联网审批协议。OpenClaw approval relay必须与公开intake使用不同账号、频道、workspace，并把远程认证结果转换为同等绑定的短期断言。
 
 Host Runner刻意需要单独开关，也不会继承Token、SSH Agent、云凭据或用户HOME。它仍共享主机内核和网络，不能执行恶意第三方代码；`--allow-host-runner`表示操作者接受这一参考边界，不会把它提升为生产沙箱。
+
+Lite模式不等于“安全沙箱”：它移除了常驻控制器和外部副作用，却仍依赖采用平台正确隔离工具。平台把某个Markdown角色映射成Shell、网络或写权限前，必须由项目所有者重新审阅；Factory生成文件中的`allowed_tools`不是可执行授权令牌。

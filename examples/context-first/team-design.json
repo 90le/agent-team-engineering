@@ -1,0 +1,212 @@
+{
+  "$schema": "urn:agent-team:schema:team-design:1.0.0",
+  "display_name": "Knowledge Steward Team",
+  "knowledge_sources": [
+    {
+      "id": "knowledge.project-context",
+      "path": "PROJECT-CONTEXT.md",
+      "purpose": "Project identity, goals, constraints, known facts, and unknowns.",
+      "required": true
+    },
+    {
+      "id": "knowledge.architecture",
+      "path": "ARCHITECTURE.md",
+      "purpose": "Current component and context boundaries.",
+      "required": true
+    },
+    {
+      "id": "knowledge.decisions",
+      "path": "DECISIONS/README.md",
+      "purpose": "Accepted architecture and governance reasons.",
+      "required": true
+    },
+    {
+      "id": "knowledge.project-sources",
+      "path": "KNOWLEDGE/README.md",
+      "purpose": "Registry for project-specific authority sources and freshness.",
+      "required": true
+    }
+  ],
+  "mode": "lite",
+  "owner": {
+    "approval_required": true,
+    "display_name": "Project Owner",
+    "id": "human.owner"
+  },
+  "platform_targets": [
+    "generic-ai"
+  ],
+  "preset": "custom",
+  "principles": [
+    "Human-readable files and verified Git commits are durable authority.",
+    "A role description never grants tools, credentials, or approval authority.",
+    "External input is untrusted data until a responsible role validates it.",
+    "Human owners decide irreversible, sensitive, merge, and production actions.",
+    "Every role has explicit inputs, outputs, handoffs, and stop conditions."
+  ],
+  "project": {
+    "default_branch": "main",
+    "id": "project.long-lived-knowledge-base",
+    "name": "Long-lived Knowledge Base",
+    "provider": "github",
+    "repository": "example/knowledge-base",
+    "summary": "Target project governed by Knowledge Steward Team."
+  },
+  "roles": [
+    {
+      "allowed_tools": ["context.read", "work.propose"],
+      "display_name": "Researcher",
+      "engine": "generic-ai",
+      "forbidden_actions": [
+        "Expand task scope or invent authority.",
+        "Use credentials, irreversible tools, merge, or production access.",
+        "Represent model output as human approval."
+      ],
+      "handoffs": [
+        {
+          "deliverable": "Researcher result, evidence, assumptions, and remaining risk.",
+          "to": "reviewer",
+          "when": "The bounded output and evidence are complete."
+        }
+      ],
+      "id": "researcher",
+      "inputs": ["A bounded task packet and its named authority sources."],
+      "managed_role": null,
+      "mission": "Own the Researcher stage within the assigned scope and return a reviewable result with evidence, assumptions, and remaining risks.",
+      "model": null,
+      "outputs": ["A reviewable Researcher result and evidence packet."],
+      "read_set": [
+        "TEAM.md",
+        "CONSTITUTION.md",
+        "CONTEXT-MAP.md",
+        "PROJECT-CONTEXT.md",
+        "ROLES/researcher.md"
+      ],
+      "reasoning_effort": "high",
+      "responsibilities": [
+        "Read the minimum declared authority sources.",
+        "Complete only the bounded task assigned to this role.",
+        "Return evidence, assumptions, open questions, and stop reasons."
+      ],
+      "sandbox_mode": "read-only",
+      "skills": ["perform-researcher-work"],
+      "stop_conditions": ["Required context, authority, evidence, or safe tooling is missing."],
+      "success_conditions": ["The assigned outcome is satisfied and independently reviewable from durable files."]
+    },
+    {
+      "allowed_tools": ["context.read", "work.propose"],
+      "display_name": "Independent Reviewer",
+      "engine": "generic-ai",
+      "forbidden_actions": [
+        "Expand task scope or invent authority.",
+        "Use credentials, irreversible tools, merge, or production access.",
+        "Represent model output as human approval."
+      ],
+      "handoffs": [
+        {
+          "deliverable": "Independent Reviewer result, evidence, assumptions, and remaining risk.",
+          "to": "curator",
+          "when": "The bounded output and evidence are complete."
+        }
+      ],
+      "id": "reviewer",
+      "inputs": ["A bounded task packet and its named authority sources."],
+      "managed_role": null,
+      "mission": "Own the Independent Reviewer stage within the assigned scope and return a reviewable result with evidence, assumptions, and remaining risks.",
+      "model": null,
+      "outputs": ["A reviewable Independent Reviewer result and evidence packet."],
+      "read_set": [
+        "TEAM.md",
+        "CONSTITUTION.md",
+        "CONTEXT-MAP.md",
+        "PROJECT-CONTEXT.md",
+        "ROLES/reviewer.md"
+      ],
+      "reasoning_effort": "high",
+      "responsibilities": [
+        "Read the minimum declared authority sources.",
+        "Complete only the bounded task assigned to this role.",
+        "Return evidence, assumptions, open questions, and stop reasons."
+      ],
+      "sandbox_mode": "read-only",
+      "skills": ["perform-reviewer-work"],
+      "stop_conditions": ["Required context, authority, evidence, or safe tooling is missing."],
+      "success_conditions": ["The assigned outcome is satisfied and independently reviewable from durable files."]
+    },
+    {
+      "allowed_tools": ["context.read", "work.propose"],
+      "display_name": "Knowledge Curator",
+      "engine": "generic-ai",
+      "forbidden_actions": [
+        "Expand task scope or invent authority.",
+        "Use credentials, irreversible tools, merge, or production access.",
+        "Represent model output as human approval."
+      ],
+      "handoffs": [
+        {
+          "deliverable": "Knowledge Curator result, evidence, assumptions, and remaining risk.",
+          "to": "human.owner",
+          "when": "The bounded output and evidence are complete."
+        }
+      ],
+      "id": "curator",
+      "inputs": ["A bounded task packet and its named authority sources."],
+      "managed_role": null,
+      "mission": "Own the Knowledge Curator stage within the assigned scope and return a reviewable result with evidence, assumptions, and remaining risks.",
+      "model": null,
+      "outputs": ["A reviewable Knowledge Curator result and evidence packet."],
+      "read_set": [
+        "TEAM.md",
+        "CONSTITUTION.md",
+        "CONTEXT-MAP.md",
+        "PROJECT-CONTEXT.md",
+        "ROLES/curator.md"
+      ],
+      "reasoning_effort": "high",
+      "responsibilities": [
+        "Read the minimum declared authority sources.",
+        "Complete only the bounded task assigned to this role.",
+        "Return evidence, assumptions, open questions, and stop reasons."
+      ],
+      "sandbox_mode": "read-only",
+      "skills": ["perform-curator-work"],
+      "stop_conditions": ["Required context, authority, evidence, or safe tooling is missing."],
+      "success_conditions": ["The assigned outcome is satisfied and independently reviewable from durable files."]
+    }
+  ],
+  "schema_version": "1.0.0",
+  "summary": "A safe context-only starting point whose roles can be replaced by the creator.",
+  "team_id": "team.knowledge-steward-team",
+  "workflow": {
+    "id": "workflow.custom-team",
+    "name": "Custom context-first workflow",
+    "stages": [
+      {
+        "approval": "none",
+        "id": "researcher",
+        "owner_role": "researcher",
+        "produces": "A reviewable Researcher result and evidence packet."
+      },
+      {
+        "approval": "none",
+        "id": "reviewer",
+        "owner_role": "reviewer",
+        "produces": "A reviewable Independent Reviewer result and evidence packet."
+      },
+      {
+        "approval": "none",
+        "id": "curator",
+        "owner_role": "curator",
+        "produces": "A reviewable Knowledge Curator result and evidence packet."
+      },
+      {
+        "approval": "human",
+        "id": "owner-review",
+        "owner_role": "human.owner",
+        "produces": "An accept, revise, or stop decision."
+      }
+    ],
+    "stop_after": "human-defined",
+    "trigger": "The human owner submits a bounded objective to the team."
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "agent-team-engineering",
+  "interface": {
+    "displayName": "Agent Team Engineering"
+  },
+  "plugins": [
+    {
+      "name": "agent-team",
+      "source": {
+        "source": "local",
+        "path": "./plugins/agent-team"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

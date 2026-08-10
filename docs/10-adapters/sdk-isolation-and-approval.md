@@ -66,7 +66,7 @@ OpenClaw官方安全文档说明它默认是个人助手信任模型，不是多
 
 `execution-request` 只允许预注册 `command_id` 和argv，并强制只读源码、临时workspace、无特权、无Docker Socket、无生产挂载、有界超时和默认无网络。网络allowlist的字符串检查不能防止DNS rebinding；真实执行器还必须在网络层锁定解析后地址。
 
-GitHub同样警告自托管Runner不保证临时干净，不可把日志脱敏当成真正安全边界：[Secure use reference](https://docs.github.com/en/actions/reference/security/secure-use)、[Compromised runners](https://docs.github.com/en/actions/concepts/security/compromised-runners)。生产实现需用每任务销毁的VM/微虚拟机或等价隔离，不能直接在PVE宿主、Linux生产容器或挂载群晖业务数据的环境里运行不可信PR。
+GitHub同样警告自托管Runner不保证临时干净，不可把日志脱敏当成真正安全边界：[Secure use reference](https://docs.github.com/en/actions/reference/security/secure-use)、[Compromised runners](https://docs.github.com/en/actions/concepts/security/compromised-runners)。生产实现需用每任务销毁的VM/微虚拟机或等价隔离，不能直接在虚拟化宿主、Linux生产容器或挂载NAS业务数据的环境里运行不可信PR。
 
 ## 实现一个新适配器
 
