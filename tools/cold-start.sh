@@ -8,7 +8,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-git clone --quiet --no-hardlinks "$repo_root" "$temp_root/agent-team-engineering"
+git clone --quiet "file://$repo_root" "$temp_root/agent-team-engineering"
 cd "$temp_root/agent-team-engineering"
 python3 tools/agent_team.py validate
 python3 -m unittest discover -s tests -v
