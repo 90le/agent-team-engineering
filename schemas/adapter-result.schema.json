@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:adapter-result:1.0.0",
+  "title": "Sanitized adapter execution result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "status", "output", "external_ref", "provider_request_id", "reconciled", "error_code"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "status": {"enum": ["SUCCEEDED", "RETRYABLE_FAILURE", "PERMANENT_FAILURE", "UNKNOWN"]},
+    "output": {"type": "object"},
+    "external_ref": {"type": ["string", "null"]},
+    "provider_request_id": {"type": ["string", "null"]},
+    "reconciled": {"type": "boolean"},
+    "error_code": {"type": ["string", "null"], "pattern": "^[A-Z][A-Z0-9_]*$"}
+  }
+}

@@ -45,9 +45,9 @@ python3 tools/agent_team.py runtime apply \
   --idempotency-key transition:work-id:revision-0:normalize
 ```
 
-相同命令重试返回第一次已提交结果；相同幂等键携带不同请求会失败。失败转换、陈旧修订和权限拒绝在事务回滚后不会消费幂等键。非owner转换成功后自动释放租约；owner批准必须同时声明 `role=owner` 和 `actor-kind=human`。
+相同命令重试返回第一次已提交结果；相同幂等键携带不同请求会失败。失败转换、陈旧修订和权限拒绝在事务回滚后不会消费幂等键。非owner转换成功后自动释放租约；owner工作流批准必须同时声明 `role=owner`、`actor-kind=human`，并提供由已配置`ApprovalVerifier`验证的短期绑定断言。
 
-这里的CLI是受控本机管理入口，不负责证明远程用户身份。`actor-kind=human` 不能作为公网或IM审批凭证；真实接入必须由认证适配器验证人工身份与批准内容后调用核心，并保留可审计证明引用。
+HMAC参考路径需要同时提供`--approval-assertion`、权限为`0600`的`--approval-key-file`和`--approval-provider`。断言必须绑定actor、action、work item、expected revision和evidence；控制平面仅保存claim摘要、provider与证据引用，不保存签名或密钥。它用于本地契约验收，不是公网身份系统。真实接入必须由认证适配器验证人工身份与批准内容后调用核心。
 
 ## 暂停、对账与恢复顺序
 
@@ -73,12 +73,14 @@ python3 tools/agent_team.py runtime resume \
 
 ## 事务outbox
 
-`core.control_plane.ControlPlane.queue_effect` 只接受引用同一工作项持久审计事件的效果。Worker通过 `claim_effect` 取得有期限的claim，必须在到期前调用 `complete_effect` 或 `fail_effect`；过期确认会被拒绝并等待对账回收。v0.3只提供持久边界和测试，不注册真实Worker；v0.4适配器必须：
+`core.control_plane.ControlPlane.queue_effect` 只接受引用同一工作项持久审计事件的效果。Worker通过 `claim_effect` 取得有期限的claim，必须在到期前调用 `complete_effect` 或 `fail_effect`；过期确认会被拒绝并等待对账回收。v0.4参考Worker在领取前验证审计链，宿主再验证实例绑定、Manifest、输入Schema、事件授权和显式实现。真实适配器必须：
 
 - 把outbox的幂等键传给外部提供者，或在重试前按稳定外部标识对账。
 - 不把claim token当成外部凭据。
 - 返回脱敏、受大小限制的结构化结果，不保存响应原文和秘密。
 - 在尝试上限后保留`DEAD`供人工处置，不伪造成功。
+
+`provider-idempotency`只有在提供者按稳定key真正去重时才能使用；`reconcile-before-retry`必须先查询稳定外部标记；`at-most-once`必须把`max_attempts`限制为1。详细契约见[适配器SDK](../10-adapters/sdk-isolation-and-approval.md)。
 
 ## 验证式备份与非覆盖恢复
 

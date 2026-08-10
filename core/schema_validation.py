@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 
@@ -26,14 +28,22 @@ def _is_type(value: Any, expected: str) -> bool:
     if expected == "integer":
         return isinstance(value, int) and not isinstance(value, bool)
     if expected == "number":
-        return isinstance(value, (int, float)) and not isinstance(value, bool)
+        return (
+            isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+        )
     if expected == "null":
         return value is None
     return False
 
 
 def _json_identity(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return json.dumps(
+        value,
+        allow_nan=False,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
 
 
 def validate_schema(value: Any, schema: dict[str, Any], path: str = "$") -> list[SchemaIssue]:
@@ -58,11 +68,13 @@ def validate_schema(value: Any, schema: dict[str, Any], path: str = "$") -> list
         "const",
         "pattern",
         "minLength",
+        "maxLength",
         "minItems",
         "maxItems",
         "uniqueItems",
         "minimum",
         "maximum",
+        "format",
     }
     issues = [
         SchemaIssue(path, f"unsupported schema keyword: {key}")
@@ -84,9 +96,21 @@ def validate_schema(value: Any, schema: dict[str, Any], path: str = "$") -> list
     if isinstance(value, str):
         if len(value) < int(schema.get("minLength", 0)):
             issues.append(SchemaIssue(path, "string is shorter than minLength"))
+        if "maxLength" in schema and len(value) > int(schema["maxLength"]):
+            issues.append(SchemaIssue(path, "string is longer than maxLength"))
         pattern = schema.get("pattern")
         if pattern and re.search(str(pattern), value) is None:
             issues.append(SchemaIssue(path, f"does not match pattern {pattern!r}"))
+        value_format = schema.get("format")
+        if value_format == "date-time":
+            try:
+                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                if parsed.tzinfo is None:
+                    raise ValueError("timezone is required")
+            except ValueError:
+                issues.append(SchemaIssue(path, "must be an RFC 3339 date-time with timezone"))
+        elif value_format is not None:
+            issues.append(SchemaIssue(path, f"unsupported string format: {value_format}"))
 
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         if "minimum" in schema and value < schema["minimum"]:
@@ -100,9 +124,13 @@ def validate_schema(value: Any, schema: dict[str, Any], path: str = "$") -> list
         if "maxItems" in schema and len(value) > int(schema["maxItems"]):
             issues.append(SchemaIssue(path, "array is longer than maxItems"))
         if schema.get("uniqueItems"):
-            identities = [_json_identity(item) for item in value]
-            if len(identities) != len(set(identities)):
-                issues.append(SchemaIssue(path, "array items must be unique"))
+            try:
+                identities = [_json_identity(item) for item in value]
+            except (TypeError, ValueError):
+                issues.append(SchemaIssue(path, "array contains a non-JSON value"))
+            else:
+                if len(identities) != len(set(identities)):
+                    issues.append(SchemaIssue(path, "array items must be unique"))
         item_schema = schema.get("items")
         if isinstance(item_schema, dict):
             for index, item in enumerate(value):

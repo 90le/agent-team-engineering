@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import json
 import re
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
+from core.json_support import loads_strict
 from core.schema_validation import validate_schema
 from core.security import CREDENTIAL_PATTERNS
 
@@ -19,6 +19,21 @@ REQUIRED_PATHS = (
     "CHANGELOG.md",
     "factory-package.json",
     "capability-package.json",
+    "core/adapters.py",
+    "core/approval.py",
+    "core/isolation.py",
+    "core/json_support.py",
+    "core/reference_adapters.py",
+    "core/webhooks.py",
+    "adapters/claude/adapter.json",
+    "adapters/codex/adapter.json",
+    "adapters/file-inbox/adapter.json",
+    "adapters/generic-ai/adapter.json",
+    "adapters/github/adapter.json",
+    "adapters/local-dry-run/adapter.json",
+    "adapters/manual-agent/adapter.json",
+    "adapters/openclaw/adapter.json",
+    "adapters/recording/adapter.json",
     "schemas/factory-package.schema.json",
     "schemas/team-instance.schema.json",
     "schemas/team-instance-lock.schema.json",
@@ -26,10 +41,24 @@ REQUIRED_PATHS = (
     "schemas/control-plane-status.schema.json",
     "schemas/outbox-effect.schema.json",
     "schemas/task-lease.schema.json",
+    "schemas/adapter-empty-config.schema.json",
+    "schemas/adapter.schema.json",
+    "schemas/adapter-request.schema.json",
+    "schemas/adapter-result.schema.json",
+    "schemas/approval-assertion.schema.json",
+    "schemas/execution-request.schema.json",
+    "schemas/execution-result.schema.json",
+    "schemas/external-reference.schema.json",
+    "schemas/project-task-envelope.schema.json",
+    "schemas/adapter-authority-policy.schema.json",
+    "policies/adapter-authority.json",
     "schemas/capability-package.schema.json",
     "docs/01-principles/project-constitution.md",
     "docs/02-architecture/reference-architecture.md",
     "docs/03-security/threat-model.md",
+    "docs/10-adapters/sdk-isolation-and-approval.md",
+    "docs/adr/ADR-0005-versioned-adapter-host-and-bound-approval.md",
+    "skills/implement-agent-team-adapter/SKILL.md",
     "team-packs/software-delivery/team-pack.json",
     "team-packs/software-delivery/workflow.json",
     "team-packs/software-delivery/risk-policy.json",
@@ -81,8 +110,8 @@ def validate_repository(root: Path) -> list[Finding]:
 
         if path.suffix == ".json":
             try:
-                json_documents[path.resolve()] = json.loads(text)
-            except json.JSONDecodeError as exc:
+                json_documents[path.resolve()] = loads_strict(text)
+            except ValueError as exc:
                 findings.append(Finding("ERROR", relative, f"invalid JSON: {exc}"))
         if path.suffix == ".md":
             for link in MARKDOWN_LINK.findall(text):
@@ -115,6 +144,175 @@ def validate_repository(root: Path) -> list[Finding]:
                         "invalid Skill frontmatter or folder name",
                     )
                 )
+
+    adapter_schema_path = root / "schemas/adapter.schema.json"
+    adapter_schema = json_documents.get(adapter_schema_path.resolve())
+    adapter_ids: set[str] = set()
+    outbound_operations: set[tuple[str, str]] = set()
+    if isinstance(adapter_schema, dict):
+        for manifest_path in sorted((root / "adapters").glob("*/adapter.json")):
+            relative = manifest_path.relative_to(root).as_posix()
+            manifest = json_documents.get(manifest_path.resolve())
+            if not isinstance(manifest, dict):
+                findings.append(Finding("ERROR", relative, "adapter manifest must be an object"))
+                continue
+            for issue in validate_schema(manifest, adapter_schema):
+                findings.append(Finding("ERROR", relative, f"{issue.path}: {issue.message}"))
+            adapter_id = manifest.get("id")
+            if isinstance(adapter_id, str):
+                if adapter_id in adapter_ids:
+                    findings.append(
+                        Finding("ERROR", relative, f"duplicate adapter id: {adapter_id}")
+                    )
+                else:
+                    adapter_ids.add(adapter_id)
+            manifest_slot_values = manifest.get("slots", [])
+            if not isinstance(manifest_slot_values, list):
+                manifest_slot_values = []
+            manifest_slots = {str(slot) for slot in manifest_slot_values if isinstance(slot, str)}
+            config_schema_ref = manifest.get("config_schema")
+            if isinstance(config_schema_ref, str):
+                config_path = (root / config_schema_ref).resolve()
+                schema_root = (root / "schemas").resolve()
+                if schema_root not in config_path.parents or not config_path.is_file():
+                    findings.append(
+                        Finding(
+                            "ERROR",
+                            relative,
+                            f"unsafe or missing config_schema: {config_schema_ref}",
+                        )
+                    )
+            operation_names: set[str] = set()
+            operations = manifest.get("operations", [])
+            if not isinstance(operations, list):
+                operations = []
+            for operation in operations:
+                if not isinstance(operation, dict):
+                    continue
+                name = operation.get("name")
+                if isinstance(name, str):
+                    if name in operation_names:
+                        findings.append(
+                            Finding("ERROR", relative, f"duplicate adapter operation: {name}")
+                        )
+                    else:
+                        operation_names.add(name)
+                operation_slot_values = operation.get("slots", [])
+                if not isinstance(operation_slot_values, list):
+                    operation_slot_values = []
+                operation_slots = {
+                    str(slot) for slot in operation_slot_values if isinstance(slot, str)
+                }
+                if not operation_slots <= manifest_slots:
+                    findings.append(
+                        Finding(
+                            "ERROR",
+                            relative,
+                            f"operation slots exceed adapter slots: {name}",
+                        )
+                    )
+                if operation.get("direction") == "outbound" and isinstance(name, str):
+                    outbound_operations.add((name, str(operation.get("capability"))))
+                if operation.get("external_effect") == "write" and operation.get(
+                    "delivery"
+                ) not in {
+                    "provider-idempotency",
+                    "reconcile-before-retry",
+                    "at-most-once",
+                }:
+                    findings.append(
+                        Finding(
+                            "ERROR",
+                            relative,
+                            f"write operation lacks bounded delivery: {name}",
+                        )
+                    )
+                for field in ("input_schema", "output_schema"):
+                    schema_ref = operation.get(field)
+                    if not isinstance(schema_ref, str):
+                        continue
+                    referenced = (root / schema_ref).resolve()
+                    schema_root = (root / "schemas").resolve()
+                    if schema_root not in referenced.parents or not referenced.is_file():
+                        findings.append(
+                            Finding(
+                                "ERROR",
+                                relative,
+                                f"unsafe or missing {field}: {schema_ref}",
+                            )
+                        )
+                scope = operation.get("project_scope")
+                input_schema_ref = operation.get("input_schema")
+                if isinstance(scope, dict) and isinstance(input_schema_ref, str):
+                    input_schema = json_documents.get((root / input_schema_ref).resolve())
+                    input_properties = (
+                        input_schema.get("properties", {}) if isinstance(input_schema, dict) else {}
+                    )
+                    if not isinstance(input_properties, dict):
+                        input_properties = {}
+                    for field_name in (
+                        scope.get("payload_field"),
+                        scope.get("default_branch_field"),
+                        scope.get("source_ref_field"),
+                    ):
+                        if isinstance(field_name, str) and field_name not in input_properties:
+                            findings.append(
+                                Finding(
+                                    "ERROR",
+                                    relative,
+                                    f"project scope field is absent from input schema: {field_name}",
+                                )
+                            )
+            implementation = manifest.get("implementation", {})
+            if isinstance(implementation, dict):
+                mode = implementation.get("mode")
+                entrypoint = implementation.get("entrypoint")
+                if mode == "contract-only" and entrypoint is not None:
+                    findings.append(
+                        Finding("ERROR", relative, "contract-only adapter has an entrypoint")
+                    )
+                if mode == "python-reference" and not entrypoint:
+                    findings.append(
+                        Finding("ERROR", relative, "python-reference adapter lacks an entrypoint")
+                    )
+
+    authority_path = root / "policies/adapter-authority.json"
+    authority_schema_path = root / "schemas/adapter-authority-policy.schema.json"
+    authority = json_documents.get(authority_path.resolve())
+    authority_schema = json_documents.get(authority_schema_path.resolve())
+    if isinstance(authority, dict) and isinstance(authority_schema, dict):
+        for issue in validate_schema(authority, authority_schema):
+            findings.append(
+                Finding(
+                    "ERROR",
+                    authority_path.relative_to(root).as_posix(),
+                    f"{issue.path}: {issue.message}",
+                )
+            )
+        authority_grants = authority.get("grants", [])
+        if not isinstance(authority_grants, list):
+            authority_grants = []
+        granted = {
+            (str(grant.get("operation")), str(grant.get("capability")))
+            for grant in authority_grants
+            if isinstance(grant, dict)
+        }
+        for operation in sorted(outbound_operations - granted):
+            findings.append(
+                Finding(
+                    "ERROR",
+                    authority_path.relative_to(root).as_posix(),
+                    f"outbound adapter operation has no authority grant: {operation}",
+                )
+            )
+        for operation in sorted(granted - outbound_operations):
+            findings.append(
+                Finding(
+                    "ERROR",
+                    authority_path.relative_to(root).as_posix(),
+                    f"authority grant has no outbound adapter operation: {operation}",
+                )
+            )
 
     team_path = root / "team-packs/software-delivery/team-pack.json"
     workflow_path = root / "team-packs/software-delivery/workflow.json"

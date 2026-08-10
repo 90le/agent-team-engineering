@@ -13,7 +13,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from core.adapters import load_adapter_catalog  # noqa: E402
 from core.adoption import write_adoption_proposal  # noqa: E402
+from core.approval import HMACApprovalVerifier  # noqa: E402
 from core.context import write_context_bundle  # noqa: E402
 from core.control_plane import ControlPlane  # noqa: E402
 from core.instance import (  # noqa: E402
@@ -23,13 +25,14 @@ from core.instance import (  # noqa: E402
     relock_instance,
     validate_instance_directory,
 )
+from core.json_support import loads_strict  # noqa: E402
 from core.models import Actor, FeedbackEvent  # noqa: E402
 from core.simulation import run_feedback_to_release  # noqa: E402
 from core.validation import validate_repository  # noqa: E402
 
 
 def command_doctor(_: argparse.Namespace) -> int:
-    factory = json.loads((ROOT / "factory-package.json").read_text(encoding="utf-8"))
+    factory = loads_strict((ROOT / "factory-package.json").read_text(encoding="utf-8"))
     report = {
         "python": sys.version.split()[0],
         "git": shutil.which("git"),
@@ -61,7 +64,7 @@ def command_simulate(args: argparse.Namespace) -> int:
         if args.input
         else ROOT / "examples/feedback-to-release/input/feedback.json"
     )
-    event = FeedbackEvent.from_dict(json.loads(input_path.read_text(encoding="utf-8")))
+    event = FeedbackEvent.from_dict(loads_strict(input_path.read_text(encoding="utf-8")))
     item = run_feedback_to_release(event, approve_production=args.approve_production)
     output = json.dumps(item.to_dict(), ensure_ascii=False, indent=2) + "\n"
     if args.output:
@@ -118,7 +121,7 @@ def command_instance_relock(args: argparse.Namespace) -> int:
 
 def _load_json_object(path: str) -> dict:
     target = Path(path).resolve()
-    value = json.loads(target.read_text(encoding="utf-8"))
+    value = loads_strict(target.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
         raise ValueError(f"JSON root must be an object: {target}")
     return value
@@ -183,7 +186,25 @@ def command_runtime_apply(args: argparse.Namespace) -> int:
     _, database = _runtime_database(args.instance)
     actor = Actor(args.actor_id, args.role, kind=args.actor_kind)
     evidence = _load_json_object(args.evidence)
-    with ControlPlane(database, create=False) as control:
+    approval_inputs = (
+        args.approval_assertion,
+        args.approval_key_file,
+        args.approval_provider,
+    )
+    if any(approval_inputs) and not all(approval_inputs):
+        raise ValueError("approval assertion, key file, and provider must be supplied together")
+    approval_assertion = (
+        _load_json_object(args.approval_assertion) if args.approval_assertion else None
+    )
+    verifier = None
+    if args.approval_key_file:
+        key_path = Path(args.approval_key_file)
+        if key_path.is_symlink() or not key_path.is_file():
+            raise ValueError("approval key must be a regular non-symlink file")
+        if key_path.stat().st_mode & 0o077:
+            raise ValueError("approval key file must deny group and other access")
+        verifier = HMACApprovalVerifier(args.approval_provider, key_path.read_bytes())
+    with ControlPlane(database, create=False, approval_verifier=verifier) as control:
         result = control.apply_transition(
             args.work_item,
             args.action,
@@ -192,6 +213,7 @@ def command_runtime_apply(args: argparse.Namespace) -> int:
             expected_revision=args.expected_revision,
             idempotency_key=args.idempotency_key,
             lease_id=args.lease_id,
+            approval_assertion=approval_assertion,
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
@@ -241,6 +263,18 @@ def command_runtime_restore(args: argparse.Namespace) -> int:
             indent=2,
         )
     )
+    return 0
+
+
+def command_adapter_catalog(_: argparse.Namespace) -> int:
+    catalog = load_adapter_catalog()
+    report = {
+        "schema_version": "1.0.0",
+        "adapters": [catalog[key].summary() for key in sorted(catalog)],
+        "dynamic_loading_enabled": False,
+        "production_integrations_enabled": False,
+    }
+    print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0
 
 
@@ -349,6 +383,9 @@ def build_parser() -> argparse.ArgumentParser:
     runtime_apply.add_argument("--idempotency-key", required=True)
     runtime_apply.add_argument("--evidence", required=True)
     runtime_apply.add_argument("--lease-id")
+    runtime_apply.add_argument("--approval-assertion")
+    runtime_apply.add_argument("--approval-key-file")
+    runtime_apply.add_argument("--approval-provider")
     runtime_apply.set_defaults(func=command_runtime_apply)
 
     for name, paused, help_text in (
@@ -387,6 +424,15 @@ def build_parser() -> argparse.ArgumentParser:
     runtime_restore.add_argument("--instance", required=True)
     runtime_restore.add_argument("--backup", required=True)
     runtime_restore.set_defaults(func=command_runtime_restore)
+
+    adapter = subparsers.add_parser(
+        "adapter", help="inspect versioned adapter contracts without loading plugins"
+    )
+    adapter_commands = adapter.add_subparsers(dest="adapter_command", required=True)
+    adapter_catalog = adapter_commands.add_parser(
+        "catalog", help="show the secret-safe adapter catalog"
+    )
+    adapter_catalog.set_defaults(func=command_adapter_catalog)
     return parser
 
 

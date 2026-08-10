@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from core.json_support import loads_strict
 from core.models import Actor, RiskLevel, WorkItem
 
 
@@ -31,8 +31,8 @@ PACK_ROOT = Path(__file__).resolve().parents[1] / "team-packs" / "software-deliv
 
 
 def _load_policy() -> tuple[dict[str, frozenset[str]], dict[str, ToolPolicy]]:
-    team = json.loads((PACK_ROOT / "team-pack.json").read_text(encoding="utf-8"))
-    tools = json.loads((PACK_ROOT / "tool-policy.json").read_text(encoding="utf-8"))
+    team = loads_strict((PACK_ROOT / "team-pack.json").read_text(encoding="utf-8"))
+    tools = loads_strict((PACK_ROOT / "tool-policy.json").read_text(encoding="utf-8"))
     capabilities = {
         role["id"]: frozenset(role.get("capabilities", [])) for role in team.get("roles", [])
     }

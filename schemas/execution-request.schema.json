@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:execution-request:1.0.0",
+  "title": "Isolated runner execution request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "job_id", "work_item_id", "project_id", "source_ref", "commit", "command_id", "arguments", "workspace_id", "timeout_seconds", "network_policy", "network_allowlist", "secret_refs", "source_read_only", "workspace_ephemeral", "production_mounts", "docker_socket", "privileged"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "job_id": {"type": "string", "pattern": "^job-[A-Za-z0-9._:-]+$"},
+    "work_item_id": {"type": "string", "minLength": 1},
+    "project_id": {"type": "string", "pattern": "^project\\.[a-z0-9][a-z0-9._-]*$"},
+    "source_ref": {"type": "string", "minLength": 1},
+    "commit": {"type": "string", "pattern": "^[a-f0-9]{40}([a-f0-9]{24})?$"},
+    "command_id": {"type": "string", "pattern": "^[a-z][a-z0-9._-]+$"},
+    "arguments": {"type": "array", "items": {"type": "string"}},
+    "workspace_id": {"type": "string", "pattern": "^workspace-[A-Za-z0-9._:-]+$"},
+    "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 86400},
+    "network_policy": {"enum": ["none", "allowlist"]},
+    "network_allowlist": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "secret_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^secret\\.[a-z0-9][a-z0-9.-]*$"}},
+    "source_read_only": {"const": true},
+    "workspace_ephemeral": {"const": true},
+    "production_mounts": {"const": false},
+    "docker_socket": {"const": false},
+    "privileged": {"const": false}
+  }
+}

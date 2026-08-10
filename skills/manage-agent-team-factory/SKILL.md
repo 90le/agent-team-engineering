@@ -5,7 +5,7 @@ description: Create, inspect, validate, relock, run, pause, back up, restore, up
 
 # Manage Agent Team Factory
 
-Read the Factory `AI-BOOTSTRAP.md`, constitution, threat model, `factory-package.json`, and `docs/08-factory/instance-lifecycle.md`. For runtime or recovery work, also read `docs/09-control-plane/persistence-and-recovery.md`. When an instance exists, read its `AI-BOOTSTRAP.md`, `.agent-team/instance.json`, and `.agent-team/instance.lock.json` completely.
+Read the Factory `AI-BOOTSTRAP.md`, constitution, threat model, `factory-package.json`, and `docs/08-factory/instance-lifecycle.md`. For runtime or recovery work, also read `docs/09-control-plane/persistence-and-recovery.md`. For adapter or approval work, read `docs/10-adapters/sdk-isolation-and-approval.md` and use `implement-agent-team-adapter`. When an instance exists, read its `AI-BOOTSTRAP.md`, `.agent-team/instance.json`, and `.agent-team/instance.lock.json` completely.
 
 ## Establish the boundary
 
@@ -38,7 +38,9 @@ On uncertainty, activate the human-owner global pause. Reconcile expired leases 
 
 ## Bind an external adapter
 
-Require separate authorization, the exact target, a minimum-permission identity, secret-system references, a dry-run or test environment, contract tests, idempotency behavior, stop controls, and rollback. Repository access is not merge or production authority. Do not infer provider configuration from chat history.
+Run `python3 tools/agent_team.py adapter catalog` and verify the selected ID/version, slot, operations, delivery semantics and referenced Schemas. Require separate authorization, the exact target, a minimum-permission identity, secret-system references, a dry-run or test environment, contract tests, idempotency/reconciliation behavior, stop controls, and rollback. Register implementations explicitly; never dynamically import a Manifest entrypoint. Repository access is not merge or production authority. Do not infer provider configuration from chat history.
+
+An owner workflow transition requires a verified assertion bound to identity, action, work item, revision and evidence. A chat message, `kind=human` or HMAC reference fixture alone is not production identity. Keep public intake and owner control in separate trust boundaries.
 
 ## Stop safely
 

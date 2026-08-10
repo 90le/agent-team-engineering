@@ -1,0 +1,31 @@
+{
+  "schema_version": "2.0.0",
+  "id": "adapter.manual-agent",
+  "version": "0.4.0",
+  "kind": "generic-ai",
+  "status": "REFERENCE",
+  "authority": "replaceable-interface",
+  "slots": ["model"],
+  "config_schema": "schemas/adapter-empty-config.schema.json",
+  "operations": [
+    {
+      "name": "agent.invoke",
+      "slots": ["model"],
+      "direction": "outbound",
+      "external_effect": "compute",
+      "delivery": "at-most-once",
+      "capability": "agent.invoke",
+      "input_schema": "schemas/project-task-envelope.schema.json",
+      "output_schema": "schemas/agent-result.schema.json",
+      "timeout_seconds": 86400,
+      "project_scope": {"match_by": "id", "payload_field": "project_id", "provider": null, "allowed_modes": ["observe", "proposal-only"], "default_branch_field": null, "source_ref_field": null}
+    }
+  ],
+  "trust_boundaries": ["control-worker"],
+  "credentials": [],
+  "implementation": {"mode": "contract-only", "entrypoint": null},
+  "security_notes": [
+    "This adapter exports a bounded task for manual completion and imports only schema-valid results.",
+    "Manual completion does not bypass revision, review or approval gates."
+  ]
+}

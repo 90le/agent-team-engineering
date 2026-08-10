@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:external-reference:1.0.0",
+  "title": "External provider object reference",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["external_ref", "provider_request_id", "state"],
+  "properties": {
+    "external_ref": {"type": "string", "minLength": 1},
+    "provider_request_id": {"type": "string", "minLength": 1},
+    "state": {"enum": ["created", "updated", "reported", "accepted", "planned"]}
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "schema_version": "2.0.0",
+  "id": "adapter.file-inbox",
+  "version": "0.4.0",
+  "kind": "messaging",
+  "status": "REFERENCE",
+  "authority": "replaceable-interface",
+  "slots": ["intake"],
+  "config_schema": "schemas/adapter-empty-config.schema.json",
+  "operations": [
+    {
+      "name": "feedback.receive",
+      "slots": ["intake"],
+      "direction": "inbound",
+      "external_effect": "write",
+      "delivery": "provider-idempotency",
+      "capability": "feedback.submit",
+      "input_schema": "schemas/feedback-event.schema.json",
+      "output_schema": "schemas/work-item.schema.json",
+      "timeout_seconds": 10,
+      "project_scope": null
+    }
+  ],
+  "trust_boundaries": ["public-untrusted"],
+  "credentials": [],
+  "implementation": {"mode": "contract-only", "entrypoint": null},
+  "security_notes": [
+    "The inbox directory is data-only and cannot contain executable authority.",
+    "A stable source filename and event identifier must be used for deduplication."
+  ]
+}

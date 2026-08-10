@@ -1,13 +1,32 @@
 {
-  "schema_version": "1.0.0",
+  "schema_version": "2.0.0",
   "id": "adapter.generic-ai",
+  "version": "0.4.0",
   "kind": "generic-ai",
   "status": "REFERENCE",
   "authority": "replaceable-interface",
-  "inputs": ["bounded-context-bundle", "task-envelope"],
-  "outputs": ["schema-conformant-result"],
+  "slots": ["model"],
+  "config_schema": "schemas/adapter-empty-config.schema.json",
+  "operations": [
+    {
+      "name": "agent.invoke",
+      "slots": ["model"],
+      "direction": "outbound",
+      "external_effect": "compute",
+      "delivery": "at-most-once",
+      "capability": "agent.invoke",
+      "input_schema": "schemas/project-task-envelope.schema.json",
+      "output_schema": "schemas/agent-result.schema.json",
+      "timeout_seconds": 3600,
+      "project_scope": {"match_by": "id", "payload_field": "project_id", "provider": null, "allowed_modes": ["observe", "proposal-only"], "default_branch_field": null, "source_ref_field": null}
+    }
+  ],
+  "trust_boundaries": ["control-worker", "provider-api"],
+  "credentials": ["model-provider-credential"],
+  "implementation": {"mode": "contract-only", "entrypoint": null},
   "security_notes": [
     "Use hash-addressed context exports when the AI cannot read local files.",
-    "Reject outputs that omit expected revision, evidence, or role identity."
+    "Reject outputs that omit expected revision, evidence, or role identity.",
+    "Provider-specific tool calls cannot expand the task envelope."
   ]
 }

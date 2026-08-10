@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 import tempfile
@@ -7,6 +8,7 @@ import unittest
 from pathlib import Path
 
 from core.control_plane import (
+    GENESIS_HASH,
     AuditIntegrityError,
     ControlPlane,
     ControlPlaneError,
@@ -508,6 +510,30 @@ class ControlPlaneRecoveryTests(unittest.TestCase):
                 control.connection.execute(
                     "UPDATE audit_log SET payload_json = ? WHERE sequence = 1",
                     ('{"tampered":true}',),
+                )
+                with self.assertRaises(AuditIntegrityError):
+                    control.verify_audit()
+
+    def test_audit_rejects_duplicate_keys_even_with_a_recomputed_hash(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            database = Path(temporary) / "state.sqlite3"
+            with ControlPlane(database) as control:
+                control.ingest_feedback(
+                    feedback(), idempotency_key="feedback:audit:duplicate-key:1"
+                )
+                original = str(
+                    control.connection.execute(
+                        "SELECT payload_json FROM audit_log WHERE sequence = 1"
+                    ).fetchone()[0]
+                )
+                duplicated = original[:-1] + ',"data":{}}'
+                event_hash = (
+                    "sha256:"
+                    + hashlib.sha256((GENESIS_HASH + "\n" + duplicated).encode("utf-8")).hexdigest()
+                )
+                control.connection.execute(
+                    "UPDATE audit_log SET payload_json = ?, event_hash = ? WHERE sequence = 1",
+                    (duplicated, event_hash),
                 )
                 with self.assertRaises(AuditIntegrityError):
                     control.verify_audit()

@@ -19,6 +19,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from core.approval import ApprovalVerifier
+from core.json_support import loads_strict
 from core.models import Actor, FeedbackEvent, WorkItem
 from core.policy import ROLE_CAPABILITIES, PermissionDenied
 from core.security import find_inline_secret
@@ -227,9 +229,11 @@ class ControlPlane:
         *,
         create: bool = True,
         clock: Callable[[], float] = time.time,
+        approval_verifier: ApprovalVerifier | None = None,
     ) -> None:
         self.path = database.resolve()
         self.clock = clock
+        self.approval_verifier = approval_verifier
         if database.is_symlink():
             raise ControlPlaneError("control-plane database must not be a symbolic link")
         if not self.path.exists() and not create:
@@ -403,7 +407,7 @@ class ControlPlane:
             raise IdempotencyConflict(
                 "idempotency key was already used for a different operation or request"
             )
-        result = json.loads(str(row["result_json"]))
+        result = loads_strict(str(row["result_json"]))
         result["replayed"] = True
         return request_hash, result
 
@@ -436,7 +440,7 @@ class ControlPlane:
         ).fetchone()
         if not row:
             raise WorkItemNotFound(work_item_id)
-        value = json.loads(str(row["item_json"]))
+        value = loads_strict(str(row["item_json"]))
         return WorkItem.from_dict(value)
 
     def get_work_item(self, work_item_id: str) -> WorkItem:
@@ -451,6 +455,22 @@ class ControlPlane:
             "SELECT id, state, revision, updated_at FROM work_items ORDER BY id"
         ).fetchall()
         return [dict(row) for row in rows]
+
+    def get_audit_event(self, sequence: int) -> dict[str, Any]:
+        if isinstance(sequence, bool) or not isinstance(sequence, int) or sequence < 1:
+            raise ControlPlaneError("audit sequence must be a positive integer")
+        row = self.connection.execute(
+            "SELECT payload_json FROM audit_log WHERE sequence = ?", (sequence,)
+        ).fetchone()
+        if not row:
+            raise ControlPlaneError(f"audit event does not exist: {sequence}")
+        try:
+            value = loads_strict(str(row["payload_json"]))
+        except ValueError as exc:
+            raise AuditIntegrityError(f"invalid audit JSON at sequence {sequence}: {exc}") from exc
+        if not isinstance(value, dict):
+            raise AuditIntegrityError(f"audit event is not an object: {sequence}")
+        return value
 
     def ingest_feedback(
         self,
@@ -477,7 +497,7 @@ class ControlPlane:
                     raise IdempotencyConflict(
                         "feedback source identity was reused with different content"
                     )
-                item = WorkItem.from_dict(json.loads(str(existing["item_json"])))
+                item = WorkItem.from_dict(loads_strict(str(existing["item_json"])))
                 result = {"replayed": True, "work_item": item.to_dict(), "audit_sequence": None}
                 self._record_idempotency(
                     cursor, idempotency_key, "feedback.ingest", request_hash, result
@@ -727,12 +747,18 @@ class ControlPlane:
         expected_revision: int,
         idempotency_key: str,
         lease_id: str | None = None,
+        approval_assertion: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         if not all(
             isinstance(key, str) and isinstance(value, str) for key, value in evidence.items()
         ):
             raise ControlPlaneError("transition evidence must contain only string keys and values")
         _require_no_inline_secret("transition evidence", evidence)
+        if approval_assertion is not None:
+            _require_no_inline_secret("approval assertion", approval_assertion)
+            assertion_digest: str | None = _sha256(_canonical_json(approval_assertion))
+        else:
+            assertion_digest = None
         request = {
             "work_item_id": work_item_id,
             "action": action,
@@ -740,6 +766,7 @@ class ControlPlane:
             "evidence": dict(sorted(evidence.items())),
             "expected_revision": expected_revision,
             "lease_id": lease_id,
+            "approval_assertion_digest": assertion_digest,
         }
         with self._transaction() as cursor:
             request_hash, replay = self._idempotent_replay(
@@ -755,10 +782,34 @@ class ControlPlane:
                 )
 
             held_lease: sqlite3.Row | None = None
+            transition_evidence = dict(evidence)
             if actor.role == "owner":
                 if actor.kind != "human":
                     raise PermissionDenied("owner approval actor must be human")
+                if self.approval_verifier is None or approval_assertion is None:
+                    raise PermissionDenied(
+                        "owner transition requires an authenticated approval verifier and assertion"
+                    )
+                verified = self.approval_verifier.verify(
+                    approval_assertion,
+                    actor_id=actor.id,
+                    action=action,
+                    work_item_id=work_item_id,
+                    expected_revision=expected_revision,
+                    evidence=evidence,
+                )
+                transition_evidence.update(
+                    {
+                        "approval_provider": verified.provider,
+                        "approval_evidence_ref": verified.evidence_ref,
+                        "approval_claim_digest": verified.claim_digest,
+                    }
+                )
             else:
+                if approval_assertion is not None:
+                    raise PermissionDenied(
+                        "approval assertions are accepted only for owner transitions"
+                    )
                 if not lease_id:
                     raise LeaseRequired("non-owner transitions require an active task lease")
                 held_lease = cursor.execute(
@@ -781,7 +832,7 @@ class ControlPlane:
                 item,
                 action,
                 actor,
-                evidence,
+                transition_evidence,
                 expected_revision=expected_revision,
             )
             updated = cursor.execute(
@@ -994,7 +1045,7 @@ class ControlPlane:
             "adapter_slot": row["adapter_slot"],
             "operation": row["operation"],
             "idempotency_key": row["idempotency_key"],
-            "payload": json.loads(str(row["payload_json"])),
+            "payload": loads_strict(str(row["payload_json"])),
             "state": row["state"],
             "attempts": row["attempts"],
             "max_attempts": row["max_attempts"],
@@ -1002,9 +1053,18 @@ class ControlPlane:
             "claim_owner": row["claim_owner"],
             "claim_token": row["claim_token"],
             "claim_expires_at": row["claim_expires_at"],
-            "result": json.loads(str(row["result_json"])) if row["result_json"] else None,
+            "result": loads_strict(str(row["result_json"])) if row["result_json"] else None,
             "last_error": row["last_error"],
         }
+
+    def get_effect(self, effect_id: str) -> dict[str, Any]:
+        effect_id = _validate_bounded_text("effect_id", effect_id, 200)
+        row = self.connection.execute(
+            "SELECT * FROM outbox WHERE effect_id = ?", (effect_id,)
+        ).fetchone()
+        if not row:
+            raise OutboxConflict("outbox effect does not exist")
+        return self._effect_from_row(row)
 
     def _recover_expired_effects(self, cursor: sqlite3.Cursor, now_epoch: float) -> int:
         rows = cursor.execute(
@@ -1159,6 +1219,7 @@ class ControlPlane:
         *,
         error: str,
         retry_delay_seconds: int = 0,
+        permanent: bool = False,
     ) -> dict[str, Any]:
         error = _validate_bounded_text("error", error, 1000)
         _require_no_inline_secret("outbox error", error)
@@ -1167,7 +1228,11 @@ class ControlPlane:
         with self._transaction() as cursor:
             row = self._require_effect_claim(cursor, effect_id, worker_id, claim_token)
             now_epoch = self.clock()
-            state = "DEAD" if int(row["attempts"]) >= int(row["max_attempts"]) else "FAILED"
+            state = (
+                "DEAD"
+                if permanent or int(row["attempts"]) >= int(row["max_attempts"])
+                else "FAILED"
+            )
             cursor.execute(
                 """
                 UPDATE outbox
@@ -1193,6 +1258,7 @@ class ControlPlane:
                     "error_digest": _sha256(error),
                     "attempts": row["attempts"],
                     "new_state": state,
+                    "permanent": permanent,
                 },
                 work_item_id=str(row["work_item_id"]),
             )
@@ -1250,8 +1316,8 @@ class ControlPlane:
                 raise AuditIntegrityError(f"audit previous hash mismatch at {expected_sequence}")
             payload_json = str(row["payload_json"])
             try:
-                payload = json.loads(payload_json)
-            except json.JSONDecodeError as exc:
+                payload = loads_strict(payload_json)
+            except ValueError as exc:
                 raise AuditIntegrityError(
                     f"invalid audit JSON at {expected_sequence}: {exc}"
                 ) from exc
@@ -1280,7 +1346,7 @@ class ControlPlane:
             expected_sequence += 1
 
         for row in self.connection.execute("SELECT id, item_json, state, revision FROM work_items"):
-            item = WorkItem.from_dict(json.loads(str(row["item_json"])))
+            item = WorkItem.from_dict(loads_strict(str(row["item_json"])))
             row_id = str(row["id"])
             if item.id != row_id:
                 raise AuditIntegrityError(f"work item identity mismatch: {row_id}")

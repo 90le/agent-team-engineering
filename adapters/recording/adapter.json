@@ -1,0 +1,31 @@
+{
+  "schema_version": "2.0.0",
+  "id": "adapter.recording",
+  "version": "0.4.0",
+  "kind": "test-double",
+  "status": "REFERENCE",
+  "authority": "replaceable-interface",
+  "slots": ["notification"],
+  "config_schema": "schemas/adapter-empty-config.schema.json",
+  "operations": [
+    {
+      "name": "feedback.notify",
+      "slots": ["notification"],
+      "direction": "outbound",
+      "external_effect": "write",
+      "delivery": "reconcile-before-retry",
+      "capability": "feedback.notify",
+      "input_schema": "schemas/feedback-notification.schema.json",
+      "output_schema": "schemas/external-reference.schema.json",
+      "timeout_seconds": 30,
+      "project_scope": null
+    }
+  ],
+  "trust_boundaries": ["control-worker"],
+  "credentials": [],
+  "implementation": {"mode": "python-reference", "entrypoint": "core.reference_adapters:RecordingAdapter"},
+  "security_notes": [
+    "This deterministic in-memory adapter is for contract and recovery tests only.",
+    "It performs no network, filesystem or production action."
+  ]
+}

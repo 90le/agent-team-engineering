@@ -152,6 +152,54 @@ class InstanceFactoryTests(unittest.TestCase):
             any("adapter slots must be unique" in finding.message for finding in findings)
         )
 
+    def test_unknown_or_wrong_slot_adapter_is_rejected(self) -> None:
+        document = load_example()
+        document["adapters"][0]["adapter_id"] = "adapter.does-not-exist"
+        findings = validate_instance_document(document)
+        self.assertTrue(any("unknown adapter" in finding.message for finding in findings))
+
+        document = load_example()
+        document["adapters"][0]["adapter_id"] = "adapter.github"
+        findings = validate_instance_document(document)
+        self.assertTrue(any("does not support intake" in finding.message for finding in findings))
+
+    def test_enabled_credentialed_adapter_requires_external_secret_reference(self) -> None:
+        document = load_example()
+        github = next(
+            binding for binding in document["adapters"] if binding["adapter_id"] == "adapter.github"
+        )
+        github["enabled"] = True
+        findings = validate_instance_document(document)
+        self.assertTrue(
+            any("requires external secret references" in finding.message for finding in findings)
+        )
+
+    def test_non_finite_instance_configuration_is_rejected(self) -> None:
+        document = load_example()
+        document["adapters"][0]["config"] = {"invalid": float("nan")}
+        findings = validate_instance_document(document)
+        self.assertTrue(any("not strict JSON" in finding.message for finding in findings))
+
+    def test_adapter_config_and_duplicate_project_target_are_rejected(self) -> None:
+        document = load_example()
+        document["adapters"][0]["config"] = {"undeclared_option": True}
+        findings = validate_instance_document(document)
+        self.assertTrue(any("additional property" in finding.message for finding in findings))
+
+        document = load_example()
+        project = {
+            "id": "project.one",
+            "provider": "github",
+            "locator": "owner/repository",
+            "default_branch": "main",
+            "mode": "proposal-only",
+        }
+        document["projects"] = [project, {**project, "id": "project.two"}]
+        findings = validate_instance_document(document)
+        self.assertTrue(
+            any("provider and locator pairs" in finding.message for finding in findings)
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

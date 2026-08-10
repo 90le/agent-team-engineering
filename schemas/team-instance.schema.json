@@ -70,7 +70,7 @@
         "additionalProperties": false,
         "required": ["slot", "adapter_id", "enabled", "config", "secret_refs"],
         "properties": {
-          "slot": {"enum": ["intake", "code-hosting", "model", "runner", "deployment", "notification"]},
+          "slot": {"enum": ["intake", "approval", "code-hosting", "model", "runner", "deployment", "notification"]},
           "adapter_id": {"type": "string", "pattern": "^adapter\\.[a-z0-9][a-z0-9.-]*$"},
           "enabled": {"type": "boolean"},
           "config": {"type": "object"},

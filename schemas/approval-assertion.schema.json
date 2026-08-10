@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:approval-assertion:1.0.0",
+  "title": "Cryptographically verifiable bound human approval assertion",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "claim", "signature"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assertion_id", "provider", "subject", "decision", "action", "work_item_id", "expected_revision", "binding_digest", "issued_at_epoch", "expires_at_epoch", "nonce", "evidence_ref"],
+      "properties": {
+        "assertion_id": {"type": "string", "maxLength": 200, "pattern": "^approval-[A-Za-z0-9._:-]+$"},
+        "provider": {"type": "string", "maxLength": 200, "pattern": "^approval-provider\\.[a-z0-9][a-z0-9.-]*$"},
+        "subject": {"type": "string", "maxLength": 200, "pattern": "^human\\.[a-z0-9][a-z0-9.-]*$"},
+        "decision": {"const": "APPROVED"},
+        "action": {"enum": ["approve_plan", "approve_production"]},
+        "work_item_id": {"type": "string", "minLength": 1, "maxLength": 200},
+        "expected_revision": {"type": "integer", "minimum": 0},
+        "binding_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "issued_at_epoch": {"type": "number", "minimum": 0},
+        "expires_at_epoch": {"type": "number", "minimum": 0},
+        "nonce": {"type": "string", "pattern": "^[A-Za-z0-9._:-]{16,200}$"},
+        "evidence_ref": {"type": "string", "minLength": 1, "maxLength": 2000}
+      }
+    },
+    "signature": {"type": "string", "pattern": "^hmac-sha256:[a-f0-9]{64}$"}
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:feedback-notification:1.0.0",
+  "title": "Outbound feedback status notification",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["work_item_id", "status", "message_ref"],
+  "properties": {
+    "work_item_id": {"type": "string", "minLength": 1},
+    "status": {"type": "string", "minLength": 1},
+    "message_ref": {"type": "string", "minLength": 1}
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:execution-result:1.0.0",
+  "title": "Sanitized isolated runner result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "job_id", "status", "exit_code", "artifact_digests", "evidence_refs", "executor_ref"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "job_id": {"type": "string", "pattern": "^job-[A-Za-z0-9._:-]+$"},
+    "status": {"enum": ["PLANNED", "PASSED", "FAILED", "TIMED_OUT"]},
+    "exit_code": {"type": ["integer", "null"]},
+    "artifact_digests": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}},
+    "evidence_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "executor_ref": {"type": "string", "minLength": 1}
+  }
+}
