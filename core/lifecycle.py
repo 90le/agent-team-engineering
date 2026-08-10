@@ -43,7 +43,7 @@ LOCK_RELATIVE = ".agent-team/instance.lock.json"
 INSTANCE_RELATIVE = ".agent-team/instance.json"
 JOURNAL_RELATIVE = "runtime/.factory-lifecycle-journal.json"
 RESERVED_ACTION_PATHS = frozenset({LOCK_RELATIVE, INSTANCE_RELATIVE, JOURNAL_RELATIVE})
-SUPPORTED_UPGRADE_SOURCES = frozenset({"0.2.0", "0.3.0", "0.4.0"})
+SUPPORTED_UPGRADE_SOURCES = frozenset({"0.2.0", "0.3.0", "0.4.0", "0.5.0"})
 MAX_LIFECYCLE_FILE_BYTES = 10 * 1024 * 1024
 MAX_RECOVERY_BYTES = 50 * 1024 * 1024
 

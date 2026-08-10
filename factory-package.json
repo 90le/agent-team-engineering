@@ -3,7 +3,7 @@
   "schema_version": "1.0.0",
   "id": "factory.agent-team-engineering",
   "name": "Agent Team Engineering Factory",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "status": "STABLE",
   "instance_schema_version": "1.0.0",
   "maximum_bootstrap_autonomy": "A2",

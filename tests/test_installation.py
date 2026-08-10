@@ -28,11 +28,15 @@ class FactoryInstallationTests(unittest.TestCase):
     def test_development_snapshot_installs_atomically_and_verifies(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             destination = Path(temporary) / "factory"
-            report = install_factory(destination, _allow_unreleased=True)
+            with patch(
+                "core.installation._release_identity",
+                return_value=("d" * 40, None, False),
+            ):
+                report = install_factory(destination, _allow_unreleased=True)
             manifest = verify_factory_installation(destination)
 
             self.assertEqual(report["status"], "INSTALLED")
-            self.assertEqual(report["factory_version"], "0.5.0")
+            self.assertEqual(report["factory_version"], "0.5.1")
             self.assertFalse(report["release_verified"])
             self.assertEqual(report["installation_id"], manifest["installation_id"])
             self.assertTrue((destination / "tools" / "agent_team.py").is_file())
@@ -90,7 +94,11 @@ class FactoryInstallationTests(unittest.TestCase):
             base = Path(temporary)
             destination = base / "factory"
             instance = base / "instance"
-            install_factory(destination, _allow_unreleased=True)
+            with patch(
+                "core.installation._release_identity",
+                return_value=("d" * 40, None, False),
+            ):
+                install_factory(destination, _allow_unreleased=True)
             doctor = subprocess.run(
                 [sys.executable, str(destination / "tools" / "agent_team.py"), "doctor"],
                 check=True,

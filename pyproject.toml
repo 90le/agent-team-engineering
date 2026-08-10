@@ -1,6 +1,6 @@
 [project]
 name = "agent-team-engineering"
-version = "0.5.0"
+version = "0.5.1"
 description = "Portable, vendor-neutral factory for governed multi-agent software delivery teams"
 requires-python = ">=3.11"
 
