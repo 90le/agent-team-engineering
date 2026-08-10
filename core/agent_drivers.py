@@ -19,7 +19,12 @@ from core.adapters import (
 from core.json_support import loads_strict
 from core.schema_validation import validate_schema
 from core.security import find_inline_secret
-from core.team_creator import _canonical_json, _load_object, _role_prompt, validate_blueprint_document
+from core.team_creator import (
+    _canonical_json,
+    _load_object,
+    _role_prompt,
+    validate_blueprint_document,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 RESULT_SCHEMA_PATH = ROOT / "schemas" / "agent-step-result.schema.json"

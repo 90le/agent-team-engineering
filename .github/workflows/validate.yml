@@ -25,6 +25,8 @@ jobs:
         run: python3 tools/agent_team.py simulate --approve-production
       - name: Generate and validate an instance
         run: make instance-smoke
+      - name: Generate and validate a context-first team
+        run: make context-smoke
       - name: Verify clean-clone bootstrap
         run: tools/cold-start.sh
       - name: Verify exact release-tag context

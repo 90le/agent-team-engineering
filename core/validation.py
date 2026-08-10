@@ -12,9 +12,17 @@ from core.schema_validation import validate_schema
 from core.security import CREDENTIAL_PATTERNS
 
 REQUIRED_PATHS = (
+    "README.md",
+    "README.zh-CN.md",
     "AI-BOOTSTRAP.md",
+    "AI-START.md",
     "AGENTS.md",
     "CLAUDE.md",
+    "LICENSE",
+    "SECURITY.md",
+    "CONTRIBUTING.md",
+    "CODE_OF_CONDUCT.md",
+    "agent-team",
     "VERSION",
     "CHANGELOG.md",
     "factory-package.json",
@@ -24,6 +32,7 @@ REQUIRED_PATHS = (
     "core/agent_drivers.py",
     "core/adoption.py",
     "core/approval.py",
+    "core/context_team.py",
     "core/doctor.py",
     "core/installation.py",
     "core/instance.py",
@@ -77,6 +86,8 @@ REQUIRED_PATHS = (
     "schemas/project-task-envelope.schema.json",
     "schemas/runner-profile.schema.json",
     "schemas/team-blueprint.schema.json",
+    "schemas/team-design.schema.json",
+    "schemas/context-team-lock.schema.json",
     "schemas/team-lock.schema.json",
     "schemas/adapter-authority-policy.schema.json",
     "policies/adapter-authority.json",
@@ -90,9 +101,12 @@ REQUIRED_PATHS = (
     "docs/11-lifecycle/installation-upgrade-and-adoption.md",
     "docs/12-acceptance/cross-ai-takeover.md",
     "docs/13-team-creator/blueprint-compiler-and-reference-runtime.md",
+    "docs/14-context-first/context-first-team-kit.md",
+    "docs/14-context-first/platform-installation.md",
     "docs/adr/ADR-0005-versioned-adapter-host-and-bound-approval.md",
     "docs/adr/ADR-0006-verified-install-and-transactional-instance-lifecycle.md",
     "docs/adr/ADR-0007-team-blueprint-compiler-and-governed-reference-runtime.md",
+    "docs/adr/ADR-0008-context-first-team-kits-and-discovery-bundles.md",
     "skills/create-agent-team/SKILL.md",
     "skills/manage-agent-team-factory/SKILL.md",
     "skills/implement-agent-team-adapter/SKILL.md",
@@ -103,6 +117,15 @@ REQUIRED_PATHS = (
     "team-packs/software-delivery/quality-gates.json",
     "team-packs/software-delivery/tool-policy.json",
     "examples/team-instance/input/instance.json",
+    "examples/context-first/team-design.json",
+    "presets/software-lite.json",
+    "presets/software-managed.json",
+    "presets/custom.json",
+    ".agents/plugins/marketplace.json",
+    ".agents/plugins/plugins/agent-team/.codex-plugin/plugin.json",
+    ".agents/plugins/plugins/agent-team/.claude-plugin/plugin.json",
+    ".agents/plugins/plugins/agent-team/skills/bootstrap-agent-team/SKILL.md",
+    ".claude-plugin/marketplace.json",
 )
 
 MARKDOWN_LINK = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
@@ -115,8 +138,11 @@ REQUIRED_CONTRACT_FILES = frozenset(
         "docs/11-lifecycle/installation-upgrade-and-adoption.md",
         "docs/12-acceptance/cross-ai-takeover.md",
         "docs/13-team-creator/blueprint-compiler-and-reference-runtime.md",
+        "docs/14-context-first/context-first-team-kit.md",
+        "docs/14-context-first/platform-installation.md",
         "docs/adr/ADR-0006-verified-install-and-transactional-instance-lifecycle.md",
         "docs/adr/ADR-0007-team-blueprint-compiler-and-governed-reference-runtime.md",
+        "docs/adr/ADR-0008-context-first-team-kits-and-discovery-bundles.md",
         "schemas/adoption-package.schema.json",
         "schemas/adoption-project.schema.json",
         "schemas/adoption-report.schema.json",
@@ -132,7 +158,18 @@ REQUIRED_CONTRACT_FILES = frozenset(
         "schemas/cli-model-router-config.schema.json",
         "schemas/runner-profile.schema.json",
         "schemas/team-blueprint.schema.json",
+        "schemas/team-design.schema.json",
+        "schemas/context-team-lock.schema.json",
         "schemas/team-lock.schema.json",
+        "AI-START.md",
+        ".agents/plugins/marketplace.json",
+        ".agents/plugins/plugins/agent-team/.codex-plugin/plugin.json",
+        ".agents/plugins/plugins/agent-team/.claude-plugin/plugin.json",
+        ".agents/plugins/plugins/agent-team/skills/bootstrap-agent-team/SKILL.md",
+        ".claude-plugin/marketplace.json",
+        "presets/custom.json",
+        "presets/software-lite.json",
+        "presets/software-managed.json",
         "skills/create-agent-team/SKILL.md",
         "skills/upgrade-agent-team-instance/SKILL.md",
         "acceptance/cross-ai-takeover.json",
@@ -162,8 +199,20 @@ def validate_repository(root: Path) -> list[Finding]:
         if not (root / relative).is_file():
             findings.append(Finding("ERROR", relative, "required file is missing"))
 
+    for path in sorted(root.rglob("*")):
+        if path.is_symlink() and not IGNORED_DERIVED_DIRECTORIES.intersection(path.parts):
+            findings.append(
+                Finding(
+                    "ERROR",
+                    path.relative_to(root).as_posix(),
+                    "symbolic links are not allowed",
+                )
+            )
+
     for path in _tracked_files(root):
         relative = path.relative_to(root).as_posix()
+        if path.is_symlink():
+            continue
         if path.stat().st_size > 10 * 1024 * 1024:
             findings.append(Finding("ERROR", relative, "ordinary Git file exceeds 10 MiB"))
         if path.name == ".env" or path.suffix.lower() in {".pem", ".key", ".db", ".sqlite"}:
@@ -536,6 +585,85 @@ def validate_repository(root: Path) -> list[Finding]:
                         "ERROR", "factory-package.json", f"contract file is missing: {relative}"
                     )
                 )
+
+    root_cli = root / "agent-team"
+    if root_cli.is_file() and not root_cli.stat().st_mode & 0o100:
+        findings.append(Finding("ERROR", "agent-team", "root CLI must be owner-executable"))
+
+    design_path = root / "examples/context-first/team-design.json"
+    design_schema_path = root / "schemas/team-design.schema.json"
+    design = json_documents.get(design_path.resolve())
+    design_schema = json_documents.get(design_schema_path.resolve())
+    if isinstance(design, dict) and isinstance(design_schema, dict):
+        for issue in validate_schema(design, design_schema):
+            findings.append(
+                Finding(
+                    "ERROR",
+                    design_path.relative_to(root).as_posix(),
+                    f"{issue.path}: {issue.message}",
+                )
+            )
+        role_ids = {
+            str(role.get("id")) for role in design.get("roles", []) if isinstance(role, dict)
+        }
+        known_actors = role_ids | {"human.owner"}
+        for role in design.get("roles", []):
+            if not isinstance(role, dict):
+                continue
+            for handoff in role.get("handoffs", []):
+                if isinstance(handoff, dict) and handoff.get("to") not in known_actors:
+                    findings.append(
+                        Finding(
+                            "ERROR",
+                            design_path.relative_to(root).as_posix(),
+                            f"role {role.get('id')} hands off to an unknown actor",
+                        )
+                    )
+    elif design_path.is_file() and design is not None:
+        findings.append(
+            Finding("ERROR", design_path.relative_to(root).as_posix(), "design example must be an object")
+        )
+
+    release_version = version_path.read_text(encoding="utf-8").strip() if version_path.is_file() else ""
+    codex_marketplace_path = root / ".agents/plugins/marketplace.json"
+    codex_manifest_path = root / ".agents/plugins/plugins/agent-team/.codex-plugin/plugin.json"
+    claude_manifest_path = root / ".agents/plugins/plugins/agent-team/.claude-plugin/plugin.json"
+    claude_marketplace_path = root / ".claude-plugin/marketplace.json"
+    codex_marketplace = json_documents.get(codex_marketplace_path.resolve())
+    codex_manifest = json_documents.get(codex_manifest_path.resolve())
+    claude_manifest = json_documents.get(claude_manifest_path.resolve())
+    claude_marketplace = json_documents.get(claude_marketplace_path.resolve())
+    for relative, manifest in (
+        (codex_manifest_path.relative_to(root).as_posix(), codex_manifest),
+        (claude_manifest_path.relative_to(root).as_posix(), claude_manifest),
+    ):
+        if isinstance(manifest, dict):
+            if manifest.get("name") != "agent-team":
+                findings.append(Finding("ERROR", relative, "plugin name must be agent-team"))
+            if manifest.get("version") != release_version:
+                findings.append(Finding("ERROR", relative, "plugin version must match VERSION"))
+            if manifest.get("license") != "Apache-2.0":
+                findings.append(Finding("ERROR", relative, "plugin license must be Apache-2.0"))
+    if isinstance(codex_marketplace, dict):
+        plugins = codex_marketplace.get("plugins", [])
+        if not isinstance(plugins, list) or len(plugins) != 1:
+            findings.append(
+                Finding("ERROR", codex_marketplace_path.relative_to(root).as_posix(), "marketplace must declare exactly one plugin")
+            )
+        else:
+            source = plugins[0].get("source", {}) if isinstance(plugins[0], dict) else {}
+            local_path = source.get("path") if isinstance(source, dict) else None
+            if local_path != "./plugins/agent-team":
+                findings.append(
+                    Finding("ERROR", codex_marketplace_path.relative_to(root).as_posix(), "plugin source must resolve inside the marketplace")
+                )
+    if isinstance(claude_marketplace, dict):
+        plugins = claude_marketplace.get("plugins", [])
+        plugin = plugins[0] if isinstance(plugins, list) and len(plugins) == 1 else None
+        if not isinstance(plugin, dict) or plugin.get("source") != "./.agents/plugins/plugins/agent-team":
+            findings.append(
+                Finding("ERROR", claude_marketplace_path.relative_to(root).as_posix(), "Claude marketplace must use the self-contained plugin bundle")
+            )
 
     try:
         from core.instance import validate_instance_document

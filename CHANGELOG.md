@@ -2,6 +2,23 @@
 
 本项目遵循语义化版本。版本标签只在仓库验证、测试、Skill校验和空目录冷启动全部通过后创建；已发布标签不移动。
 
+## 0.7.0 — 2026-08-10
+
+Agent Team Factory 的“上下文优先、普通用户可创建团队”版本：
+
+- 新增 Team Design 与 Context Lock。`./agent-team create` 提供 `software-lite`、`software-managed`、`custom` 三个入口，把原则、项目事实、角色、Skill、工作流、知识来源和平台目标确定性编译为独立团队包；Schema、无覆盖发布、路径/秘密检查和逐文件SHA-256摘要共同保护生成资产。锁显式区分编译器管理与用户维护文件，让项目上下文、架构、知识、ADR和工作记录可通过Git评审持续演进。
+- Lite软件团队内置反馈、产品、架构、前端、后端、QA、独立审核和发布交接八个完整角色；Custom支持任意用户角色和顺序，但保持context-only，不把Markdown声明解释成工具授权。
+- Managed在同一上下文层下复用v0.6受治理运行时，继续强制准确人工计划批准、隔离worktree、Draft PR、声明式测试、作者/审核者分离、持久状态与恢复，并固定停在人工merge决定之前。
+- 新增普通用户根CLI、交互式向导、preset发现、设计验证、团队检查和平台导出。导出必须同时携带共享权威上下文，不覆盖目标项目已有AI规则。
+- 新增Codex marketplace/plugin、Claude marketplace/plugin、OpenClaw兼容Skill bundle和Generic AI入口。发现包自包含且只含Manifest、Skill与参考资料，不含MCP、hook、后台进程、凭据或隐式外部写入。
+- 重写中英文README，新增`AI-START.md`、完整上下文团队指南、平台安装指南、可编译示例、ADR-0008、Apache-2.0许可证、安全策略、贡献指南和社区行为规范。
+- 扩展仓库验证和安全负例，覆盖三个模式、任意角色、未知handoff、秘密、Managed映射、确定性、无覆盖、设计/文件/符号链接漂移、平台导出和v0.6运行时兼容。
+- Factory、能力包和Python项目版本升级到`0.7.0`，并新增从`0.6.0`以及既有v0.2–v0.5.1实例到v0.7的显式、可恢复迁移。实例Schema、SQLite Schema和`software-delivery 0.2.0`团队包保持兼容；旧版`team create --blueprint`和运行时命令继续保留。
+
+限制：发现插件不会自动创建模型账号、OpenClaw Gateway/频道、GitHub身份、生产Runner或常驻服务；Factory仍不提供自动merge或生产部署。Lite依赖采用平台正确隔离工具，角色文件本身不是安全沙箱。Managed仍是单机参考控制面，不宣称分布式高可用。
+
+回退：Lite/Custom团队是普通锁定文件包，可保留v0.7 Factory或迁移为目标项目的权威文档；v0.6工具不会解释Context Lock。普通Team Instance升级必须使用升级时创建的外部恢复包和新的救援包执行标准rollback，回退前停止所有writer、备份SQLite并对账外部Issue/PR。
+
 ## 0.6.0 — 2026-08-10
 
 Agent Team Factory 首个“团队创建器 + 可执行参考闭环”版本：

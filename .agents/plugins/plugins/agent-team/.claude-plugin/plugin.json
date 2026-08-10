@@ -1,0 +1,15 @@
+{
+  "name": "agent-team",
+  "displayName": "Agent Team Engineering",
+  "version": "0.7.0",
+  "description": "Create portable context-first AI teams with optional governed automation.",
+  "author": {
+    "name": "90le",
+    "url": "https://github.com/90le"
+  },
+  "homepage": "https://github.com/90le/agent-team-engineering",
+  "repository": "https://github.com/90le/agent-team-engineering",
+  "license": "Apache-2.0",
+  "keywords": ["agent-team", "multi-agent", "context-engineering", "claude-code"],
+  "skills": "./skills/"
+}

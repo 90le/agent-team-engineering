@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import tempfile
 from pathlib import Path
 
 # Installed Factory trees are manifest-verified and must not acquire undeclared bytecode.
@@ -23,6 +24,15 @@ from core.adoption import (  # noqa: E402
 )
 from core.approval import HMACApprovalVerifier  # noqa: E402
 from core.context import write_context_bundle  # noqa: E402
+from core.context_team import (  # noqa: E402
+    build_design,
+    create_context_team,
+    export_context_target,
+    inspect_context_team,
+    list_presets,
+    validate_context_team,
+    validate_design_document,
+)
 from core.control_plane import ControlPlane  # noqa: E402
 from core.doctor import build_doctor_report, doctor_exit_code  # noqa: E402
 from core.installation import install_factory, verify_factory_installation  # noqa: E402
@@ -279,6 +289,102 @@ def command_team_demo(args: argparse.Namespace) -> int:
     return 0
 
 
+def _interactive_value(value: str | None, prompt: str, default: str | None = None) -> str:
+    if value:
+        return value
+    if not sys.stdin.isatty():
+        raise ValueError(f"missing required value: {prompt}")
+    suffix = f" [{default}]" if default else ""
+    entered = input(f"{prompt}{suffix}: ").strip()
+    if entered:
+        return entered
+    if default is not None:
+        return default
+    raise ValueError(f"a value is required for: {prompt}")
+
+
+def command_context_create(args: argparse.Namespace) -> int:
+    if args.design:
+        report = create_context_team(Path(args.design), Path(args.output))
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+        return 0
+    preset = args.preset
+    if args.guided:
+        preset = _interactive_value(preset, "Preset", "software-lite")
+    if not preset:
+        raise ValueError("use --preset, --design, or --guided")
+    name = _interactive_value(args.name, "Team name")
+    project = _interactive_value(args.project, "Project name", name.removesuffix(" Team"))
+    owner = _interactive_value(args.owner, "Human owner display name", "Project Owner")
+    repository = _interactive_value(args.repo, "Repository locator", f"local/{project}")
+    default_branch = _interactive_value(args.default_branch, "Default branch", "main")
+    platforms = args.platform or ["generic-ai"]
+    provider = args.provider
+    if provider is None:
+        looks_like_github = (
+            repository.count("/") == 1
+            and "://" not in repository
+            and not repository.startswith(("local/", "file/"))
+        )
+        provider = "github" if looks_like_github else "generic-git"
+    design = build_design(
+        preset,
+        team_name=name,
+        project_name=project,
+        repository=repository,
+        provider=provider,
+        default_branch=default_branch,
+        owner_name=owner,
+        platforms=platforms,
+        custom_roles=args.role,
+        summary=args.summary,
+    )
+    with tempfile.TemporaryDirectory(prefix="agent-team-design-") as temporary:
+        design_path = Path(temporary) / "team-design.json"
+        design_path.write_text(
+            json.dumps(design, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+        report = create_context_team(design_path, Path(args.output))
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_context_validate(args: argparse.Namespace) -> int:
+    findings = validate_context_team(Path(args.root))
+    for finding in findings:
+        print(f"{finding.severity} {finding.path}: {finding.message}")
+    errors = sum(finding.severity == "ERROR" for finding in findings)
+    warnings = sum(finding.severity == "WARNING" for finding in findings)
+    print(f"validated_context_team={args.root} errors={errors} warnings={warnings}")
+    return 1 if errors else 0
+
+
+def command_context_inspect(args: argparse.Namespace) -> int:
+    print(json.dumps(inspect_context_team(Path(args.root)), ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_context_export(args: argparse.Namespace) -> int:
+    report = export_context_target(Path(args.root), args.target, Path(args.output))
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_context_design_validate(args: argparse.Namespace) -> int:
+    document = _load_json_object(args.file)
+    findings = validate_design_document(document)
+    for finding in findings:
+        print(f"{finding.severity} {finding.path}: {finding.message}")
+    errors = sum(finding.severity == "ERROR" for finding in findings)
+    print(f"validated_team_design={args.file} errors={errors}")
+    return 1 if errors else 0
+
+
+def command_presets(_: argparse.Namespace) -> int:
+    print(json.dumps({"presets": list_presets()}, ensure_ascii=False, indent=2))
+    return 0
+
+
 def _load_json_object(path: str) -> dict:
     target = Path(path).resolve()
     value = loads_strict(target.read_text(encoding="utf-8"))
@@ -446,7 +552,75 @@ def command_adapter_catalog(_: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="agent-team", description=__doc__)
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=(ROOT / "VERSION").read_text(encoding="utf-8").strip(),
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    create = subparsers.add_parser(
+        "create", help="create a context-first Agent Team from a preset or design"
+    )
+    create.add_argument("--guided", action="store_true", help="prompt for missing values")
+    create.add_argument(
+        "--preset", choices=("software-lite", "software-managed", "custom")
+    )
+    create.add_argument("--design", help="use a complete team-design JSON file")
+    create.add_argument("--name", help="team display name")
+    create.add_argument("--project", help="target project display name")
+    create.add_argument("--repo", help="repository locator such as owner/repo or a local label")
+    create.add_argument(
+        "--provider", choices=("github", "gitlab", "gitea", "generic-git")
+    )
+    create.add_argument("--default-branch", default="main")
+    create.add_argument("--owner", default="Project Owner")
+    create.add_argument("--summary")
+    create.add_argument(
+        "--platform",
+        action="append",
+        choices=("openclaw", "codex", "claude", "generic-ai"),
+        help="repeat to generate more than one platform adapter",
+    )
+    create.add_argument(
+        "--role",
+        action="append",
+        help="custom role as role-id or role-id:Display Name; repeat for multiple roles",
+    )
+    create.add_argument("--output", required=True)
+    create.set_defaults(func=command_context_create)
+
+    presets = subparsers.add_parser("presets", help="list built-in context-first team presets")
+    presets.set_defaults(func=command_presets)
+
+    context_team = subparsers.add_parser(
+        "context", help="validate, inspect, or export a context-first team"
+    )
+    context_commands = context_team.add_subparsers(dest="context_command", required=True)
+    context_validate = context_commands.add_parser(
+        "validate", help="verify design, digest lock, generated context, and managed runtime"
+    )
+    context_validate.add_argument("--root", required=True)
+    context_validate.set_defaults(func=command_context_validate)
+    context_inspect = context_commands.add_parser(
+        "inspect", help="show a secret-safe context team summary"
+    )
+    context_inspect.add_argument("--root", required=True)
+    context_inspect.set_defaults(func=command_context_inspect)
+    context_export = context_commands.add_parser(
+        "export", help="export one platform adapter with its authoritative shared context"
+    )
+    context_export.add_argument(
+        "--target", choices=("openclaw", "codex", "claude", "generic-ai"), required=True
+    )
+    context_export.add_argument("--root", required=True)
+    context_export.add_argument("--output", required=True)
+    context_export.set_defaults(func=command_context_export)
+    design_validate = context_commands.add_parser(
+        "design-validate", help="validate one team-design JSON before compiling it"
+    )
+    design_validate.add_argument("--file", required=True)
+    design_validate.set_defaults(func=command_context_design_validate)
 
     doctor = subparsers.add_parser("doctor", help="report portable runtime prerequisites")
     doctor.add_argument("--instance")

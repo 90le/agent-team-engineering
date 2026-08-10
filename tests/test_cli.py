@@ -9,6 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CLI = ROOT / "tools" / "agent_team.py"
+ROOT_CLI = ROOT / "agent-team"
 EXAMPLE = ROOT / "examples" / "team-instance" / "input" / "instance.json"
 
 
@@ -22,7 +23,110 @@ def run_cli(*arguments: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+def run_root_cli(*arguments: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [str(ROOT_CLI), *arguments],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
 class FactoryCliTests(unittest.TestCase):
+    def test_root_cli_reports_release_version(self) -> None:
+        result = run_root_cli("--version")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), (ROOT / "VERSION").read_text().strip())
+
+    def test_root_cli_lists_context_first_presets(self) -> None:
+        result = run_root_cli("presets")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        records = {record["id"]: record for record in json.loads(result.stdout)["presets"]}
+        self.assertEqual(records["software-lite"]["mode"], "lite")
+        self.assertEqual(records["software-managed"]["mode"], "managed")
+
+    def test_root_cli_creates_valid_lite_team_for_ordinary_user(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "team"
+            created = run_root_cli(
+                "create",
+                "--preset",
+                "software-lite",
+                "--name",
+                "CLI Product Team",
+                "--project",
+                "CLI Product",
+                "--repo",
+                "example/cli-product",
+                "--provider",
+                "github",
+                "--platform",
+                "codex",
+                "--output",
+                str(output),
+            )
+            self.assertEqual(created.returncode, 0, created.stderr)
+            report = json.loads(created.stdout)
+            self.assertEqual(report["mode"], "lite")
+            self.assertFalse(report["managed_runtime_available"])
+            validated = run_root_cli("context", "validate", "--root", str(output))
+            self.assertEqual(validated.returncode, 0, validated.stdout + validated.stderr)
+            self.assertTrue((output / "AI-START.md").is_file())
+            self.assertFalse((output / ".codex-placeholder").exists())
+
+    def test_root_cli_creates_arbitrary_custom_roles(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "team"
+            created = run_root_cli(
+                "create",
+                "--preset",
+                "custom",
+                "--name",
+                "Research Team",
+                "--project",
+                "Research Project",
+                "--repo",
+                "local/research",
+                "--provider",
+                "generic-git",
+                "--platform",
+                "generic-ai",
+                "--role",
+                "researcher:Researcher",
+                "--role",
+                "editor:Editor",
+                "--output",
+                str(output),
+            )
+            self.assertEqual(created.returncode, 0, created.stderr)
+            self.assertEqual(json.loads(created.stdout)["roles"], ["researcher", "editor"])
+            self.assertTrue((output / "ROLES/researcher.md").is_file())
+            self.assertTrue((output / "SKILLS/perform-editor-work/SKILL.md").is_file())
+
+    def test_local_locator_does_not_infer_github(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "team"
+            created = run_root_cli(
+                "create",
+                "--preset",
+                "software-lite",
+                "--name",
+                "Local Team",
+                "--project",
+                "Local Project",
+                "--repo",
+                "local/local-project",
+                "--output",
+                str(output),
+            )
+            self.assertEqual(created.returncode, 0, created.stderr)
+            design = json.loads(
+                (output / ".agent-team/team-design.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(design["project"]["provider"], "generic-git")
+            self.assertEqual(design["project"]["repository"], "local/local-project")
+
     def test_doctor_reports_factory_identity_without_enabling_production(self) -> None:
         result = run_cli("doctor")
         self.assertEqual(result.returncode, 0, result.stderr)

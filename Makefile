@@ -1,4 +1,4 @@
-.PHONY: doctor validate test simulate instance-smoke cold-test
+.PHONY: doctor validate test simulate context-smoke instance-smoke cold-test
 
 doctor:
 	python3 tools/agent_team.py doctor
@@ -11,6 +11,11 @@ test:
 
 simulate:
 	python3 tools/agent_team.py simulate --approve-production
+
+context-smoke:
+	tmp="$$(mktemp -d)"; trap 'rm -rf -- "$$tmp"' EXIT; \
+	./agent-team create --design examples/context-first/team-design.json --output "$$tmp/team"; \
+	./agent-team context validate --root "$$tmp/team"
 
 instance-smoke:
 	tmp="$$(mktemp -d)"; trap 'rm -rf -- "$$tmp"' EXIT; \

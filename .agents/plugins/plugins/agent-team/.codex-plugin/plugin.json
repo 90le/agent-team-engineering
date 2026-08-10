@@ -1,0 +1,28 @@
+{
+  "name": "agent-team",
+  "version": "0.7.0",
+  "description": "Create portable context-first AI teams with optional governed automation.",
+  "author": {
+    "name": "90le",
+    "url": "https://github.com/90le"
+  },
+  "homepage": "https://github.com/90le/agent-team-engineering",
+  "repository": "https://github.com/90le/agent-team-engineering",
+  "license": "Apache-2.0",
+  "keywords": ["agent-team", "multi-agent", "context-engineering", "codex", "openclaw"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Agent Team Engineering",
+    "shortDescription": "Create portable context-first AI teams",
+    "longDescription": "Create rich role, workflow, Skill, and shared-context packages for Codex, Claude, OpenClaw, or Generic AI, with an optional governed Draft PR runtime.",
+    "developerName": "90le",
+    "category": "Developer Tools",
+    "capabilities": ["Interactive", "Write"],
+    "websiteURL": "https://github.com/90le/agent-team-engineering",
+    "defaultPrompt": [
+      "Create a context-first software team for this project.",
+      "Generate custom AI roles and a safe handoff workflow.",
+      "Explain Lite versus Managed team mode for this repo."
+    ]
+  }
+}

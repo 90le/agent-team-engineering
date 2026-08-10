@@ -53,7 +53,7 @@ class IsolationContractTests(unittest.TestCase):
         with self.assertRaises(IsolationViolation):
             validate_execution_request(request, allowed_command_ids=("test",))
 
-        for target in ("127.0.0.1:8080", "10.10.10.2", "metadata.local"):
+        for target in ("127.0.0.1:8080", "10.0.0.2", "metadata.local"):
             request = safe_request()
             request["network_policy"] = "allowlist"
             request["network_allowlist"] = [target]
