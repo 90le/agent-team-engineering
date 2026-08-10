@@ -5,7 +5,7 @@ description: Create, inspect, validate, relock, run, pause, back up, restore, up
 
 # Manage Agent Team Factory
 
-Read the Factory `AI-BOOTSTRAP.md`, constitution, threat model, `factory-package.json`, and `docs/08-factory/instance-lifecycle.md`. For runtime or recovery work, also read `docs/09-control-plane/persistence-and-recovery.md`. For adapter or approval work, read `docs/10-adapters/sdk-isolation-and-approval.md` and use `implement-agent-team-adapter`. When an instance exists, read its `AI-BOOTSTRAP.md`, `.agent-team/instance.json`, and `.agent-team/instance.lock.json` completely.
+Read the Factory `AI-BOOTSTRAP.md`, constitution, threat model, `factory-package.json`, and `docs/08-factory/instance-lifecycle.md`. For runtime or database recovery work, also read `docs/09-control-plane/persistence-and-recovery.md`. For Factory installation, instance upgrade, lifecycle recovery, or rollback, read `docs/11-lifecycle/installation-upgrade-and-adoption.md` and use `upgrade-agent-team-instance`. For adapter or approval work, read `docs/10-adapters/sdk-isolation-and-approval.md` and use `implement-agent-team-adapter`. When an instance exists, read its `AI-BOOTSTRAP.md`, `.agent-team/instance.json`, and `.agent-team/instance.lock.json` completely.
 
 ## Establish the boundary
 
@@ -28,7 +28,7 @@ Initialization must target a new path outside the Factory. Never move, delete, o
 
 Edit only `.agent-team/instance.json` for declarative changes. Run validation, review the exact diff, then run `instance relock` and validate again. A relock accepts a validated configuration digest; it does not grant new authority, repair managed-file drift, upgrade the Factory, or enable a provider.
 
-Treat managed-file drift as a failure. Treat seeded-file drift as a user customization warning and preserve it. Use a proposal branch and retain a recovery point for future migrations.
+Treat managed-file drift as a failure. Treat seeded-file drift as a user customization warning and preserve it. Use a proposal branch and retain a recovery point for future migrations. Never use `relock` to change the locked Factory version.
 
 ## Operate persistent state
 

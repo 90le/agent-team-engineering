@@ -19,12 +19,19 @@ REQUIRED_PATHS = (
     "CHANGELOG.md",
     "factory-package.json",
     "capability-package.json",
+    "acceptance/cross-ai-takeover.json",
     "core/adapters.py",
+    "core/adoption.py",
     "core/approval.py",
+    "core/doctor.py",
+    "core/installation.py",
+    "core/instance.py",
     "core/isolation.py",
     "core/json_support.py",
+    "core/lifecycle.py",
     "core/reference_adapters.py",
     "core/webhooks.py",
+    "tools/cross_ai_takeover.py",
     "adapters/claude/adapter.json",
     "adapters/codex/adapter.json",
     "adapters/file-inbox/adapter.json",
@@ -37,8 +44,18 @@ REQUIRED_PATHS = (
     "schemas/factory-package.schema.json",
     "schemas/team-instance.schema.json",
     "schemas/team-instance-lock.schema.json",
+    "schemas/adoption-package.schema.json",
+    "schemas/adoption-project.schema.json",
+    "schemas/adoption-report.schema.json",
+    "schemas/adoption-risk-policy.schema.json",
+    "schemas/doctor-report.schema.json",
+    "schemas/factory-installation.schema.json",
+    "schemas/instance-lifecycle-journal.schema.json",
+    "schemas/instance-recovery-manifest.schema.json",
+    "schemas/instance-upgrade-plan.schema.json",
     "schemas/control-plane-audit.schema.json",
     "schemas/control-plane-status.schema.json",
+    "schemas/cross-ai-takeover.schema.json",
     "schemas/outbox-effect.schema.json",
     "schemas/task-lease.schema.json",
     "schemas/adapter-empty-config.schema.json",
@@ -56,9 +73,16 @@ REQUIRED_PATHS = (
     "docs/01-principles/project-constitution.md",
     "docs/02-architecture/reference-architecture.md",
     "docs/03-security/threat-model.md",
+    "docs/05-adoption/existing-project-adoption.md",
+    "docs/08-factory/instance-lifecycle.md",
     "docs/10-adapters/sdk-isolation-and-approval.md",
+    "docs/11-lifecycle/installation-upgrade-and-adoption.md",
+    "docs/12-acceptance/cross-ai-takeover.md",
     "docs/adr/ADR-0005-versioned-adapter-host-and-bound-approval.md",
+    "docs/adr/ADR-0006-verified-install-and-transactional-instance-lifecycle.md",
+    "skills/manage-agent-team-factory/SKILL.md",
     "skills/implement-agent-team-adapter/SKILL.md",
+    "skills/upgrade-agent-team-instance/SKILL.md",
     "team-packs/software-delivery/team-pack.json",
     "team-packs/software-delivery/workflow.json",
     "team-packs/software-delivery/risk-policy.json",
@@ -69,6 +93,28 @@ REQUIRED_PATHS = (
 
 MARKDOWN_LINK = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
 IGNORED_DERIVED_DIRECTORIES = {".git", ".mypy_cache", ".pytest_cache", ".ruff_cache", "__pycache__"}
+
+REQUIRED_CONTRACT_FILES = frozenset(
+    {
+        "docs/05-adoption/existing-project-adoption.md",
+        "docs/08-factory/instance-lifecycle.md",
+        "docs/11-lifecycle/installation-upgrade-and-adoption.md",
+        "docs/12-acceptance/cross-ai-takeover.md",
+        "docs/adr/ADR-0006-verified-install-and-transactional-instance-lifecycle.md",
+        "schemas/adoption-package.schema.json",
+        "schemas/adoption-project.schema.json",
+        "schemas/adoption-report.schema.json",
+        "schemas/adoption-risk-policy.schema.json",
+        "schemas/doctor-report.schema.json",
+        "schemas/cross-ai-takeover.schema.json",
+        "schemas/factory-installation.schema.json",
+        "schemas/instance-lifecycle-journal.schema.json",
+        "schemas/instance-recovery-manifest.schema.json",
+        "schemas/instance-upgrade-plan.schema.json",
+        "skills/upgrade-agent-team-instance/SKILL.md",
+        "acceptance/cross-ai-takeover.json",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -445,6 +491,16 @@ def validate_repository(root: Path) -> list[Finding]:
                     f"management skill is missing: {management_skill}",
                 )
             )
+        declared_contract_files = set(factory.get("contract_files", []))
+        missing_contract_files = sorted(REQUIRED_CONTRACT_FILES - declared_contract_files)
+        if missing_contract_files:
+            findings.append(
+                Finding(
+                    "ERROR",
+                    "factory-package.json",
+                    f"required lifecycle contract files are undeclared: {missing_contract_files}",
+                )
+            )
         for relative in factory.get("contract_files", []):
             contract_path = Path(relative)
             if contract_path.is_absolute() or ".." in contract_path.parts:
@@ -488,5 +544,40 @@ def validate_repository(root: Path) -> list[Finding]:
                 f"instance example validation failed: {exc}",
             )
         )
+
+    takeover_path = root / "acceptance/cross-ai-takeover.json"
+    takeover_schema_path = root / "schemas/cross-ai-takeover.schema.json"
+    takeover = json_documents.get(takeover_path.resolve())
+    takeover_schema = json_documents.get(takeover_schema_path.resolve())
+    if isinstance(takeover, dict) and isinstance(takeover_schema, dict):
+        for issue in validate_schema(takeover, takeover_schema):
+            findings.append(
+                Finding(
+                    "ERROR",
+                    takeover_path.relative_to(root).as_posix(),
+                    f"{issue.path}: {issue.message}",
+                )
+            )
+        for record in takeover.get("entrypoints", []):
+            if not isinstance(record, dict) or not isinstance(record.get("path"), str):
+                continue
+            entrypoint = root / str(record["path"])
+            if not entrypoint.is_file():
+                findings.append(
+                    Finding(
+                        "ERROR",
+                        takeover_path.relative_to(root).as_posix(),
+                        f"takeover entrypoint is missing: {record['path']}",
+                    )
+                )
+        for relative in takeover.get("required_documents", []):
+            if isinstance(relative, str) and not (root / relative).is_file():
+                findings.append(
+                    Finding(
+                        "ERROR",
+                        takeover_path.relative_to(root).as_posix(),
+                        f"takeover document is missing: {relative}",
+                    )
+                )
 
     return findings

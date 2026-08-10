@@ -16,6 +16,8 @@ python3 tools/agent_team.py runtime audit-verify --instance /path/to/instance
 
 `init` 可重复执行同一数据库Schema，但不会升级未知的未来Schema。所有非初始化命令都要求数据库已经存在。
 
+所有runtime命令在发现 `runtime/.factory-lifecycle-journal.json` 时拒绝运行。该日志表示Factory文件升级或回滚尚未完成；保持Worker停止和数据库暂停，使用匹配Factory的 `instance recover`，不能通过移动数据库、删除日志或relock恢复运行。
+
 ## 持久反馈、租约与转换
 
 ```bash
@@ -113,3 +115,4 @@ python3 tools/agent_team.py runtime restore \
 | Agent任务中断 | 租约到期并reconcile，新的Agent从当前revision接手 |
 | 审计或工作项被意外改写 | `audit-verify`失败，保持暂停并从verified backup恢复调查 |
 | 数据库Schema高于当前工具 | 拒绝打开，不尝试降级写入 |
+| Factory升级或回滚中断 | runtime拒绝运行；验证外部恢复包并按生命周期日志返回操作前版本 |

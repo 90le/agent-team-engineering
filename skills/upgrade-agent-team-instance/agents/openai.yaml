@@ -1,0 +1,4 @@
+interface:
+  display_name: "Upgrade Agent Team Instance"
+  short_description: "Safely upgrade, recover, or roll back an instance"
+  default_prompt: "Use $upgrade-agent-team-instance to plan and execute a recoverable Agent Team instance version transition."

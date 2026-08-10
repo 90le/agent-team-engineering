@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:instance-lifecycle-journal:1.0.0",
+  "title": "Crash-recovery journal for an Agent Team instance lifecycle operation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "operation", "plan_id", "instance_id", "recovery_path", "stage_path", "source_lock_digest", "target_lock_digest", "phase", "actions_completed"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "operation": {"enum": ["UPGRADE", "ROLLBACK"]},
+    "plan_id": {"type": "string", "pattern": "^(upgrade|rollback)-[a-f0-9]{32}$"},
+    "instance_id": {"type": "string", "pattern": "^instance\\.[a-z0-9][a-z0-9.-]*$"},
+    "recovery_path": {"type": "string", "minLength": 1, "maxLength": 4096},
+    "stage_path": {"type": ["string", "null"], "minLength": 1, "maxLength": 4096},
+    "source_lock_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "target_lock_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "phase": {"enum": ["PREPARED", "APPLYING", "COMMITTED", "VERIFIED"]},
+    "actions_completed": {"type": "integer", "minimum": 0, "maximum": 1000}
+  }
+}

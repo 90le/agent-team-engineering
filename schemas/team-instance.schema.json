@@ -57,8 +57,8 @@
         "properties": {
           "id": {"type": "string", "pattern": "^project\\.[a-z0-9][a-z0-9._-]*$"},
           "provider": {"enum": ["github", "gitlab", "gitea", "generic-git"]},
-          "locator": {"type": "string", "minLength": 1},
-          "default_branch": {"type": "string", "minLength": 1},
+          "locator": {"type": "string", "minLength": 1, "maxLength": 1000},
+          "default_branch": {"type": "string", "minLength": 1, "maxLength": 500},
           "mode": {"enum": ["observe", "proposal-only"]}
         }
       }

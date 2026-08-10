@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:adoption-risk-policy:1.0.0",
+  "title": "Conservative project adoption risk policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "default_risk", "manual_only"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "default_risk": {"const": "MEDIUM"},
+    "manual_only": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  }
+}

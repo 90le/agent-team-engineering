@@ -56,6 +56,13 @@ class FactoryCliTests(unittest.TestCase):
             self.assertEqual(summary["instance_id"], "instance.example-software-team")
             self.assertEqual(summary["errors"], 0)
 
+            diagnosed = run_cli("doctor", "--instance", str(output))
+            self.assertEqual(diagnosed.returncode, 0, diagnosed.stderr)
+            doctor_report = json.loads(diagnosed.stdout)
+            self.assertEqual(
+                doctor_report["instance"]["instance_id"], "instance.example-software-team"
+            )
+
     def test_invalid_configuration_fails_without_creating_output(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
@@ -68,6 +75,48 @@ class FactoryCliTests(unittest.TestCase):
             self.assertEqual(result.returncode, 2)
             self.assertIn("cannot exceed A2", result.stderr)
             self.assertFalse(output.exists())
+
+    def test_adoption_cli_prepares_verifies_and_composes_without_target_write(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "target"
+            proposal = base / "proposal"
+            candidate = base / "candidate.json"
+            target.mkdir()
+            marker = target / "package.json"
+            marker.write_text('{"name":"demo"}\n', encoding="utf-8")
+            before = marker.read_bytes()
+            prepared = run_cli(
+                "adopt-project",
+                "--repo",
+                str(target),
+                "--output",
+                str(proposal),
+                "--provider",
+                "github",
+                "--locator",
+                "owner/demo",
+                "--default-branch",
+                "main",
+                "--project-id",
+                "demo",
+            )
+            self.assertEqual(prepared.returncode, 0, prepared.stderr)
+            verified = run_cli("adoption", "verify", "--root", str(proposal))
+            self.assertEqual(verified.returncode, 0, verified.stderr)
+            composed = run_cli(
+                "adoption",
+                "compose",
+                "--base-config",
+                str(EXAMPLE),
+                "--proposal",
+                str(proposal),
+                "--output",
+                str(candidate),
+            )
+            self.assertEqual(composed.returncode, 0, composed.stderr)
+            self.assertEqual(marker.read_bytes(), before)
+            self.assertEqual(json.loads(composed.stdout)["projects"][0]["id"], "project.demo")
 
     def test_approval_key_file_with_group_or_other_access_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

@@ -200,6 +200,48 @@ class InstanceFactoryTests(unittest.TestCase):
             any("provider and locator pairs" in finding.message for finding in findings)
         )
 
+    def test_unsafe_project_default_branch_is_rejected(self) -> None:
+        document = load_example()
+        document["projects"].append(
+            {
+                "id": "project.unsafe-branch",
+                "provider": "github",
+                "locator": "owner/repository",
+                "default_branch": "release/../production",
+                "mode": "proposal-only",
+            }
+        )
+        findings = validate_instance_document(document)
+        self.assertTrue(any("safe Git branch" in finding.message for finding in findings))
+
+    def test_instance_authority_and_locked_files_cannot_be_symbolic_links(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            instance = base / "instance"
+            init_instance(EXAMPLE, instance)
+            managed = instance / "AGENTS.md"
+            original = instance / "AGENTS.original"
+            managed.rename(original)
+            managed.symlink_to(original.name)
+            findings = validate_instance_directory(instance)
+            self.assertTrue(any("symbolic link" in finding.message for finding in findings))
+
+            alias = base / "instance-alias"
+            alias.symlink_to(instance, target_is_directory=True)
+            findings = validate_instance_directory(alias)
+            self.assertTrue(any("root must not be a symbolic link" in f.message for f in findings))
+
+    def test_lock_cannot_duplicate_or_own_reserved_authority(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            instance = Path(temporary) / "instance"
+            init_instance(EXAMPLE, instance)
+            lock_path = instance / ".agent-team" / "instance.lock.json"
+            lock = json.loads(lock_path.read_text(encoding="utf-8"))
+            lock["files"].append(copy.deepcopy(lock["files"][0]))
+            write_json(lock_path, lock)
+            findings = validate_instance_directory(instance)
+            self.assertTrue(any("locked paths must be unique" in f.message for f in findings))
+
 
 if __name__ == "__main__":
     unittest.main()

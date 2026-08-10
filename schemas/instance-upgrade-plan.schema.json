@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:instance-upgrade-plan:1.0.0",
+  "title": "Agent Team instance upgrade plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "plan_id", "instance_id", "instance_root", "source", "target", "actions", "preserved_seeded_files", "runtime_must_be_quiescent"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "plan_id": {"type": "string", "pattern": "^upgrade-[a-f0-9]{32}$"},
+    "instance_id": {"type": "string", "pattern": "^instance\\.[a-z0-9][a-z0-9.-]*$"},
+    "instance_root": {"type": "string", "minLength": 1, "maxLength": 4096},
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["factory_version", "lock_digest", "instance_digest", "contract_digest"],
+      "properties": {
+        "factory_version": {"type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"},
+        "lock_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "instance_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "contract_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["factory_version", "source_revision", "source_dirty", "contract_digest", "lock_digest"],
+      "properties": {
+        "factory_version": {"type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"},
+        "source_revision": {"type": "string", "minLength": 1, "maxLength": 200},
+        "source_dirty": {"type": "boolean"},
+        "contract_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "lock_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+      }
+    },
+    "actions": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "ownership", "action", "before_sha256", "after_sha256"],
+        "properties": {
+          "path": {"type": "string", "minLength": 1, "maxLength": 500},
+          "ownership": {"enum": ["managed", "seeded"]},
+          "action": {"enum": ["create", "replace", "remove"]},
+          "before_sha256": {"type": ["string", "null"], "pattern": "^sha256:[a-f0-9]{64}$"},
+          "after_sha256": {"type": ["string", "null"], "pattern": "^sha256:[a-f0-9]{64}$"}
+        }
+      }
+    },
+    "preserved_seeded_files": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1, "maxLength": 500}
+    },
+    "runtime_must_be_quiescent": {"const": true}
+  }
+}

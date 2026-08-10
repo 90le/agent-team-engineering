@@ -1,0 +1,41 @@
+{
+  "$schema": "schemas/cross-ai-takeover.schema.json",
+  "schema_version": "1.0.0",
+  "id": "acceptance.cross-ai-takeover",
+  "purpose": "Prove that a clean checkout can be discovered and exercised without chat memory or vendor-specific hidden context.",
+  "entrypoints": [
+    {"platform": "vendor-neutral", "path": "AI-BOOTSTRAP.md", "authority": "primary"},
+    {"platform": "codex", "path": "AGENTS.md", "authority": "thin-adapter"},
+    {"platform": "claude", "path": "CLAUDE.md", "authority": "thin-adapter"},
+    {"platform": "kimi", "path": "AI-BOOTSTRAP.md", "authority": "primary"},
+    {"platform": "generic-ai", "path": "AI-BOOTSTRAP.md", "authority": "primary"}
+  ],
+  "required_documents": [
+    "docs/01-principles/project-constitution.md",
+    "docs/02-architecture/reference-architecture.md",
+    "docs/03-security/threat-model.md",
+    "docs/08-factory/instance-lifecycle.md",
+    "docs/11-lifecycle/installation-upgrade-and-adoption.md"
+  ],
+  "context_roles": [
+    "public-intake",
+    "triage",
+    "product",
+    "builder",
+    "reviewer",
+    "qa",
+    "release",
+    "operations"
+  ],
+  "automated_assertions": [
+    "repository.valid",
+    "entrypoints.route-to-primary",
+    "role-contexts.hash-bound",
+    "instance.generated-and-diagnosed",
+    "target-repository.unchanged",
+    "adoption.proposal-verified",
+    "candidate.remains-proposal-only",
+    "external-integrations.remain-disabled"
+  ],
+  "human_replay_required": true
+}

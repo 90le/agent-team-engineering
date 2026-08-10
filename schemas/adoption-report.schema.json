@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:adoption-report:1.0.0",
+  "title": "Read-only target project discovery report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "source_path", "source_commit", "source_dirty", "current_branch", "technologies", "ai_entrypoints", "github_workflows", "has_tests", "has_architecture_docs", "hazards", "recommendations"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "source_path": {"type": "string", "minLength": 1, "maxLength": 4096},
+    "source_commit": {"type": ["string", "null"], "pattern": "^[a-f0-9]{40}$"},
+    "source_dirty": {"type": ["boolean", "null"]},
+    "current_branch": {"type": ["string", "null"], "maxLength": 500},
+    "technologies": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "ai_entrypoints": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "github_workflows": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "has_tests": {"type": "boolean"},
+    "has_architecture_docs": {"type": "boolean"},
+    "hazards": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "recommendations": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+  }
+}

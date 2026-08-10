@@ -8,6 +8,7 @@ python3 tools/agent_team.py validate
 python3 -m unittest discover -s tests -v
 python3 tools/agent_team.py simulate >/dev/null
 python3 tools/agent_team.py simulate --approve-production >/dev/null
+python3 tools/cross_ai_takeover.py >/dev/null
 
 temp_root="$(mktemp -d)"
 cleanup() {
