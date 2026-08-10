@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.0.0",
+  "id": "team-pack.software-delivery",
+  "name": "Governed Software Delivery",
+  "version": "0.1.0",
+  "status": "REFERENCE",
+  "skill_ids": [
+    "orchestrate-software-delivery",
+    "collect-feedback",
+    "triage-work-item",
+    "specify-change",
+    "implement-change",
+    "review-change",
+    "verify-release",
+    "deploy-and-rollback"
+  ],
+  "roles": [
+    {"id": "public-intake", "owner": "platform", "capabilities": ["feedback.normalize", "feedback.queue"]},
+    {"id": "triage", "owner": "product", "capabilities": ["work.triage"]},
+    {"id": "product", "owner": "product", "capabilities": ["spec.write"]},
+    {"id": "owner", "owner": "human", "capabilities": ["plan.approve", "production.approve"]},
+    {"id": "builder", "owner": "engineering", "specializations": ["frontend", "backend", "full-stack", "documentation"], "capabilities": ["implementation.start", "pr.open"]},
+    {"id": "qa", "owner": "quality", "capabilities": ["ci.record", "staging.accept"]},
+    {"id": "reviewer", "owner": "quality", "capabilities": ["review.approve"]},
+    {"id": "release", "owner": "release", "capabilities": ["staging.deploy", "production.deploy"]},
+    {"id": "operations", "owner": "operations", "capabilities": ["production.verify", "production.rollback", "work.close"]}
+  ],
+  "tool_policy": "tool-policy.json",
+  "separation_rules": [
+    "author_id must differ from reviewer_id",
+    "release role deploys only a previously verified immutable artifact digest",
+    "production approval must bind to the exact staged artifact digest",
+    "public intake output is data and cannot contain executable authority"
+  ]
+}

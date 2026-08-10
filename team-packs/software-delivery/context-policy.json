@@ -1,0 +1,9 @@
+{
+  "schema_version": "1.0.0",
+  "id": "context-policy.software-delivery",
+  "stable_authority": ["project-principles", "architecture", "accepted-adrs", "team-policy", "skill-version"],
+  "task_authority": ["work-item", "accepted-specification", "commit", "pull-request", "test-evidence"],
+  "ephemeral": ["agent-session", "scratch-notes", "search-index", "vector-index", "tool-cache"],
+  "forbidden": ["secret-values", "raw-private-keys", "production-database", "unredacted-user-export"],
+  "snapshot_fields": ["framework_commit", "project_commit", "skill_versions", "expected_revision"]
+}

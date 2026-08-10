@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0.0",
+  "id": "adapter.codex",
+  "kind": "agent-provider",
+  "status": "REFERENCE",
+  "authority": "replaceable-interface",
+  "inputs": ["task-envelope", "bounded-context-bundle", "skill"],
+  "outputs": ["structured-result", "evidence-refs"],
+  "security_notes": [
+    "AGENTS.md is a thin discovery adapter, not a permission system.",
+    "Actual filesystem and tool permissions must match the task envelope."
+  ]
+}

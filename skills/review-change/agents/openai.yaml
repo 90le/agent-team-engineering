@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Change"
+  short_description: "Independently review code, risk, and architecture"
+  default_prompt: "Use $review-change to independently review this change and return a structured decision."

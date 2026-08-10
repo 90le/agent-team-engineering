@@ -1,0 +1,27 @@
+name: Validate reference engineering
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate contracts and repository
+        run: python3 tools/agent_team.py validate
+      - name: Run unit and security tests
+        run: python3 -m unittest discover -s tests -v
+      - name: Run complete simulation
+        run: python3 tools/agent_team.py simulate --approve-production
+      - name: Verify clean-clone bootstrap
+        run: tools/cold-start.sh

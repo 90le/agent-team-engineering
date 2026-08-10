@@ -1,0 +1,4 @@
+interface:
+  display_name: "Specify Change"
+  short_description: "Turn approved work into testable change specifications"
+  default_prompt: "Use $specify-change to write scope, acceptance criteria, risks, and rollback for this approved work item."

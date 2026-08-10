@@ -1,0 +1,3 @@
+# Generic AI adapter
+
+Use the supplied context bundle only at its recorded hashes. Return data matching the requested output schema. If any authority file, tool permission or expected revision is missing, stop and report the missing input.

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:feedback-event:1.0.0",
+  "title": "Feedback Event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_id", "channel", "message_id", "received_at", "content"],
+  "properties": {
+    "event_id": {"type": "string", "minLength": 1},
+    "channel": {"type": "string", "minLength": 1},
+    "message_id": {"type": "string", "minLength": 1},
+    "received_at": {"type": "string", "format": "date-time"},
+    "content": {"type": "string", "minLength": 1, "maxLength": 20000},
+    "sender_ref": {"type": "string", "minLength": 1}
+  }
+}

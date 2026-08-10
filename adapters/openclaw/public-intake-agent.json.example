@@ -1,0 +1,9 @@
+{
+  "profile": "public-intake-reference",
+  "workspace_access": "none",
+  "sandbox_scope": "agent",
+  "allowed_tools": ["feedback.submit"],
+  "denied_tools": ["shell", "exec", "git", "browser", "deploy", "secrets", "agent-to-agent"],
+  "output_contract": "schemas/feedback-event.schema.json",
+  "note": "Map these reference controls to the installed OpenClaw version; this is not a drop-in production config."
+}

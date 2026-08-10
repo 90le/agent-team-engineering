@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0.0",
+  "profiles": {
+    "intake": {"issues": "write", "contents": "none", "pull_requests": "none", "deployments": "none"},
+    "builder": {"issues": "read", "contents": "write-proposal-branches", "pull_requests": "write", "deployments": "none"},
+    "reviewer": {"issues": "read", "contents": "read", "pull_requests": "review", "deployments": "none"},
+    "release": {"issues": "read", "contents": "read", "pull_requests": "read", "deployments": "approved-only"}
+  },
+  "enforcement_note": "GitHub permissions are coarser than these logical profiles; branch rules, checks and the control plane must enforce the remaining constraints."
+}

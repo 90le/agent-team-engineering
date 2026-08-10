@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:review-decision:1.0.0",
+  "title": "Independent Review Decision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["review_id", "work_item_id", "commit", "author_id", "reviewer_id", "decision", "findings"],
+  "properties": {
+    "review_id": {"type": "string"},
+    "work_item_id": {"type": "string"},
+    "commit": {"type": "string"},
+    "author_id": {"type": "string"},
+    "reviewer_id": {"type": "string"},
+    "decision": {"enum": ["APPROVED", "CHANGES_REQUESTED", "BLOCKED"]},
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["severity", "summary"],
+        "properties": {
+          "severity": {"enum": ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"]},
+          "summary": {"type": "string"},
+          "evidence": {"type": "string"}
+        }
+      }
+    }
+  }
+}

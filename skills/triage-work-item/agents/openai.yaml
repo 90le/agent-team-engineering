@@ -1,0 +1,4 @@
+interface:
+  display_name: "Triage Work Item"
+  short_description: "Classify, deduplicate, and risk-score work items"
+  default_prompt: "Use $triage-work-item to propose a bounded disposition for this work item."

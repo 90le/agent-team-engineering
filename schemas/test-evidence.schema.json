@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:test-evidence:1.0.0",
+  "title": "Test Evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["evidence_id", "commit", "suite", "result", "generated_at", "runner_ref"],
+  "properties": {
+    "evidence_id": {"type": "string"},
+    "commit": {"type": "string"},
+    "suite": {"type": "string"},
+    "result": {"enum": ["PASSED", "FAILED", "BLOCKED"]},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "runner_ref": {"type": "string"},
+    "artifact_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+  }
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Deploy and Roll Back"
+  short_description: "Deploy approved immutable artifacts and roll back safely"
+  default_prompt: "Use $deploy-and-rollback to deploy only the approved artifact digest and verify or roll it back."

@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0.0",
+  "id": "adapter.openclaw",
+  "kind": "messaging",
+  "status": "REFERENCE",
+  "authority": "replaceable-interface",
+  "inputs": ["channel-message", "owner-approval-message"],
+  "outputs": ["feedback-event", "approval-event", "status-notification"],
+  "security_notes": [
+    "Run public intake and owner control in separate trust boundaries.",
+    "Public intake receives only a narrow feedback.submit tool.",
+    "Do not expose shell, Git, browser automation, session spawning, cron mutation or deployment tools to public input."
+  ]
+}

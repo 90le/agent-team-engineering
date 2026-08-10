@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0.0",
+  "id": "workflow.feedback-to-release",
+  "revision_strategy": "optimistic",
+  "idempotency_key": "source-channel-plus-message-id",
+  "states": [
+    "RECEIVED", "NORMALIZED", "TRIAGE_PENDING", "ACCEPTED", "SPEC_READY",
+    "PLAN_APPROVED", "IMPLEMENTING", "PR_OPEN", "CI_PASSED", "REVIEW_APPROVED",
+    "STAGING_DEPLOYED", "PROD_APPROVAL_PENDING", "PROD_APPROVED", "DEPLOYED",
+    "VERIFIED", "CLOSED", "REJECTED", "BLOCKED", "ROLLED_BACK"
+  ],
+  "transitions": [
+    {"action": "normalize", "from": "RECEIVED", "to": "NORMALIZED", "role": "public-intake"},
+    {"action": "queue_triage", "from": "NORMALIZED", "to": "TRIAGE_PENDING", "role": "public-intake"},
+    {"action": "accept_triage", "from": "TRIAGE_PENDING", "to": "ACCEPTED", "role": "triage"},
+    {"action": "write_spec", "from": "ACCEPTED", "to": "SPEC_READY", "role": "product"},
+    {"action": "approve_plan", "from": "SPEC_READY", "to": "PLAN_APPROVED", "role": "owner"},
+    {"action": "start_implementation", "from": "PLAN_APPROVED", "to": "IMPLEMENTING", "role": "builder"},
+    {"action": "open_pr", "from": "IMPLEMENTING", "to": "PR_OPEN", "role": "builder"},
+    {"action": "record_ci_pass", "from": "PR_OPEN", "to": "CI_PASSED", "role": "qa"},
+    {"action": "approve_review", "from": "CI_PASSED", "to": "REVIEW_APPROVED", "role": "reviewer"},
+    {"action": "deploy_staging", "from": "REVIEW_APPROVED", "to": "STAGING_DEPLOYED", "role": "release"},
+    {"action": "accept_staging", "from": "STAGING_DEPLOYED", "to": "PROD_APPROVAL_PENDING", "role": "qa"},
+    {"action": "approve_production", "from": "PROD_APPROVAL_PENDING", "to": "PROD_APPROVED", "role": "owner"},
+    {"action": "deploy_production", "from": "PROD_APPROVED", "to": "DEPLOYED", "role": "release"},
+    {"action": "verify_production", "from": "DEPLOYED", "to": "VERIFIED", "role": "operations"},
+    {"action": "close", "from": "VERIFIED", "to": "CLOSED", "role": "operations"},
+    {"action": "rollback", "from": "DEPLOYED", "to": "ROLLED_BACK", "role": "operations"}
+  ],
+  "terminal_states": ["CLOSED", "REJECTED", "ROLLED_BACK"],
+  "retry_policy": {"max_attempts": 3, "backoff": "bounded-exponential", "dead_letter_after_exhaustion": true}
+}

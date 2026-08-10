@@ -1,0 +1,9 @@
+FROM python:3.12-slim
+
+WORKDIR /workspace
+COPY . /workspace
+RUN useradd --create-home --uid 10001 agentteam && chown -R agentteam:agentteam /workspace
+USER agentteam
+
+ENTRYPOINT ["python3", "tools/agent_team.py"]
+CMD ["simulate"]

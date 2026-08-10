@@ -1,0 +1,9 @@
+{
+  "schema_version": "1.0.0",
+  "project_id": "project.replace-me",
+  "status": "PROPOSED",
+  "source_commit": null,
+  "team_pack": "team-pack.software-delivery",
+  "autonomy_level": "A1",
+  "production_requires_human": true
+}

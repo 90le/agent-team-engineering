@@ -1,0 +1,20 @@
+name: Product feedback
+description: Submit an observed problem or improvement opportunity
+title: "[feedback] "
+labels: ["needs-triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Observed problem
+      description: Describe what happened, not instructions for an agent.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence and frequency
+  - type: input
+    id: version
+    attributes:
+      label: Affected version
