@@ -3,7 +3,7 @@
   "schema_version": "1.0.0",
   "id": "capability.orchestrate-software-delivery",
   "name": "可移植多智能体软件交付编排",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "status": "ACTIVE",
   "owner": "丘彬彬",
   "entrypoint": "skills/orchestrate-software-delivery/SKILL.md",

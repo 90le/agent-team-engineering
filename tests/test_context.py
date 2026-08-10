@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import unittest
 from pathlib import Path
 
 from core.context import build_context_bundle
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -25,6 +25,22 @@ class ContextBundleTests(unittest.TestCase):
     def test_unknown_role_is_rejected(self) -> None:
         with self.assertRaises(ValueError):
             build_context_bundle(ROOT, "all-powerful-agent")
+
+    def test_every_agent_role_has_a_bounded_context_profile(self) -> None:
+        team = json.loads(
+            (ROOT / "team-packs/software-delivery/team-pack.json").read_text(encoding="utf-8")
+        )
+        agent_roles = {role["id"] for role in team["roles"] if role["owner"] != "human"}
+        for role in agent_roles:
+            bundle = build_context_bundle(ROOT, role)
+            skill_paths = [
+                record["path"] for record in bundle["files"] if record["path"].startswith("skills/")
+            ]
+            self.assertEqual(len(skill_paths), 1, role)
+
+    def test_human_owner_is_not_exported_as_an_agent_role(self) -> None:
+        with self.assertRaises(ValueError):
+            build_context_bundle(ROOT, "owner")
 
 
 if __name__ == "__main__":

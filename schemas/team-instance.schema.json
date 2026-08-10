@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:team-instance:1.0.0",
+  "title": "Declarative Agent Team instance",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "instance_id", "display_name", "owner", "team_pack", "autonomy", "approvals", "projects", "adapters", "runtime", "limits"],
+  "properties": {
+    "$schema": {"const": "urn:agent-team:schema:team-instance:1.0.0"},
+    "schema_version": {"const": "1.0.0"},
+    "instance_id": {"type": "string", "pattern": "^instance\\.[a-z0-9][a-z0-9.-]*$"},
+    "display_name": {"type": "string", "minLength": 1},
+    "owner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "display_name", "kind"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^human\\.[a-z0-9][a-z0-9.-]*$"},
+        "display_name": {"type": "string", "minLength": 1},
+        "kind": {"const": "human"}
+      }
+    },
+    "team_pack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^team-pack\\.[a-z0-9][a-z0-9.-]*$"},
+        "version": {"type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"}
+      }
+    },
+    "autonomy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["initial", "maximum", "production_requires_human"],
+      "properties": {
+        "initial": {"enum": ["A0", "A1", "A2", "A3", "A4", "A5"]},
+        "maximum": {"enum": ["A0", "A1", "A2", "A3", "A4", "A5"]},
+        "production_requires_human": {"type": "boolean"}
+      }
+    },
+    "approvals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plan_approvers", "production_approvers"],
+      "properties": {
+        "plan_approvers": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "production_approvers": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "projects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "provider", "locator", "default_branch", "mode"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^project\\.[a-z0-9][a-z0-9._-]*$"},
+          "provider": {"enum": ["github", "gitlab", "gitea", "generic-git"]},
+          "locator": {"type": "string", "minLength": 1},
+          "default_branch": {"type": "string", "minLength": 1},
+          "mode": {"enum": ["observe", "proposal-only"]}
+        }
+      }
+    },
+    "adapters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["slot", "adapter_id", "enabled", "config", "secret_refs"],
+        "properties": {
+          "slot": {"enum": ["intake", "code-hosting", "model", "runner", "deployment", "notification"]},
+          "adapter_id": {"type": "string", "pattern": "^adapter\\.[a-z0-9][a-z0-9.-]*$"},
+          "enabled": {"type": "boolean"},
+          "config": {"type": "object"},
+          "secret_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^secret\\.[a-z0-9][a-z0-9.-]*$"}}
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state_backend", "state_location", "workspace_root", "artifact_root"],
+      "properties": {
+        "state_backend": {"const": "sqlite"},
+        "state_location": {"type": "string", "minLength": 1},
+        "workspace_root": {"type": "string", "minLength": 1},
+        "artifact_root": {"type": "string", "minLength": 1}
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_concurrent_tasks", "max_attempts", "max_task_seconds", "max_budget_units"],
+      "properties": {
+        "max_concurrent_tasks": {"type": "integer", "minimum": 1, "maximum": 32},
+        "max_attempts": {"type": "integer", "minimum": 1, "maximum": 10},
+        "max_task_seconds": {"type": "integer", "minimum": 1, "maximum": 86400},
+        "max_budget_units": {"type": "integer", "minimum": 1, "maximum": 1000000}
+      }
+    }
+  }
+}

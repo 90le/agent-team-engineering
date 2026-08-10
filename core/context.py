@@ -7,7 +7,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-
 BASE_FILES = (
     "AI-BOOTSTRAP.md",
     "docs/01-principles/project-constitution.md",
@@ -23,6 +22,7 @@ BASE_FILES = (
 
 
 ROLE_SKILLS = {
+    "public-intake": "skills/collect-feedback/SKILL.md",
     "intake": "skills/collect-feedback/SKILL.md",
     "triage": "skills/triage-work-item/SKILL.md",
     "product": "skills/specify-change/SKILL.md",
@@ -30,6 +30,7 @@ ROLE_SKILLS = {
     "reviewer": "skills/review-change/SKILL.md",
     "qa": "skills/verify-release/SKILL.md",
     "release": "skills/deploy-and-rollback/SKILL.md",
+    "operations": "skills/deploy-and-rollback/SKILL.md",
     "orchestrator": "skills/orchestrate-software-delivery/SKILL.md",
 }
 

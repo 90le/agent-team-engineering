@@ -1,0 +1,5 @@
+# Instance documentation
+
+This directory is owned by the instance maintainers. Record project bindings, non-secret adapter setup, operating procedures, recovery drills, approval changes, and acceptance evidence here. Do not duplicate generic Factory contracts or target-project source documentation.
+
+Every operational document must distinguish desired configuration from verified live state and must name its validation date, rollback, and owner.

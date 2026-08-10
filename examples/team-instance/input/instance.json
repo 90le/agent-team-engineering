@@ -1,0 +1,67 @@
+{
+  "$schema": "urn:agent-team:schema:team-instance:1.0.0",
+  "schema_version": "1.0.0",
+  "instance_id": "instance.example-software-team",
+  "display_name": "Example Software Delivery Team",
+  "owner": {
+    "id": "human.project-owner",
+    "display_name": "Project Owner",
+    "kind": "human"
+  },
+  "team_pack": {
+    "id": "team-pack.software-delivery",
+    "version": "0.2.0"
+  },
+  "autonomy": {
+    "initial": "A1",
+    "maximum": "A2",
+    "production_requires_human": true
+  },
+  "approvals": {
+    "plan_approvers": ["human.project-owner"],
+    "production_approvers": ["human.project-owner"]
+  },
+  "projects": [],
+  "adapters": [
+    {
+      "slot": "intake",
+      "adapter_id": "adapter.file-inbox",
+      "enabled": false,
+      "config": {},
+      "secret_refs": []
+    },
+    {
+      "slot": "code-hosting",
+      "adapter_id": "adapter.github",
+      "enabled": false,
+      "config": {},
+      "secret_refs": []
+    },
+    {
+      "slot": "model",
+      "adapter_id": "adapter.manual-agent",
+      "enabled": false,
+      "config": {},
+      "secret_refs": []
+    },
+    {
+      "slot": "runner",
+      "adapter_id": "adapter.local-dry-run",
+      "enabled": false,
+      "config": {},
+      "secret_refs": []
+    }
+  ],
+  "runtime": {
+    "state_backend": "sqlite",
+    "state_location": "runtime/state/control-plane.sqlite3",
+    "workspace_root": "runtime/workspaces",
+    "artifact_root": "runtime/artifacts"
+  },
+  "limits": {
+    "max_concurrent_tasks": 2,
+    "max_attempts": 3,
+    "max_task_seconds": 1800,
+    "max_budget_units": 100
+  }
+}
