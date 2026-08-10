@@ -1,0 +1,8 @@
+{
+  "profile": "owner-control-reference",
+  "audience": "owner-allowlist-only",
+  "workspace_access": "read-only",
+  "allowed_tools": ["workflow.status", "workflow.approve", "workflow.pause", "workflow.cancel"],
+  "denied_tools": ["shell.arbitrary", "secrets.read", "production.direct"],
+  "note": "Approval must bind actor, action, work item, revision, artifact digest and expiry."
+}

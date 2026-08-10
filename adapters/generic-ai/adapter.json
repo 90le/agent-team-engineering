@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0.0",
+  "id": "adapter.generic-ai",
+  "kind": "generic-ai",
+  "status": "REFERENCE",
+  "authority": "replaceable-interface",
+  "inputs": ["bounded-context-bundle", "task-envelope"],
+  "outputs": ["schema-conformant-result"],
+  "security_notes": [
+    "Use hash-addressed context exports when the AI cannot read local files.",
+    "Reject outputs that omit expected revision, evidence, or role identity."
+  ]
+}

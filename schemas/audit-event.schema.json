@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:audit-event:1.0.0",
+  "title": "Append-only Audit Event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sequence", "timestamp", "actor_id", "actor_role", "action", "from_state", "to_state", "revision", "evidence"],
+  "properties": {
+    "sequence": {"type": "integer", "minimum": 1},
+    "timestamp": {"type": "string", "format": "date-time"},
+    "actor_id": {"type": "string"},
+    "actor_role": {"type": "string"},
+    "action": {"type": "string"},
+    "from_state": {"type": "string"},
+    "to_state": {"type": "string"},
+    "revision": {"type": "integer", "minimum": 1},
+    "evidence": {"type": "object", "additionalProperties": {"type": "string"}}
+  }
+}

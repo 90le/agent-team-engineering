@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0.0",
+  "id": "adapter.github",
+  "kind": "scm",
+  "status": "REFERENCE",
+  "authority": "replaceable-interface",
+  "inputs": ["feedback-event", "work-item", "structured-result", "release-candidate"],
+  "outputs": ["issue-ref", "pull-request-ref", "check-ref", "deployment-ref"],
+  "security_notes": [
+    "Use a repository-scoped GitHub App with minimum permissions rather than a shared personal token.",
+    "Protect the default branch and require independent review plus required checks.",
+    "Do not run untrusted pull request code on a runner with production credentials or mounts."
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0.0",
+  "id": "adapter.claude",
+  "kind": "agent-provider",
+  "status": "REFERENCE",
+  "authority": "replaceable-interface",
+  "inputs": ["task-envelope", "bounded-context-bundle", "skill"],
+  "outputs": ["structured-result", "evidence-refs"],
+  "security_notes": [
+    "CLAUDE.md only routes to shared authority.",
+    "Do not duplicate project facts or secrets in provider instructions."
+  ]
+}

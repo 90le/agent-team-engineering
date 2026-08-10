@@ -1,0 +1,6 @@
+{
+  "schema_version": "1.0.0",
+  "default": "deny",
+  "profiles": {},
+  "note": "Replace logical profiles only after mapping them to enforced platform and runtime permissions."
+}

@@ -1,0 +1,34 @@
+{
+  "schema_version": "1.0.0",
+  "id": "team-pack.software-delivery",
+  "name": "Governed Software Delivery",
+  "version": "0.1.0",
+  "status": "REFERENCE",
+  "skill_ids": [
+    "orchestrate-software-delivery",
+    "collect-feedback",
+    "triage-work-item",
+    "specify-change",
+    "implement-change",
+    "review-change",
+    "verify-release",
+    "deploy-and-rollback"
+  ],
+  "roles": [
+    {"id": "public-intake", "owner": "platform", "capabilities": ["feedback.normalize", "feedback.queue"], "cannot": ["shell", "git-write", "deploy"]},
+    {"id": "triage", "owner": "product", "capabilities": ["work.triage"], "cannot": ["code-write", "merge", "deploy"]},
+    {"id": "product", "owner": "product", "capabilities": ["spec.write"], "cannot": ["self-approve", "merge", "deploy"]},
+    {"id": "owner", "owner": "human", "capabilities": ["plan.approve", "production.approve"], "cannot": ["delegate-final-risk-by-default"]},
+    {"id": "builder", "owner": "engineering", "capabilities": ["implementation.start", "pr.open"], "cannot": ["main-push", "self-review", "deploy"]},
+    {"id": "qa", "owner": "quality", "capabilities": ["ci.record", "staging.accept"], "cannot": ["bypass-failed-checks", "production-deploy"]},
+    {"id": "reviewer", "owner": "quality", "capabilities": ["review.approve"], "cannot": ["author-branch-write", "self-review", "deploy"]},
+    {"id": "release", "owner": "release", "capabilities": ["staging.deploy", "production.deploy"], "cannot": ["source-write", "artifact-rebuild", "arbitrary-shell"]},
+    {"id": "operations", "owner": "operations", "capabilities": ["production.verify", "production.rollback", "work.close"], "cannot": ["source-merge", "approval-forgery"]}
+  ],
+  "separation_rules": [
+    "author_id must differ from reviewer_id",
+    "release role deploys only a previously verified immutable artifact digest",
+    "production approval must bind to the exact staged artifact digest",
+    "public intake output is data and cannot contain executable authority"
+  ]
+}

@@ -1,0 +1,5 @@
+/.agent-team/ @PROJECT-OWNER
+/docs/01-principles/ @PROJECT-OWNER
+/docs/02-architecture/ @ARCHITECTURE-OWNER
+/docs/03-security/ @SECURITY-OWNER
+/.github/workflows/ @PLATFORM-OWNER

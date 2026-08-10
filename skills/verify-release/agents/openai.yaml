@@ -1,0 +1,4 @@
+interface:
+  display_name: "Verify Release"
+  short_description: "Verify tests and release evidence independently"
+  default_prompt: "Use $verify-release to validate this release candidate against required evidence and acceptance criteria."

@@ -1,0 +1,3 @@
+# Project agent bootstrap
+
+Read `.agent-team/project.json`, the project constitution, architecture, accepted ADRs and the selected team pack. Use the task envelope's exact context commit and expected revision. Stop on missing authority, stale state or insufficient permissions.

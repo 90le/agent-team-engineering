@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:adapter:1.0.0",
+  "title": "Platform Adapter Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "kind", "status", "authority", "inputs", "outputs"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "id": {"type": "string", "pattern": "^adapter\\.[a-z0-9.-]+$"},
+    "kind": {"enum": ["agent-provider", "messaging", "scm", "generic-ai"]},
+    "status": {"enum": ["REFERENCE", "EXPERIMENTAL", "STABLE"]},
+    "authority": {"const": "replaceable-interface"},
+    "inputs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "outputs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "security_notes": {"type": "array", "items": {"type": "string"}}
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:work-item:1.0.0",
+  "title": "Governed Work Item",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "source_event_id", "title", "summary", "risk", "state", "revision", "audit"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^work-[a-z0-9-]+$"},
+    "source_event_id": {"type": "string"},
+    "title": {"type": "string"},
+    "summary": {"type": "string"},
+    "risk": {"enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"]},
+    "state": {"type": "string"},
+    "revision": {"type": "integer", "minimum": 0},
+    "untrusted_directive_detected": {"type": "boolean"},
+    "author_id": {"type": ["string", "null"]},
+    "plan_approved_by": {"type": ["string", "null"]},
+    "production_approved_by": {"type": ["string", "null"]},
+    "artifact_digest": {"type": ["string", "null"]},
+    "audit": {"type": "array", "items": {"$ref": "audit-event.schema.json"}}
+  }
+}

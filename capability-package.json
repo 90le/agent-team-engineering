@@ -1,0 +1,19 @@
+{
+  "$schema": "schemas/capability-package.schema.json",
+  "schema_version": "1.0.0",
+  "id": "capability.orchestrate-software-delivery",
+  "name": "可移植多智能体软件交付编排",
+  "version": "0.1.0",
+  "status": "ACTIVE",
+  "owner": "丘彬彬",
+  "entrypoint": "skills/orchestrate-software-delivery/SKILL.md",
+  "sensitivity": "L0-PUBLIC",
+  "triggers": [
+    "从用户反馈创建受治理的软件工作项",
+    "编排产品、开发、审核、测试、发布与回滚角色",
+    "把现有代码仓库接入多智能体软件团队",
+    "跨设备或跨AI迁移软件团队工程"
+  ],
+  "adapters": ["codex", "claude", "generic-ai", "openclaw", "github"],
+  "updated_at": "2026-08-10"
+}

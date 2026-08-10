@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0.0",
+  "id": "policy.software-delivery-risk",
+  "default_level": "MEDIUM",
+  "autonomy_levels": {
+    "A0": "read and summarize only",
+    "A1": "create draft work items",
+    "A2": "create specifications, branches, and draft pull requests",
+    "A3": "merge allowlisted low-risk changes and deploy staging after hard gates",
+    "A4": "canary low-risk production changes after evidence threshold",
+    "A5": "bounded production automation with automatic rollback"
+  },
+  "initial_maximum": "A2",
+  "manual_only_categories": [
+    "authentication", "authorization", "payments", "privacy", "secrets",
+    "user-data-deletion", "destructive-database-migration", "production-infrastructure",
+    "network", "storage", "backup-and-recovery"
+  ],
+  "rules": [
+    {"risk": "LOW", "production_approval": "human-initially", "auto_merge": "allowlist-only"},
+    {"risk": "MEDIUM", "production_approval": "human-required", "auto_merge": "false"},
+    {"risk": "HIGH", "production_approval": "human-required", "auto_merge": "false"},
+    {"risk": "CRITICAL", "production_approval": "manual-only", "auto_merge": "false"}
+  ]
+}

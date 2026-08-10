@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:release-candidate:1.0.0",
+  "title": "Immutable Release Candidate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["release_id", "work_item_id", "commit", "artifact_digest", "risk", "evidence_refs"],
+  "properties": {
+    "release_id": {"type": "string"},
+    "work_item_id": {"type": "string"},
+    "commit": {"type": "string"},
+    "artifact_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "risk": {"enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"]},
+    "evidence_refs": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+    "production_approval_ref": {"type": ["string", "null"]}
+  }
+}

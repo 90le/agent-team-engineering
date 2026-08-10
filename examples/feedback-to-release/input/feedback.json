@@ -1,0 +1,8 @@
+{
+  "event_id": "feedback-demo-0001",
+  "channel": "simulated-im",
+  "message_id": "message-0001",
+  "received_at": "2026-08-10T02:30:00Z",
+  "sender_ref": "demo-user",
+  "content": "反馈列表在手机上很难阅读，希望卡片间距更清晰，并保留现有筛选功能。"
+}

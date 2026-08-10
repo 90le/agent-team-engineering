@@ -1,0 +1,3 @@
+# Codex project adapter
+
+Read `AI-BOOTSTRAP.md` completely, then load only the role Skill and task paths named by the current task envelope. Do not infer production access from repository access.

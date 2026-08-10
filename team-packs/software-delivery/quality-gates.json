@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0.0",
+  "id": "quality-gates.software-delivery",
+  "required_before_merge": [
+    "scope-and-acceptance-present",
+    "independent-review-approved",
+    "lint-passed",
+    "unit-tests-passed",
+    "integration-tests-passed",
+    "secret-scan-passed",
+    "security-policy-passed",
+    "documentation-impact-reviewed"
+  ],
+  "required_before_production": [
+    "immutable-artifact-digest-recorded",
+    "staging-deployed-same-digest",
+    "acceptance-passed",
+    "rollback-plan-verified",
+    "risk-appropriate-approval-bound-to-digest"
+  ],
+  "never_bypass": ["failed-required-check", "missing-approval", "digest-mismatch", "stale-revision"]
+}

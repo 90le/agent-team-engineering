@@ -1,0 +1,4 @@
+interface:
+  display_name: "Orchestrate Software Delivery"
+  short_description: "Govern an evidence-backed software delivery workflow"
+  default_prompt: "Use $orchestrate-software-delivery to coordinate this work item through its permitted delivery stages."

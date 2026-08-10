@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:project-profile:1.0.0",
+  "title": "Adopted Project Profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "project_id", "status", "team_pack", "autonomy_level", "production_requires_human"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "project_id": {"type": "string", "pattern": "^project\\.[a-z0-9._-]+$"},
+    "status": {"enum": ["PROPOSED", "ACTIVE", "PAUSED", "RETIRED"]},
+    "source_commit": {"type": ["string", "null"]},
+    "team_pack": {"type": "string"},
+    "autonomy_level": {"enum": ["A0", "A1", "A2", "A3", "A4", "A5"]},
+    "production_requires_human": {"type": "boolean"}
+  }
+}
