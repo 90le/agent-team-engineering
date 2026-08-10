@@ -49,6 +49,18 @@ class AdoptionTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 write_adoption_proposal(source, source / ".agent-team-proposal")
 
+    def test_proposal_refuses_nonempty_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            source = base / "app"
+            output = base / "proposal"
+            source.mkdir()
+            output.mkdir()
+            (output / "owned-by-user.txt").write_text("preserve\n", encoding="utf-8")
+            with self.assertRaises(ValueError):
+                write_adoption_proposal(source, output)
+            self.assertEqual((output / "owned-by-user.txt").read_text(encoding="utf-8"), "preserve\n")
+
     def test_missing_project_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             with self.assertRaises(ValueError):

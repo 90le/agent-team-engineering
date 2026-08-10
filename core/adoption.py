@@ -69,6 +69,8 @@ def write_adoption_proposal(repo: Path, output: Path) -> dict[str, Any]:
     destination = output.resolve()
     if destination == source or source in destination.parents:
         raise ValueError("proposal output must be outside the analyzed repository")
+    if destination.exists() and any(destination.iterdir()):
+        raise ValueError("proposal output must be absent or empty")
     report = scan_project(source)
     (destination / ".agent-team").mkdir(parents=True, exist_ok=True)
 
