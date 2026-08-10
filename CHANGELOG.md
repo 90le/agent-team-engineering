@@ -17,6 +17,7 @@ Agent Team Factory的可安装、可迁移和可接入版本：
 - 现有项目接入改为摘要绑定的proposal-only包，Git发现禁用optional locks，提案和候选实例配置均禁止写入目标仓库；验证拒绝篡改、额外文件、符号链接和凭据样内容。
 - 组合操作只增加一个 `proposal-only` 项目绑定，不启用适配器、不改变自治和批准政策。新增安装、升级/恢复、项目接入Schema、ADR、操作章及跨AI升级Skill。
 - 增加严格Schema的跨AI接管验收配置与自动冷启动入口，验证薄平台入口、角色上下文摘要、实例生成/Doctor、目标仓库逐字节不变和proposal-only候选；报告明确自动层不能替代Claude、Kimi等模型的无历史人工重放。
+- GitHub Actions发布门禁升级到Node 24世代的官方checkout/setup-python版本，并固定到已核验的完整提交SHA，避免浮动标签与Node 20退役风险。
 
 兼容性：实例Schema、锁Schema、SQLite Schema和 `software-delivery 0.2.0` 团队包保持不变。v0.5可显式升级v0.2、v0.3、v0.4实例；用户修改的seeded文件原样保留，managed漂移会阻止升级。`relock`继续只接受配置变化，不能改变Factory版本。
 
