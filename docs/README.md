@@ -11,4 +11,6 @@
 - [实例生成与治理](08-factory/instance-lifecycle.md)
 - [持久化与故障恢复](09-control-plane/persistence-and-recovery.md)
 - [适配器SDK、隔离执行与认证批准](10-adapters/sdk-isolation-and-approval.md)
+- [Factory安装、实例升级、恢复与项目接入](11-lifecycle/installation-upgrade-and-adoption.md)
+- [跨AI冷启动接管验收](12-acceptance/cross-ai-takeover.md)
 - [架构决策](adr/README.md)

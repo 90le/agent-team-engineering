@@ -26,8 +26,14 @@ TEMPLATE_ROOT = ROOT / "templates" / "team-instance"
 AUTONOMY_ORDER = {f"A{level}": level for level in range(6)}
 FACTORY_MAXIMUM_AUTONOMY = "A2"
 SAFE_RELATIVE_PATH = re.compile(r"^[A-Za-z0-9._/-]+$")
+SAFE_GIT_BRANCH = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9._/-]{0,499}$")
 FORBIDDEN_RUNTIME_NAMES = {".env", "id_rsa", "id_ed25519"}
 FORBIDDEN_RUNTIME_SUFFIXES = {".db", ".key", ".pem", ".sqlite", ".sqlite3"}
+RESERVED_LOCK_PATHS = {
+    ".agent-team/instance.json",
+    ".agent-team/instance.lock.json",
+    "runtime/.factory-lifecycle-journal.json",
+}
 
 
 @dataclass(frozen=True)
@@ -66,6 +72,8 @@ def _digest_text(value: str) -> str:
 
 
 def _load_json(path: Path) -> dict[str, Any]:
+    if path.is_symlink():
+        raise InstanceError(f"JSON authority must not be a symbolic link: {path}")
     try:
         value = loads_strict(path.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:
@@ -85,6 +93,23 @@ def _is_safe_relative(value: str) -> bool:
         and not path.is_absolute()
         and ".." not in path.parts
         and value not in {".", "./"}
+    )
+
+
+def is_safe_git_branch(value: str) -> bool:
+    parts = value.split("/")
+    return (
+        bool(SAFE_GIT_BRANCH.fullmatch(value))
+        and ".." not in value
+        and "//" not in value
+        and all(
+            part
+            and part not in {".", ".."}
+            and not part.startswith(".")
+            and not part.endswith(".")
+            and not part.casefold().endswith(".lock")
+            for part in parts
+        )
     )
 
 
@@ -172,6 +197,15 @@ def validate_instance_document(document: dict[str, Any]) -> list[InstanceFinding
                 "project provider and locator pairs must be unique",
             )
         )
+    for index, project in enumerate(document["projects"]):
+        if not is_safe_git_branch(project["default_branch"]):
+            findings.append(
+                InstanceFinding(
+                    "ERROR",
+                    f"$.projects[{index}].default_branch",
+                    "default branch is not a safe Git branch name",
+                )
+            )
     adapter_slots = [adapter["slot"] for adapter in document["adapters"]]
     if len(adapter_slots) != len(set(adapter_slots)):
         findings.append(InstanceFinding("ERROR", "$.adapters", "adapter slots must be unique"))
@@ -248,20 +282,32 @@ def _factory_metadata() -> dict[str, Any]:
 
 
 def _git_revision() -> tuple[str, bool]:
+    environment = os.environ.copy()
+    environment["GIT_OPTIONAL_LOCKS"] = "0"
     revision = subprocess.run(
         ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
         check=False,
         capture_output=True,
         text=True,
+        env=environment,
     )
     dirty = subprocess.run(
-        ["git", "-C", str(ROOT), "status", "--porcelain", "--untracked-files=no"],
+        ["git", "-C", str(ROOT), "status", "--porcelain", "--untracked-files=all"],
         check=False,
         capture_output=True,
         text=True,
+        env=environment,
     )
     if revision.returncode != 0:
-        return "unavailable", True
+        try:
+            from core.installation import verify_factory_installation
+
+            installation = verify_factory_installation(ROOT)
+            return str(installation["source_revision"]), not bool(
+                installation["release_verified"]
+            )
+        except RuntimeError:
+            return "unavailable", True
     return revision.stdout.strip(), dirty.returncode != 0 or bool(dirty.stdout.strip())
 
 
@@ -327,13 +373,11 @@ def _build_seed_files(document: dict[str, Any]) -> dict[str, tuple[str, str]]:
     }
 
 
-def _build_lock(document: dict[str, Any], files: dict[str, tuple[str, str]]) -> dict[str, Any]:
+def _build_lock_from_records(
+    document: dict[str, Any], records: list[dict[str, str]]
+) -> dict[str, Any]:
     metadata = _factory_metadata()
     revision, dirty = _git_revision()
-    records = [
-        {"path": path, "ownership": ownership, "sha256": f"sha256:{_digest_text(content)}"}
-        for path, (content, ownership) in sorted(files.items())
-    ]
     return {
         "schema_version": "1.0.0",
         "instance_id": document["instance_id"],
@@ -346,8 +390,16 @@ def _build_lock(document: dict[str, Any], files: dict[str, tuple[str, str]]) -> 
         },
         "team_pack": document["team_pack"],
         "instance_digest": f"sha256:{_digest_text(_canonical_json(document))}",
-        "files": records,
+        "files": sorted(records, key=lambda record: record["path"]),
     }
+
+
+def _build_lock(document: dict[str, Any], files: dict[str, tuple[str, str]]) -> dict[str, Any]:
+    records = [
+        {"path": path, "ownership": ownership, "sha256": f"sha256:{_digest_text(content)}"}
+        for path, (content, ownership) in sorted(files.items())
+    ]
+    return _build_lock_from_records(document, records)
 
 
 def _write_text(root: Path, relative: str, content: str) -> None:
@@ -411,8 +463,24 @@ def _parse_version(value: str) -> tuple[int, int, int]:
 def validate_instance_directory(
     root: Path, *, allow_stale_instance_digest: bool = False
 ) -> list[InstanceFinding]:
+    if root.is_symlink():
+        return [InstanceFinding("ERROR", str(root), "instance root must not be a symbolic link")]
     instance_root = root.resolve()
     findings: list[InstanceFinding] = []
+    for authority in (
+        instance_root / ".agent-team" / "instance.json",
+        instance_root / ".agent-team" / "instance.lock.json",
+    ):
+        if authority.is_symlink():
+            findings.append(
+                InstanceFinding(
+                    "ERROR",
+                    authority.relative_to(instance_root).as_posix(),
+                    "instance authority must not be a symbolic link",
+                )
+            )
+    if findings:
+        return findings
     try:
         document = _load_json(instance_root / ".agent-team" / "instance.json")
         lock = _load_json(instance_root / ".agent-team" / "instance.lock.json")
@@ -425,6 +493,19 @@ def validate_instance_directory(
         InstanceFinding("ERROR", issue.path, issue.message)
         for issue in validate_schema(lock, lock_schema)
     )
+    if any(finding.severity == "ERROR" for finding in findings):
+        return findings
+
+    locked_paths = [str(record["path"]) for record in lock["files"]]
+    if len(locked_paths) != len(set(locked_paths)):
+        findings.append(
+            InstanceFinding("ERROR", ".agent-team/instance.lock.json", "locked paths must be unique")
+        )
+    for relative in locked_paths:
+        if relative in RESERVED_LOCK_PATHS:
+            findings.append(
+                InstanceFinding("ERROR", relative, "instance lock targets reserved authority")
+            )
     if any(finding.severity == "ERROR" for finding in findings):
         return findings
 
@@ -493,6 +574,9 @@ def validate_instance_directory(
             findings.append(InstanceFinding("ERROR", relative, "locked path is unsafe"))
             continue
         target = instance_root / relative
+        if target.is_symlink():
+            findings.append(InstanceFinding("ERROR", relative, "locked file is a symbolic link"))
+            continue
         if not target.is_file():
             severity = "ERROR" if record["ownership"] == "managed" else "WARNING"
             findings.append(InstanceFinding(severity, relative, "locked file is missing"))
@@ -513,7 +597,9 @@ def validate_instance_directory(
         Path(runtime["artifact_root"]),
     ]
     state_path = Path(runtime["state_location"])
-    for path in sorted(item for item in instance_root.rglob("*") if item.is_file()):
+    for path in sorted(
+        item for item in instance_root.rglob("*") if item.is_file() or item.is_symlink()
+    ):
         relative_path = path.relative_to(instance_root)
         relative = relative_path.as_posix()
         is_state_file = relative == state_path.as_posix() or relative.startswith(
@@ -524,6 +610,11 @@ def validate_instance_directory(
             for runtime_root in runtime_roots
         )
         if ".git" in relative_path.parts or is_state_file or is_runtime_child:
+            continue
+        if path.is_symlink():
+            findings.append(
+                InstanceFinding("ERROR", relative, "symbolic links are not allowed in authority")
+            )
             continue
         if (
             path.name in FORBIDDEN_RUNTIME_NAMES
@@ -554,6 +645,8 @@ def validate_instance_directory(
 
 
 def relock_instance(root: Path) -> dict[str, Any]:
+    if root.is_symlink():
+        raise InstanceError("instance root must not be a symbolic link")
     instance_root = root.resolve()
     findings = validate_instance_directory(instance_root, allow_stale_instance_digest=True)
     errors = [finding for finding in findings if finding.severity == "ERROR"]
@@ -584,6 +677,8 @@ def relock_instance(root: Path) -> dict[str, Any]:
 
 
 def instance_summary(root: Path) -> dict[str, Any]:
+    if root.is_symlink():
+        raise InstanceError("instance root must not be a symbolic link")
     instance_root = root.resolve()
     document = _load_json(instance_root / ".agent-team" / "instance.json")
     lock = _load_json(instance_root / ".agent-team" / "instance.lock.json")

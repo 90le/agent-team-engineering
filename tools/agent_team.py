@@ -5,47 +5,74 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
 import sys
 from pathlib import Path
+
+# Installed Factory trees are manifest-verified and must not acquire undeclared bytecode.
+sys.dont_write_bytecode = True
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from core.adapters import load_adapter_catalog  # noqa: E402
-from core.adoption import write_adoption_proposal  # noqa: E402
+from core.adoption import (  # noqa: E402
+    compose_instance_candidate,
+    verify_adoption_proposal,
+    write_adoption_proposal,
+)
 from core.approval import HMACApprovalVerifier  # noqa: E402
 from core.context import write_context_bundle  # noqa: E402
 from core.control_plane import ControlPlane  # noqa: E402
+from core.doctor import build_doctor_report, doctor_exit_code  # noqa: E402
+from core.installation import install_factory, verify_factory_installation  # noqa: E402
 from core.instance import (  # noqa: E402
-    factory_contract_digest,
     init_instance,
     instance_summary,
     relock_instance,
     validate_instance_directory,
 )
 from core.json_support import loads_strict  # noqa: E402
+from core.lifecycle import (  # noqa: E402
+    apply_instance_upgrade,
+    inspect_recovery_bundle,
+    recover_interrupted_lifecycle,
+    rollback_instance,
+    write_instance_upgrade_plan,
+)
 from core.models import Actor, FeedbackEvent  # noqa: E402
 from core.simulation import run_feedback_to_release  # noqa: E402
 from core.validation import validate_repository  # noqa: E402
 
 
-def command_doctor(_: argparse.Namespace) -> int:
-    factory = loads_strict((ROOT / "factory-package.json").read_text(encoding="utf-8"))
+def command_doctor(args: argparse.Namespace) -> int:
+    report = build_doctor_report(Path(args.instance) if args.instance else None)
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return doctor_exit_code(report)
+
+
+def command_factory_install(args: argparse.Namespace) -> int:
+    report = install_factory(Path(args.output))
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_factory_verify(args: argparse.Namespace) -> int:
+    manifest = verify_factory_installation(Path(args.root))
     report = {
-        "python": sys.version.split()[0],
-        "git": shutil.which("git"),
-        "docker": shutil.which("docker"),
-        "gh": shutil.which("gh"),
-        "root": str(ROOT),
-        "factory_id": factory["id"],
-        "factory_version": factory["version"],
-        "factory_contract_digest": factory_contract_digest(),
-        "production_integrations_enabled": False,
+        "status": "VALID",
+        "root": str(Path(args.root).resolve()),
+        "installation_id": manifest["installation_id"],
+        "factory_id": manifest["factory_id"],
+        "factory_version": manifest["factory_version"],
+        "source_revision": manifest["source_revision"],
+        "source_tag": manifest["source_tag"],
+        "release_verified": manifest["release_verified"],
+        "tree_digest": manifest["tree_digest"],
+        "files": len(manifest["files"]),
     }
     print(json.dumps(report, ensure_ascii=False, indent=2))
-    return 0 if report["git"] else 1
+    return 0
 
 
 def command_validate(args: argparse.Namespace) -> int:
@@ -76,8 +103,29 @@ def command_simulate(args: argparse.Namespace) -> int:
 
 
 def command_adopt(args: argparse.Namespace) -> int:
-    report = write_adoption_proposal(Path(args.repo), Path(args.output))
+    report = write_adoption_proposal(
+        Path(args.repo),
+        Path(args.output),
+        provider=args.provider,
+        locator=args.locator,
+        default_branch=args.default_branch,
+        project_id=args.project_id,
+    )
     print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_adoption_verify(args: argparse.Namespace) -> int:
+    package = verify_adoption_proposal(Path(args.root))
+    print(json.dumps(package, ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_adoption_compose(args: argparse.Namespace) -> int:
+    candidate = compose_instance_candidate(
+        Path(args.base_config), Path(args.proposal), Path(args.output)
+    )
+    print(json.dumps(candidate, ensure_ascii=False, indent=2))
     return 0
 
 
@@ -98,7 +146,7 @@ def command_instance_init(args: argparse.Namespace) -> int:
 
 
 def command_instance_validate(args: argparse.Namespace) -> int:
-    root = Path(args.root).resolve()
+    root = Path(args.root)
     findings = validate_instance_directory(root)
     for finding in findings:
         print(f"{finding.severity} {finding.path}: {finding.message}")
@@ -119,6 +167,40 @@ def command_instance_relock(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_instance_upgrade_plan(args: argparse.Namespace) -> int:
+    plan = write_instance_upgrade_plan(Path(args.root), Path(args.output))
+    print(json.dumps(plan, ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_instance_upgrade_apply(args: argparse.Namespace) -> int:
+    result = apply_instance_upgrade(
+        Path(args.root), Path(args.plan), Path(args.recovery)
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_instance_recover(args: argparse.Namespace) -> int:
+    result = recover_interrupted_lifecycle(Path(args.root))
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_instance_rollback(args: argparse.Namespace) -> int:
+    result = rollback_instance(
+        Path(args.root), Path(args.recovery), Path(args.rescue)
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_instance_recovery_inspect(args: argparse.Namespace) -> int:
+    manifest = inspect_recovery_bundle(Path(args.bundle))
+    print(json.dumps(manifest, ensure_ascii=False, indent=2))
+    return 0
+
+
 def _load_json_object(path: str) -> dict:
     target = Path(path).resolve()
     value = loads_strict(target.read_text(encoding="utf-8"))
@@ -128,7 +210,13 @@ def _load_json_object(path: str) -> dict:
 
 
 def _runtime_database(instance: str) -> tuple[Path, Path]:
-    instance_root = Path(instance).resolve()
+    supplied_root = Path(instance)
+    if supplied_root.is_symlink():
+        raise RuntimeError("instance root must not be a symbolic link")
+    instance_root = supplied_root.resolve()
+    journal = instance_root / "runtime" / ".factory-lifecycle-journal.json"
+    if journal.exists() or journal.is_symlink():
+        raise RuntimeError("instance lifecycle recovery is required before runtime operations")
     findings = validate_instance_directory(instance_root)
     errors = [finding for finding in findings if finding.severity == "ERROR"]
     if errors:
@@ -283,7 +371,21 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     doctor = subparsers.add_parser("doctor", help="report portable runtime prerequisites")
+    doctor.add_argument("--instance")
     doctor.set_defaults(func=command_doctor)
+
+    factory = subparsers.add_parser("factory", help="install or verify an immutable Factory")
+    factory_commands = factory.add_subparsers(dest="factory_command", required=True)
+    factory_install = factory_commands.add_parser(
+        "install", help="atomically install the current annotated release"
+    )
+    factory_install.add_argument("--output", required=True)
+    factory_install.set_defaults(func=command_factory_install)
+    factory_verify = factory_commands.add_parser(
+        "verify", help="verify an installed Factory manifest and every file"
+    )
+    factory_verify.add_argument("--root", required=True)
+    factory_verify.set_defaults(func=command_factory_verify)
 
     validate = subparsers.add_parser(
         "validate", help="validate repository contracts and safety gates"
@@ -304,7 +406,32 @@ def build_parser() -> argparse.ArgumentParser:
     )
     adopt.add_argument("--repo", required=True)
     adopt.add_argument("--output", required=True)
+    adopt.add_argument(
+        "--provider",
+        choices=("github", "gitlab", "gitea", "generic-git"),
+        default="generic-git",
+    )
+    adopt.add_argument("--locator")
+    adopt.add_argument("--default-branch")
+    adopt.add_argument("--project-id")
     adopt.set_defaults(func=command_adopt)
+
+    adoption = subparsers.add_parser(
+        "adoption", help="verify a proposal or compose a candidate instance config"
+    )
+    adoption_commands = adoption.add_subparsers(dest="adoption_command", required=True)
+    adoption_verify = adoption_commands.add_parser(
+        "verify", help="verify proposal hashes, schemas, scope, and secret safety"
+    )
+    adoption_verify.add_argument("--root", required=True)
+    adoption_verify.set_defaults(func=command_adoption_verify)
+    adoption_compose = adoption_commands.add_parser(
+        "compose", help="add one proposal-only project to a new candidate config"
+    )
+    adoption_compose.add_argument("--base-config", required=True)
+    adoption_compose.add_argument("--proposal", required=True)
+    adoption_compose.add_argument("--output", required=True)
+    adoption_compose.set_defaults(func=command_adoption_compose)
 
     export_context = subparsers.add_parser(
         "export-context", help="export a bounded role context bundle"
@@ -342,6 +469,45 @@ def build_parser() -> argparse.ArgumentParser:
     )
     instance_relock.add_argument("--root", required=True)
     instance_relock.set_defaults(func=command_instance_relock)
+
+    instance_upgrade = instance_commands.add_parser(
+        "upgrade", help="plan or apply a versioned instance upgrade"
+    )
+    upgrade_commands = instance_upgrade.add_subparsers(
+        dest="instance_upgrade_command", required=True
+    )
+    upgrade_plan = upgrade_commands.add_parser(
+        "plan", help="write a digest-bound upgrade plan outside the instance"
+    )
+    upgrade_plan.add_argument("--root", required=True)
+    upgrade_plan.add_argument("--output", required=True)
+    upgrade_plan.set_defaults(func=command_instance_upgrade_plan)
+    upgrade_apply = upgrade_commands.add_parser(
+        "apply", help="apply a fresh plan after creating an external recovery bundle"
+    )
+    upgrade_apply.add_argument("--root", required=True)
+    upgrade_apply.add_argument("--plan", required=True)
+    upgrade_apply.add_argument("--recovery", required=True)
+    upgrade_apply.set_defaults(func=command_instance_upgrade_apply)
+    instance_recover = instance_commands.add_parser(
+        "recover", help="restore the pre-operation release from a lifecycle journal"
+    )
+    instance_recover.add_argument("--root", required=True)
+    instance_recover.set_defaults(func=command_instance_recover)
+
+    instance_rollback = instance_commands.add_parser(
+        "rollback", help="restore a verified recovery bundle and preserve a rescue bundle"
+    )
+    instance_rollback.add_argument("--root", required=True)
+    instance_rollback.add_argument("--recovery", required=True)
+    instance_rollback.add_argument("--rescue", required=True)
+    instance_rollback.set_defaults(func=command_instance_rollback)
+
+    instance_recovery = instance_commands.add_parser(
+        "recovery-inspect", help="verify and inspect an external recovery bundle"
+    )
+    instance_recovery.add_argument("--bundle", required=True)
+    instance_recovery.set_defaults(func=command_instance_recovery_inspect)
 
     runtime = subparsers.add_parser("runtime", help="operate the persistent control plane")
     runtime_commands = runtime.add_subparsers(dest="runtime_command", required=True)

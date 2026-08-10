@@ -54,4 +54,8 @@ python3 tools/agent_team.py instance validate --root /path/to/team-instance
 
 ## 升级边界
 
-`v0.2` 建立可供升级器依赖的锁和文件所有权契约；截至v0.4仍未提供自动跨版本迁移。后续升级器必须先生成计划、确认旧摘要、建立恢复副本、在临时目录迁移、执行新版本验证，再原子切换；失败恢复旧目录和旧锁。任何不兼容Schema变化都需要ADR和显式迁移。
+`relock`只能接受同一Factory版本下经过验证的声明式配置变化，不能修改锁中的Factory版本、替换managed文件或冒充迁移。
+
+v0.5提供从v0.2、v0.3、v0.4到v0.5的显式迁移：先在实例外输出摘要绑定计划，人工审阅后创建外部恢复包，再逐项迁移managed文件并最后提交目标锁。用户修改过的seeded文件原样保留。运行库存在时必须暂停、审计通过且无活动租约/未决外部效果；操作者还必须另外停止所有Writer进程。
+
+升级和回滚使用 `runtime/.factory-lifecycle-journal.json` 记录崩溃恢复状态；日志存在时不得运行实例或手工删除。恢复命令返回当前操作开始前版本。完整安装、计划、应用、恢复、回滚和证据协议见[Factory安装、实例升级、恢复与项目接入](../11-lifecycle/installation-upgrade-and-adoption.md)。任何不兼容Schema变化仍需要新ADR、主版本和显式迁移。

@@ -24,7 +24,7 @@
 
 ## 运行配置
 
-参考模拟器、控制平面与v0.4适配器宿主仅依赖Python标准库。控制平面使用SQLite事务保存工作项、幂等记录、租约、暂停状态、outbox和哈希链审计；该实现面向单实例与有限并发Worker，不宣称多节点高可用。未来替换持久引擎不得改变开放契约、修订检查和角色分离原则。OpenClaw是消息与协调适配器，不是默认安全边界。
+参考模拟器、控制平面、适配器宿主和v0.5生命周期工具仅依赖Python标准库。控制平面使用SQLite事务保存工作项、幂等记录、租约、暂停状态、outbox和哈希链审计；该实现面向单实例与有限并发Worker，不宣称多节点高可用。未来替换持久引擎不得改变开放契约、修订检查和角色分离原则。OpenClaw是消息与协调适配器，不是默认安全边界。
 
 控制平面先在一个事务中提交状态与待执行outbox记录，再由Worker领取外部副作用。Worker验证审计链，宿主再检查实例绑定、操作Schema、持久事件授权和显式实现。进程在提交前中断时两者都不生效；提交后中断时outbox仍可恢复。外部写操作必须使用提供者幂等或重试前对账；无法安全处理不确定结果的操作只能at-most-once并转人工处置。
 
@@ -34,6 +34,10 @@ Factory发布通用实现和迁移；实例锁定明确Factory版本，保存团
 
 实例由 `.agent-team/instance.json` 声明，`.agent-team/instance.lock.json` 绑定Factory版本、源修订、契约摘要和生成文件摘要。Factory管理文件漂移时安全停止；用户维护文件允许自定义但会报告差异。详细决定见 [ADR-0003](../adr/ADR-0003-factory-instance-project-boundaries.md)。
 
-持久状态与恢复决定见 [ADR-0004](../adr/ADR-0004-sqlite-control-plane-and-outbox.md)，适配器和认证批准决定见 [ADR-0005](../adr/ADR-0005-versioned-adapter-host-and-bound-approval.md)。
+Factory发布可安装为不含Git元数据的验证副本，`.factory-installation.json` 绑定发布提交、annotated tag、文件模式、逐文件与整树摘要。实例版本迁移使用外部计划和恢复包；managed内容逐文件切换，目标锁最后提交，`runtime/.factory-lifecycle-journal.json` 使升级和回滚在中断后保守返回操作前版本。该模型提供逻辑提交与fail-closed，不宣称多文件物理原子性，也不负责停止外部Writer。
+
+已有项目发现是独立的只读输入边界：扫描禁用Git optional locks，输出只能在目标仓库外原子发布。摘要绑定的proposal-only包可以组合到候选实例配置，但不能自行改变目标仓库、启用适配器或获得外部权限。
+
+持久状态与恢复决定见 [ADR-0004](../adr/ADR-0004-sqlite-control-plane-and-outbox.md)，适配器和认证批准决定见 [ADR-0005](../adr/ADR-0005-versioned-adapter-host-and-bound-approval.md)，安装与事务化实例生命周期见 [ADR-0006](../adr/ADR-0006-verified-install-and-transactional-instance-lifecycle.md)。
 
 决策依据见[架构决策索引](../adr/README.md)。

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:adoption-project:1.0.0",
+  "title": "Proposal-only target project binding",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "provider", "locator", "default_branch", "mode", "source_commit"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "id": {"type": "string", "pattern": "^project\\.[a-z0-9][a-z0-9._-]*$"},
+    "provider": {"enum": ["github", "gitlab", "gitea", "generic-git"]},
+    "locator": {"type": "string", "minLength": 1, "maxLength": 1000},
+    "default_branch": {"type": "string", "minLength": 1, "maxLength": 500},
+    "mode": {"const": "proposal-only"},
+    "source_commit": {"type": ["string", "null"], "pattern": "^[a-f0-9]{40}$"}
+  }
+}

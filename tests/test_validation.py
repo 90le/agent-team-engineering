@@ -83,6 +83,29 @@ class ValidationTests(unittest.TestCase):
                 any("operation has no authority grant" in finding.message for finding in findings)
             )
 
+    def test_cross_ai_acceptance_profile_is_schema_validated(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            copied = Path(temporary) / "repository"
+            shutil.copytree(
+                ROOT,
+                copied,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            profile_path = copied / "acceptance/cross-ai-takeover.json"
+            profile = json.loads(profile_path.read_text(encoding="utf-8"))
+            profile["human_replay_required"] = False
+            profile_path.write_text(json.dumps(profile), encoding="utf-8")
+
+            findings = validate_repository(copied)
+
+            self.assertTrue(
+                any(
+                    finding.path == "acceptance/cross-ai-takeover.json"
+                    and "must equal True" in finding.message
+                    for finding in findings
+                )
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
