@@ -1,14 +1,57 @@
 {
-  "schema_version": "1.0.0",
+  "schema_version": "2.0.0",
   "id": "adapter.openclaw",
+  "version": "0.4.0",
   "kind": "messaging",
   "status": "REFERENCE",
   "authority": "replaceable-interface",
-  "inputs": ["channel-message", "owner-approval-message"],
-  "outputs": ["feedback-event", "approval-event", "status-notification"],
+  "slots": ["intake", "approval", "notification"],
+  "config_schema": "schemas/adapter-empty-config.schema.json",
+  "operations": [
+    {
+      "name": "feedback.receive",
+      "slots": ["intake"],
+      "direction": "inbound",
+      "external_effect": "write",
+      "delivery": "provider-idempotency",
+      "capability": "feedback.submit",
+      "input_schema": "schemas/feedback-event.schema.json",
+      "output_schema": "schemas/work-item.schema.json",
+      "timeout_seconds": 10,
+      "project_scope": null
+    },
+    {
+      "name": "approval.receive",
+      "slots": ["approval"],
+      "direction": "inbound",
+      "external_effect": "write",
+      "delivery": "provider-idempotency",
+      "capability": "approval.submit",
+      "input_schema": "schemas/approval-assertion.schema.json",
+      "output_schema": "schemas/approval-event.schema.json",
+      "timeout_seconds": 10,
+      "project_scope": null
+    },
+    {
+      "name": "feedback.notify",
+      "slots": ["notification"],
+      "direction": "outbound",
+      "external_effect": "write",
+      "delivery": "reconcile-before-retry",
+      "capability": "feedback.notify",
+      "input_schema": "schemas/feedback-notification.schema.json",
+      "output_schema": "schemas/external-reference.schema.json",
+      "timeout_seconds": 30,
+      "project_scope": null
+    }
+  ],
+  "trust_boundaries": ["public-untrusted", "authenticated-owner", "provider-api"],
+  "credentials": ["openclaw-webhook-auth", "owner-approval-auth"],
+  "implementation": {"mode": "contract-only", "entrypoint": null},
   "security_notes": [
-    "Run public intake and owner control in separate trust boundaries.",
-    "Public intake receives only a narrow feedback.submit tool.",
-    "Do not expose shell, Git, browser automation, session spawning, cron mutation or deployment tools to public input."
+    "Public intake and owner approval require separate agents, sessions, credentials and tool policies.",
+    "Public input can only become untrusted feedback data.",
+    "An owner approval must become a verified bound assertion; a chat message alone has no approval authority.",
+    "Do not expose shell, Git, session spawning, cron mutation or deployment tools to public input."
   ]
 }

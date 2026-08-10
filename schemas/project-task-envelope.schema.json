@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:project-task-envelope:1.0.0",
+  "title": "Project-bound Agent Task Envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["task_id", "work_item_id", "project_id", "role", "expected_revision", "idempotency_key", "context", "allowed_capabilities", "budget"],
+  "properties": {
+    "task_id": {"type": "string"},
+    "work_item_id": {"type": "string"},
+    "project_id": {"type": "string", "pattern": "^project\\.[a-z0-9][a-z0-9._-]*$"},
+    "role": {"type": "string"},
+    "expected_revision": {"type": "integer", "minimum": 0},
+    "idempotency_key": {"type": "string"},
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["framework_commit", "project_commit", "paths"],
+      "properties": {
+        "framework_commit": {"type": "string"},
+        "project_commit": {"type": "string"},
+        "paths": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      }
+    },
+    "allowed_capabilities": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_attempts", "max_seconds"],
+      "properties": {
+        "max_attempts": {"type": "integer", "minimum": 1},
+        "max_seconds": {"type": "integer", "minimum": 1},
+        "max_cost_units": {"type": "number", "minimum": 0}
+      }
+    }
+  }
+}

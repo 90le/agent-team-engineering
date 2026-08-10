@@ -10,7 +10,7 @@
 
 ## 稳定接口
 
-适配器只接收和产生 `schemas/` 定义的结构化对象。核心流程不认识 OpenClaw 会话、GitHub Label 或某个模型的专用消息格式；适配器负责映射。
+适配器只接收和产生 `schemas/` 定义的结构化对象。核心流程不认识 OpenClaw 会话、GitHub Label 或某个模型的专用消息格式；适配器负责映射。Manifest只描述契约，不能触发动态代码加载；宿主仅接受启动时显式注册且身份匹配的实现。操作级slot阻止同一多用途适配器跨信任入口复用权限，项目作用域把仓库、默认分支和Runner source ref限制在实例声明的目标内。
 
 角色能力和工具权限只在团队包 JSON 中定义，参考控制器在运行时加载，不在模型提示词或代码中维护第二份权限事实。
 
@@ -24,9 +24,9 @@
 
 ## 运行配置
 
-参考模拟器与v0.3控制平面仅依赖Python标准库。控制平面使用SQLite事务保存工作项、幂等记录、租约、暂停状态、outbox和哈希链审计；该实现面向单实例与有限并发Worker，不宣称多节点高可用。未来替换持久引擎不得改变开放契约、修订检查和角色分离原则。OpenClaw是消息与协调适配器，不是默认安全边界。
+参考模拟器、控制平面与v0.4适配器宿主仅依赖Python标准库。控制平面使用SQLite事务保存工作项、幂等记录、租约、暂停状态、outbox和哈希链审计；该实现面向单实例与有限并发Worker，不宣称多节点高可用。未来替换持久引擎不得改变开放契约、修订检查和角色分离原则。OpenClaw是消息与协调适配器，不是默认安全边界。
 
-控制平面先在一个事务中提交状态与待执行outbox记录，再由Worker领取外部副作用。进程在提交前中断时两者都不生效；提交后中断时outbox仍可恢复。外部提供者仍需接受幂等键，因为进程可能在副作用成功后、确认写回前中断。
+控制平面先在一个事务中提交状态与待执行outbox记录，再由Worker领取外部副作用。Worker验证审计链，宿主再检查实例绑定、操作Schema、持久事件授权和显式实现。进程在提交前中断时两者都不生效；提交后中断时outbox仍可恢复。外部写操作必须使用提供者幂等或重试前对账；无法安全处理不确定结果的操作只能at-most-once并转人工处置。
 
 ## Factory、实例与项目
 
@@ -34,6 +34,6 @@ Factory发布通用实现和迁移；实例锁定明确Factory版本，保存团
 
 实例由 `.agent-team/instance.json` 声明，`.agent-team/instance.lock.json` 绑定Factory版本、源修订、契约摘要和生成文件摘要。Factory管理文件漂移时安全停止；用户维护文件允许自定义但会报告差异。详细决定见 [ADR-0003](../adr/ADR-0003-factory-instance-project-boundaries.md)。
 
-持久状态与恢复决定见 [ADR-0004](../adr/ADR-0004-sqlite-control-plane-and-outbox.md)。
+持久状态与恢复决定见 [ADR-0004](../adr/ADR-0004-sqlite-control-plane-and-outbox.md)，适配器和认证批准决定见 [ADR-0005](../adr/ADR-0005-versioned-adapter-host-and-bound-approval.md)。
 
-决策依据见 [ADR-0001](../adr/ADR-0001-vendor-neutral-core.md)、[ADR-0002](../adr/ADR-0002-authority-runtime-separation.md)、[ADR-0003](../adr/ADR-0003-factory-instance-project-boundaries.md) 和 [ADR-0004](../adr/ADR-0004-sqlite-control-plane-and-outbox.md)。
+决策依据见[架构决策索引](../adr/README.md)。

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 import tempfile
 import unittest
@@ -35,6 +36,52 @@ class ValidationTests(unittest.TestCase):
             )
             findings = validate_repository(copied)
             self.assertTrue(any("invalid JSON" in finding.message for finding in findings))
+
+    def test_invalid_adapter_and_missing_authority_grant_are_reported(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            copied = Path(temporary) / "repository"
+            shutil.copytree(
+                ROOT,
+                copied,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            manifest_path = copied / "adapters/github/adapter.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["implementation"]["entrypoint"] = "os:system"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            findings = validate_repository(copied)
+            self.assertTrue(
+                any(
+                    finding.path == "adapters/github/adapter.json"
+                    and "does not match pattern" in finding.message
+                    for finding in findings
+                )
+            )
+
+            manifest["implementation"]["entrypoint"] = (
+                "core.reference_adapters:GitHubReferenceAdapter"
+            )
+            manifest["operations"][0]["project_scope"]["payload_field"] = (
+                "field_not_in_input_schema"
+            )
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            findings = validate_repository(copied)
+            self.assertTrue(
+                any("project scope field is absent" in finding.message for finding in findings)
+            )
+
+            manifest["operations"][0]["project_scope"]["payload_field"] = "repository"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            policy_path = copied / "policies/adapter-authority.json"
+            policy = json.loads(policy_path.read_text(encoding="utf-8"))
+            policy["grants"] = [
+                grant for grant in policy["grants"] if grant["operation"] != "issue.create"
+            ]
+            policy_path.write_text(json.dumps(policy), encoding="utf-8")
+            findings = validate_repository(copied)
+            self.assertTrue(
+                any("operation has no authority grant" in finding.message for finding in findings)
+            )
 
 
 if __name__ == "__main__":

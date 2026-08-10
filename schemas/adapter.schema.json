@@ -1,18 +1,78 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:agent-team:schema:adapter:1.0.0",
-  "title": "Platform Adapter Manifest",
+  "$id": "urn:agent-team:schema:adapter:2.0.0",
+  "title": "Versioned platform adapter package",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "id", "kind", "status", "authority", "inputs", "outputs"],
+  "required": ["schema_version", "id", "version", "kind", "status", "authority", "slots", "config_schema", "operations", "trust_boundaries", "credentials", "implementation", "security_notes"],
   "properties": {
-    "schema_version": {"const": "1.0.0"},
-    "id": {"type": "string", "pattern": "^adapter\\.[a-z0-9.-]+$"},
-    "kind": {"enum": ["agent-provider", "messaging", "scm", "generic-ai"]},
+    "schema_version": {"const": "2.0.0"},
+    "id": {"type": "string", "pattern": "^adapter\\.[a-z0-9][a-z0-9.-]*$"},
+    "version": {"type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"},
+    "kind": {"enum": ["agent-provider", "messaging", "scm", "generic-ai", "runner", "deployment", "notification", "test-double"]},
     "status": {"enum": ["REFERENCE", "EXPERIMENTAL", "STABLE"]},
     "authority": {"const": "replaceable-interface"},
-    "inputs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
-    "outputs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
-    "security_notes": {"type": "array", "items": {"type": "string"}}
+    "slots": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"enum": ["intake", "approval", "code-hosting", "model", "runner", "deployment", "notification"]}
+    },
+    "config_schema": {"type": "string", "pattern": "^schemas/[A-Za-z0-9._/-]+\\.json$"},
+    "operations": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "slots", "direction", "external_effect", "delivery", "capability", "input_schema", "output_schema", "timeout_seconds", "project_scope"],
+        "properties": {
+          "name": {"type": "string", "pattern": "^[a-z][a-z0-9.-]+$"},
+          "slots": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["intake", "approval", "code-hosting", "model", "runner", "deployment", "notification"]}},
+          "direction": {"enum": ["inbound", "outbound"]},
+          "external_effect": {"enum": ["read", "write", "compute"]},
+          "delivery": {"enum": ["read-only", "provider-idempotency", "reconcile-before-retry", "at-most-once"]},
+          "capability": {"type": "string", "minLength": 1},
+          "input_schema": {"type": "string", "pattern": "^schemas/[A-Za-z0-9._/-]+\\.json$"},
+          "output_schema": {"type": "string", "pattern": "^schemas/[A-Za-z0-9._/-]+\\.json$"},
+          "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 86400},
+          "project_scope": {
+            "type": ["object", "null"],
+            "additionalProperties": false,
+            "required": ["match_by", "payload_field", "provider", "allowed_modes", "default_branch_field", "source_ref_field"],
+            "properties": {
+              "match_by": {"enum": ["id", "locator"]},
+              "payload_field": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+              "provider": {"type": ["string", "null"]},
+              "allowed_modes": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["observe", "proposal-only"]}},
+              "default_branch_field": {"type": ["string", "null"]},
+              "source_ref_field": {"type": ["string", "null"]}
+            }
+          }
+        }
+      }
+    },
+    "trust_boundaries": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"enum": ["public-untrusted", "authenticated-owner", "control-worker", "isolated-executor", "provider-api"]}
+    },
+    "credentials": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^[a-z][a-z0-9.-]+$"}
+    },
+    "implementation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "entrypoint"],
+      "properties": {
+        "mode": {"enum": ["contract-only", "python-reference"]},
+        "entrypoint": {"type": ["string", "null"], "maxLength": 200, "pattern": "^core\\.[A-Za-z0-9_.]+:[A-Za-z][A-Za-z0-9_]+$"}
+      }
+    },
+    "security_notes": {"type": "array", "items": {"type": "string", "minLength": 1}}
   }
 }

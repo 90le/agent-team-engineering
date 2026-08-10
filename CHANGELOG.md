@@ -2,6 +2,27 @@
 
 本项目遵循语义化版本。版本标签只在仓库验证、测试、Skill校验和空目录冷启动全部通过后创建；已发布标签不移动。
 
+## 0.4.0 — 2026-08-10
+
+Agent Team Factory的适配器安全边界版本：
+
+- 将平台Manifest升级为v2，声明配置Schema、操作slot/方向、副作用类型、投递语义、能力、项目作用域、输入/输出Schema、超时、信任边界、逻辑凭据和实现模式。
+- 增加不动态导入entrypoint的显式适配器宿主；实例启用、Manifest契约、持久审计事件授权、已注册实现和秘密引用作用域必须同时通过。
+- 增加outbox Worker以及`provider-idempotency`、`reconcile-before-retry`和`at-most-once`故障语义；永久契约/授权失败直接进入dead-letter。
+- 未领取或调用前已过期的outbox claim不能启动适配器；Worker会把抢在dispatch前过期的claim按持久状态对账，而不是执行副作用。
+- 增加无网络Recording、GitHub映射与`local-dry-run`参考实现，覆盖提供者成功后崩溃、重试对账、稳定标记和不启动进程的Runner计划。
+- 宿主把仓库与Runner目标绑定到实例声明的项目、provider、mode和默认分支；OpenClaw公开反馈与owner批准使用不同slot，复用同一适配器也不能跨入口调用操作。
+- 模型适配器使用新增的project-bound任务信封；原`task-envelope`契约保持不变，避免静默改变已发布Schema。
+- owner工作流批准改为强制验证短期断言，并绑定身份、动作、工作项、revision和完整evidence；数据库只保存claim摘要与证据引用。
+- 增加HMAC参考验证器、签名Webhook入口、隔离执行请求、默认拒绝事件授权策略、适配器实现Skill以及秘密/WAL、越权、重放和恶意Runner负例测试。
+- 权威文件与边界输入改用严格JSON解析，拒绝重复对象键、`NaN`和无穷值，避免不同解析器对同一文档产生不同解释。
+
+兼容性：实例Schema仍为 `1.0.0`，`software-delivery 0.2.0` 团队包与v0.3 SQLite Schema保持不变；v0.4可以读取并校验既有v0.2/v0.3实例，同时报告Factory版本可升级，但不能通过`relock`冒充已经完成跨版本迁移。自动升级器将在后续版本提供。第三方旧Manifest必须迁移到v2。调用owner工作流转换的集成必须提供`ApprovalVerifier`和断言，这是有意的安全收紧；暂停/恢复的受控本机入口不变。
+
+限制：GitHub实现只映射请求并依赖调用方注入认证Transport；OpenClaw、模型和file-inbox仍是契约接口。HMAC仅供本地参考，`local-dry-run`只校验计划。版本不包含真实Token、网络守护进程、模型调用、生产沙箱、合并或部署能力。
+
+回退：先暂停、备份并验证SQLite状态，再检出 `v0.3.0`。数据库Schema仍兼容，但v0.3不能解释v0.4实例锁和Manifest；保留v0.4实例提交、秘密引用和外部状态对账记录，不能用回退绕过已要求的认证批准。
+
 ## 0.3.0 — 2026-08-10
 
 Agent Team Factory的持久控制平面版本：

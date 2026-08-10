@@ -1,0 +1,50 @@
+{
+  "$schema": "schemas/adapter-authority-policy.schema.json",
+  "schema_version": "1.0.0",
+  "id": "policy.adapter-authority",
+  "default": "deny",
+  "grants": [
+    {
+      "operation": "issue.create",
+      "capability": "github.issue.create",
+      "event_kind": "work.created",
+      "actions": []
+    },
+    {
+      "operation": "pull-request.create",
+      "capability": "github.pull-request.create",
+      "event_kind": "workflow.transition",
+      "actions": ["start_implementation"]
+    },
+    {
+      "operation": "agent.invoke",
+      "capability": "agent.invoke",
+      "event_kind": "work.created",
+      "actions": []
+    },
+    {
+      "operation": "agent.invoke",
+      "capability": "agent.invoke",
+      "event_kind": "workflow.transition",
+      "actions": ["*"]
+    },
+    {
+      "operation": "runner.execute",
+      "capability": "runner.execute",
+      "event_kind": "workflow.transition",
+      "actions": ["open_pr"]
+    },
+    {
+      "operation": "feedback.notify",
+      "capability": "feedback.notify",
+      "event_kind": "work.created",
+      "actions": []
+    },
+    {
+      "operation": "feedback.notify",
+      "capability": "feedback.notify",
+      "event_kind": "workflow.transition",
+      "actions": ["*"]
+    }
+  ]
+}

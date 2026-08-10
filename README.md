@@ -2,7 +2,7 @@
 
 `agent-team-engineering` 是一个供应商中立、默认安全停止的多智能体软件团队工厂。它负责把版本化契约、角色、权限、工作流、Skill、适配器接口和实例模板组合成可以审阅、复制、升级与恢复的团队，而不是用一组提示词假装已经拥有自动化团队。
 
-当前开发版本为 `0.3.0`。不可变的 `v0.1.0` 是参考内核，`v0.2.0` 建立声明式实例生命周期；`v0.3.0` 增加可重启的SQLite控制平面、任务租约、幂等、全局暂停、事务outbox、哈希链审计和验证式备份恢复。真实外部写操作和生产部署仍然默认关闭。
+当前版本为 `0.4.0`。不可变的 `v0.1.0` 是参考内核，`v0.2.0` 建立声明式实例生命周期，`v0.3.0` 增加可重启的SQLite控制平面；`v0.4.0` 把平台接入升级为版本化适配器契约、默认拒绝的事件授权、可恢复投递、绑定人工批准、签名Webhook边界与隔离Runner请求。真实账号、网络客户端、进程执行和生产部署仍然默认关闭。
 
 ## 三种仓库不要混淆
 
@@ -26,7 +26,7 @@ python3 tools/agent_team.py simulate
 python3 tools/agent_team.py simulate --approve-production
 ```
 
-从 [AI-BOOTSTRAP.md](AI-BOOTSTRAP.md) 开始接管；产品阶段、架构和安全边界分别见[项目定位](docs/00-project-positioning/vision-and-scope.md)、[参考架构](docs/02-architecture/reference-architecture.md)与[威胁模型](docs/03-security/threat-model.md)。
+从 [AI-BOOTSTRAP.md](AI-BOOTSTRAP.md) 开始接管；产品阶段、架构、安全和适配器边界分别见[项目定位](docs/00-project-positioning/vision-and-scope.md)、[参考架构](docs/02-architecture/reference-architecture.md)、[威胁模型](docs/03-security/threat-model.md)与[适配器SDK](docs/10-adapters/sdk-isolation-and-approval.md)。
 
 ## 创建一个安全的实例骨架
 
@@ -70,6 +70,14 @@ python3 tools/agent_team.py runtime audit-verify \
 
 反馈写入、任务租约、状态转换、暂停、对账和备份命令见[持久化与故障恢复](docs/09-control-plane/persistence-and-recovery.md)。非owner角色没有匹配租约不能提交状态；人工owner批准不能由Agent身份代替。
 
+## 检查适配器契约
+
+```bash
+python3 tools/agent_team.py adapter catalog
+```
+
+目录只显示非秘密Manifest摘要，不导入Manifest中的entrypoint。v0.4提供无网络的Recording、GitHub映射和`local-dry-run`参考实现，用于证明Schema、项目目标绑定、幂等/对账、秘密作用域和Runner计划；它们不会自动连接账号或执行代码。启用某个实例绑定仍需显式实现注册、最小权限身份、外部`secret.*`引用和单独验收。
+
 ## 接入已有项目
 
 接入提案必须生成在目标仓库外，分析过程不会修改目标仓库：
@@ -86,6 +94,7 @@ python3 tools/agent_team.py adopt-project \
 
 - 不保存密码、Token、私钥、生产配置、用户数据、运行数据库或Runner工作区。
 - 模型建议没有授权效力；结构化批准、工具策略和状态机负责强制边界。
-- 本版本提供可重启控制平面库与本机管理CLI，但尚未提供常驻守护进程、高可用集群或远程身份认证；CLI中的 `kind=human` 只表达授权事实，实际部署必须由后续认证适配器或受控本机账户证明操作者身份。
+- 本版本提供可重启控制平面库与本机管理CLI，但尚未提供常驻守护进程、高可用集群或真实远程身份客户端；owner工作流转换已强制要求`ApprovalVerifier`和短期绑定断言，CLI只提供本地HMAC参考验证路径。
+- `execution-request` 是生产Runner必须满足的契约，`local-dry-run`只返回`PLANNED`，不构成容器、VM或微虚拟机沙箱。
 - OpenClaw、GitHub、模型、Runner和部署端必须分别绑定，默认全部禁用。
 - 仓库当前保持Private；未来公开需要独立内容与许可证审查。

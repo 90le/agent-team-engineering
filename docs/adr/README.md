@@ -4,3 +4,4 @@
 - [ADR-0002：权威文件与运行状态分离](ADR-0002-authority-runtime-separation.md)
 - [ADR-0003：Factory、实例与项目边界](ADR-0003-factory-instance-project-boundaries.md)
 - [ADR-0004：SQLite控制平面与事务outbox](ADR-0004-sqlite-control-plane-and-outbox.md)
+- [ADR-0005：版本化适配器主机、事件授权与绑定批准](ADR-0005-versioned-adapter-host-and-bound-approval.md)

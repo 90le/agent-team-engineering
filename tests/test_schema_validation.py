@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import unittest
 
 from core.schema_validation import validate_schema
@@ -28,13 +29,31 @@ class PortableSchemaValidationTests(unittest.TestCase):
         self.assertIn("array items must be unique", messages)
         self.assertIn("additional property is not allowed", messages)
 
-    def test_unknown_schema_keyword_is_not_silently_ignored(self) -> None:
+    def test_unknown_string_format_is_not_silently_ignored(self) -> None:
         issues = validate_schema("value", {"type": "string", "format": "uri"})
-        self.assertEqual(issues[0].message, "unsupported schema keyword: format")
+        self.assertEqual(issues[0].message, "unsupported string format: uri")
+
+    def test_date_time_and_maximum_string_length_are_enforced(self) -> None:
+        schema = {"type": "string", "format": "date-time", "maxLength": 25}
+        self.assertEqual(validate_schema("2026-08-10T00:00:00Z", schema), [])
+        self.assertTrue(validate_schema("2026-08-10 00:00:00", schema))
+        self.assertTrue(validate_schema("2026-08-10T00:00:00.000000+08:00", schema))
 
     def test_boolean_does_not_satisfy_integer(self) -> None:
         issues = validate_schema(True, {"type": "integer"})
         self.assertTrue(issues)
+
+    def test_non_finite_values_are_not_json_numbers(self) -> None:
+        for value in (math.nan, math.inf, -math.inf):
+            with self.subTest(value=value):
+                issues = validate_schema(value, {"type": "number"})
+                self.assertEqual(issues[0].message, "expected type number")
+
+        issues = validate_schema(
+            [{"value": math.nan}],
+            {"type": "array", "uniqueItems": True},
+        )
+        self.assertIn("array contains a non-JSON value", [issue.message for issue in issues])
 
 
 if __name__ == "__main__":

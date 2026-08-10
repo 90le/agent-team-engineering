@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from core.json_support import loads_strict
 from core.schema_validation import validate_schema
 from core.security import CREDENTIAL_PATTERNS, is_secret_key
 
@@ -41,7 +42,19 @@ class InstanceError(RuntimeError):
 
 
 def _canonical_json(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    try:
+        return (
+            json.dumps(
+                value,
+                allow_nan=False,
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n"
+        )
+    except (TypeError, ValueError) as exc:
+        raise InstanceError(f"instance value is not strict JSON: {exc}") from exc
 
 
 def _digest_bytes(value: bytes) -> str:
@@ -54,10 +67,10 @@ def _digest_text(value: str) -> str:
 
 def _load_json(path: Path) -> dict[str, Any]:
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
+        value = loads_strict(path.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:
         raise InstanceError(f"required file does not exist: {path}") from exc
-    except json.JSONDecodeError as exc:
+    except ValueError as exc:
         raise InstanceError(f"invalid JSON in {path}: {exc}") from exc
     if not isinstance(value, dict):
         raise InstanceError(f"JSON root must be an object: {path}")
@@ -89,6 +102,10 @@ def _walk_values(value: Any, path: str = "$") -> list[tuple[str, str, Any]]:
 
 
 def validate_instance_document(document: dict[str, Any]) -> list[InstanceFinding]:
+    try:
+        json.dumps(document, allow_nan=False)
+    except (TypeError, ValueError) as exc:
+        return [InstanceFinding("ERROR", "$", f"instance is not strict JSON: {exc}")]
     schema = _load_json(INSTANCE_SCHEMA)
     findings = [
         InstanceFinding("ERROR", issue.path, issue.message)
@@ -144,9 +161,45 @@ def validate_instance_document(document: dict[str, Any]) -> list[InstanceFinding
     project_ids = [project["id"] for project in document["projects"]]
     if len(project_ids) != len(set(project_ids)):
         findings.append(InstanceFinding("ERROR", "$.projects", "project ids must be unique"))
+    project_targets = [
+        (project["provider"], project["locator"]) for project in document["projects"]
+    ]
+    if len(project_targets) != len(set(project_targets)):
+        findings.append(
+            InstanceFinding(
+                "ERROR",
+                "$.projects",
+                "project provider and locator pairs must be unique",
+            )
+        )
     adapter_slots = [adapter["slot"] for adapter in document["adapters"]]
     if len(adapter_slots) != len(set(adapter_slots)):
         findings.append(InstanceFinding("ERROR", "$.adapters", "adapter slots must be unique"))
+    try:
+        from core.adapters import load_adapter_catalog, validate_instance_adapter_bindings
+
+        adapter_catalog = load_adapter_catalog()
+        findings.extend(
+            InstanceFinding("ERROR", issue.path, issue.message)
+            for issue in validate_instance_adapter_bindings(document, adapter_catalog)
+        )
+        for index, adapter in enumerate(document["adapters"]):
+            manifest = adapter_catalog.get(adapter["adapter_id"])
+            if (
+                adapter["enabled"]
+                and manifest is not None
+                and manifest.credentials
+                and not adapter["secret_refs"]
+            ):
+                findings.append(
+                    InstanceFinding(
+                        "ERROR",
+                        f"$.adapters[{index}].secret_refs",
+                        "enabled adapter requires external secret references",
+                    )
+                )
+    except RuntimeError as exc:
+        findings.append(InstanceFinding("ERROR", "$.adapters", str(exc)))
 
     runtime = document["runtime"]
     for field in ("state_location", "workspace_root", "artifact_root"):

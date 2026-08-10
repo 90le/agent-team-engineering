@@ -10,4 +10,5 @@
 - [验证与恢复](07-operations/verification-and-recovery.md)
 - [实例生成与治理](08-factory/instance-lifecycle.md)
 - [持久化与故障恢复](09-control-plane/persistence-and-recovery.md)
+- [适配器SDK、隔离执行与认证批准](10-adapters/sdk-isolation-and-approval.md)
 - [架构决策](adr/README.md)

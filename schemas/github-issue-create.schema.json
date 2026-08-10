@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:github-issue-create:1.0.0",
+  "title": "GitHub issue create payload",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["repository", "work_item_id", "title", "body"],
+  "properties": {
+    "repository": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"},
+    "work_item_id": {"type": "string", "minLength": 1},
+    "title": {"type": "string", "minLength": 1},
+    "body": {"type": "string"}
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "schema_version": "2.0.0",
+  "id": "adapter.local-dry-run",
+  "version": "0.4.0",
+  "kind": "runner",
+  "status": "REFERENCE",
+  "authority": "replaceable-interface",
+  "slots": ["runner"],
+  "config_schema": "schemas/adapter-empty-config.schema.json",
+  "operations": [
+    {
+      "name": "runner.execute",
+      "slots": ["runner"],
+      "direction": "outbound",
+      "external_effect": "compute",
+      "delivery": "provider-idempotency",
+      "capability": "runner.execute",
+      "input_schema": "schemas/execution-request.schema.json",
+      "output_schema": "schemas/execution-result.schema.json",
+      "timeout_seconds": 86400,
+      "project_scope": {"match_by": "id", "payload_field": "project_id", "provider": null, "allowed_modes": ["observe", "proposal-only"], "default_branch_field": null, "source_ref_field": "source_ref"}
+    }
+  ],
+  "trust_boundaries": ["control-worker", "isolated-executor"],
+  "credentials": [],
+  "implementation": {"mode": "python-reference", "entrypoint": "core.reference_adapters:LocalDryRunRunnerAdapter"},
+  "security_notes": [
+    "This reference implementation validates and records a plan but never starts a process.",
+    "A production runner must provide disposable isolation, read-only source and no production mounts or Docker socket."
+  ]
+}

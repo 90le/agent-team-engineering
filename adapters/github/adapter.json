@@ -1,14 +1,45 @@
 {
-  "schema_version": "1.0.0",
+  "schema_version": "2.0.0",
   "id": "adapter.github",
+  "version": "0.4.0",
   "kind": "scm",
   "status": "REFERENCE",
   "authority": "replaceable-interface",
-  "inputs": ["feedback-event", "work-item", "structured-result", "release-candidate"],
-  "outputs": ["issue-ref", "pull-request-ref", "check-ref", "deployment-ref"],
+  "slots": ["code-hosting"],
+  "config_schema": "schemas/adapter-empty-config.schema.json",
+  "operations": [
+    {
+      "name": "issue.create",
+      "slots": ["code-hosting"],
+      "direction": "outbound",
+      "external_effect": "write",
+      "delivery": "reconcile-before-retry",
+      "capability": "github.issue.create",
+      "input_schema": "schemas/github-issue-create.schema.json",
+      "output_schema": "schemas/external-reference.schema.json",
+      "timeout_seconds": 30,
+      "project_scope": {"match_by": "locator", "payload_field": "repository", "provider": "github", "allowed_modes": ["proposal-only"], "default_branch_field": null, "source_ref_field": null}
+    },
+    {
+      "name": "pull-request.create",
+      "slots": ["code-hosting"],
+      "direction": "outbound",
+      "external_effect": "write",
+      "delivery": "reconcile-before-retry",
+      "capability": "github.pull-request.create",
+      "input_schema": "schemas/github-pull-request-create.schema.json",
+      "output_schema": "schemas/external-reference.schema.json",
+      "timeout_seconds": 30,
+      "project_scope": {"match_by": "locator", "payload_field": "repository", "provider": "github", "allowed_modes": ["proposal-only"], "default_branch_field": "base", "source_ref_field": null}
+    }
+  ],
+  "trust_boundaries": ["control-worker", "provider-api"],
+  "credentials": ["github-app-installation"],
+  "implementation": {"mode": "python-reference", "entrypoint": "core.reference_adapters:GitHubReferenceAdapter"},
   "security_notes": [
-    "Use a repository-scoped GitHub App with minimum permissions rather than a shared personal token.",
-    "Protect the default branch and require independent review plus required checks.",
+    "Use a repository-scoped GitHub App with the minimum endpoint permissions.",
+    "Create draft pull requests; this adapter never merges or pushes the default branch.",
+    "Reconcile by a stable work-item marker before retrying provider writes.",
     "Do not run untrusted pull request code on a runner with production credentials or mounts."
   ]
 }

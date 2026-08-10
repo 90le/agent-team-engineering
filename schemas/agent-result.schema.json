@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:agent-result:1.0.0",
+  "title": "Bound agent task result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["task_id", "work_item_id", "expected_revision", "status", "summary", "evidence_refs", "cost_units"],
+  "properties": {
+    "task_id": {"type": "string", "minLength": 1},
+    "work_item_id": {"type": "string", "minLength": 1},
+    "expected_revision": {"type": "integer", "minimum": 0},
+    "status": {"enum": ["PROPOSED", "COMPLETED", "FAILED", "BLOCKED"]},
+    "summary": {"type": "string", "minLength": 1},
+    "evidence_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "cost_units": {"type": "number", "minimum": 0}
+  }
+}

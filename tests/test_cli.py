@@ -30,6 +30,19 @@ class FactoryCliTests(unittest.TestCase):
         self.assertEqual(report["factory_version"], (ROOT / "VERSION").read_text().strip())
         self.assertFalse(report["production_integrations_enabled"])
 
+    def test_adapter_catalog_is_secret_safe_and_does_not_load_plugins(self) -> None:
+        result = run_cli("adapter", "catalog")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        report = json.loads(result.stdout)
+        self.assertGreaterEqual(len(report["adapters"]), 9)
+        self.assertFalse(report["dynamic_loading_enabled"])
+        self.assertFalse(report["production_integrations_enabled"])
+        self.assertNotIn("secret_refs", result.stdout)
+        github = next(item for item in report["adapters"] if item["id"] == "adapter.github")
+        issue = next(item for item in github["operations"] if item["name"] == "issue.create")
+        self.assertEqual(issue["delivery"], "reconcile-before-retry")
+        self.assertTrue(issue["project_scoped"])
+
     def test_instance_cli_round_trip(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "instance"
@@ -55,6 +68,58 @@ class FactoryCliTests(unittest.TestCase):
             self.assertEqual(result.returncode, 2)
             self.assertIn("cannot exceed A2", result.stderr)
             self.assertFalse(output.exists())
+
+    def test_approval_key_file_with_group_or_other_access_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            instance = base / "instance"
+            evidence = base / "evidence.json"
+            assertion = base / "assertion.json"
+            key = base / "approval.key"
+            evidence.write_text("{}\n", encoding="utf-8")
+            assertion.write_text("{}\n", encoding="utf-8")
+            key.write_bytes(b"local-cli-approval-key-material-32-bytes")
+            key.chmod(0o644)
+            self.assertEqual(
+                run_cli(
+                    "instance", "init", "--config", str(EXAMPLE), "--output", str(instance)
+                ).returncode,
+                0,
+            )
+            self.assertEqual(
+                run_cli("runtime", "init", "--instance", str(instance)).returncode,
+                0,
+            )
+            result = run_cli(
+                "runtime",
+                "apply",
+                "--instance",
+                str(instance),
+                "--work-item",
+                "work-does-not-matter",
+                "--action",
+                "approve_plan",
+                "--actor-id",
+                "human.project-owner",
+                "--role",
+                "owner",
+                "--actor-kind",
+                "human",
+                "--expected-revision",
+                "0",
+                "--idempotency-key",
+                "cli:approval:key-permissions",
+                "--evidence",
+                str(evidence),
+                "--approval-assertion",
+                str(assertion),
+                "--approval-key-file",
+                str(key),
+                "--approval-provider",
+                "approval-provider.cli-test",
+            )
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("deny group and other access", result.stderr)
 
     def test_persistent_runtime_cli_survives_commands_and_verified_restore(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

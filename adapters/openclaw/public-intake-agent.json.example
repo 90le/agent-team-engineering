@@ -1,5 +1,6 @@
 {
   "profile": "public-intake-reference",
+  "adapter_slot": "intake",
   "workspace_access": "none",
   "sandbox_scope": "agent",
   "allowed_tools": ["feedback.submit"],

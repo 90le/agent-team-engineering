@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:adapter-authority-policy:1.0.0",
+  "title": "Durable event to adapter operation authority policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "default", "grants"],
+  "properties": {
+    "$schema": {"const": "schemas/adapter-authority-policy.schema.json"},
+    "schema_version": {"const": "1.0.0"},
+    "id": {"const": "policy.adapter-authority"},
+    "default": {"const": "deny"},
+    "grants": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["operation", "capability", "event_kind", "actions"],
+        "properties": {
+          "operation": {"type": "string", "pattern": "^[a-z][a-z0-9.-]+$"},
+          "capability": {"type": "string", "minLength": 1},
+          "event_kind": {"enum": ["work.created", "workflow.transition"]},
+          "actions": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+        }
+      }
+    }
+  }
+}

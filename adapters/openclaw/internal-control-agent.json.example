@@ -1,5 +1,6 @@
 {
   "profile": "owner-control-reference",
+  "adapter_slot": "approval",
   "audience": "owner-allowlist-only",
   "workspace_access": "read-only",
   "allowed_tools": ["workflow.status", "workflow.approve", "workflow.pause", "workflow.cancel"],

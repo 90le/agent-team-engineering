@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:adapter-request:1.0.0",
+  "title": "Bound outbound adapter request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "request_id", "effect_id", "work_item_id", "authorization_event_sequence", "instance_id", "adapter_id", "slot", "operation", "idempotency_key", "attempt", "deadline_epoch", "payload"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "request_id": {"type": "string", "pattern": "^request-[a-f0-9-]+$"},
+    "effect_id": {"type": "string", "pattern": "^effect-[a-f0-9-]+$"},
+    "work_item_id": {"type": "string", "minLength": 1},
+    "authorization_event_sequence": {"type": "integer", "minimum": 1},
+    "instance_id": {"type": "string", "pattern": "^instance\\.[a-z0-9][a-z0-9.-]*$"},
+    "adapter_id": {"type": "string", "pattern": "^adapter\\.[a-z0-9][a-z0-9.-]*$"},
+    "slot": {"enum": ["intake", "approval", "code-hosting", "model", "runner", "deployment", "notification"]},
+    "operation": {"type": "string", "pattern": "^[a-z][a-z0-9.-]+$"},
+    "idempotency_key": {"type": "string", "minLength": 1},
+    "attempt": {"type": "integer", "minimum": 1},
+    "deadline_epoch": {"type": "number", "minimum": 0},
+    "payload": {"type": "object"}
+  }
+}
