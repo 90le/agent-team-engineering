@@ -1,0 +1,13 @@
+# Runtime state and disposable workspaces
+runtime/
+
+# Secrets and local environment files
+.env
+.env.*
+*.key
+*.pem
+
+# Local caches
+__pycache__/
+*.pyc
+.DS_Store

@@ -8,4 +8,5 @@
 - [现有项目接入](05-adoption/existing-project-adoption.md)
 - [发布与迁移](06-portability/release-and-migration.md)
 - [验证与恢复](07-operations/verification-and-recovery.md)
+- [实例生成与治理](08-factory/instance-lifecycle.md)
 - [架构决策](adr/README.md)

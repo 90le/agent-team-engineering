@@ -2,8 +2,8 @@
   "schema_version": "1.0.0",
   "id": "team-pack.software-delivery",
   "name": "Governed Software Delivery",
-  "version": "0.1.0",
-  "status": "REFERENCE",
+  "version": "0.2.0",
+  "status": "FACTORY_PREVIEW",
   "skill_ids": [
     "orchestrate-software-delivery",
     "collect-feedback",

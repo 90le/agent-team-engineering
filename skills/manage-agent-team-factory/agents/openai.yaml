@@ -1,0 +1,4 @@
+interface:
+  display_name: "Manage Agent Team Factory"
+  short_description: "Create and govern portable Agent Team instances"
+  default_prompt: "Use $manage-agent-team-factory to create or validate a safe portable Agent Team instance."

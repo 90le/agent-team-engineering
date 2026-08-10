@@ -26,4 +26,10 @@
 
 参考模拟器仅依赖 Python 标准库。真实长期工作流可以实现新的控制器后端，例如持久任务引擎；不得改变开放契约和角色分离原则。OpenClaw 是消息与协调适配器，不是默认安全边界。
 
-决策依据见 [ADR-0001](../adr/ADR-0001-vendor-neutral-core.md) 和 [ADR-0002](../adr/ADR-0002-authority-runtime-separation.md)。
+## Factory、实例与项目
+
+Factory发布通用实现和迁移；实例锁定明确Factory版本，保存团队自己的非秘密配置和项目绑定；目标项目继续拥有产品事实与源码。实例只能通过适配器操作目标项目，不能把仓库写权限解释为合并或生产权限。
+
+实例由 `.agent-team/instance.json` 声明，`.agent-team/instance.lock.json` 绑定Factory版本、源修订、契约摘要和生成文件摘要。Factory管理文件漂移时安全停止；用户维护文件允许自定义但会报告差异。详细决定见 [ADR-0003](../adr/ADR-0003-factory-instance-project-boundaries.md)。
+
+决策依据见 [ADR-0001](../adr/ADR-0001-vendor-neutral-core.md)、[ADR-0002](../adr/ADR-0002-authority-runtime-separation.md) 和 [ADR-0003](../adr/ADR-0003-factory-instance-project-boundaries.md)。

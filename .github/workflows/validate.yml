@@ -1,4 +1,4 @@
-name: Validate reference engineering
+name: Validate Agent Team Factory
 
 on:
   pull_request:
@@ -23,5 +23,7 @@ jobs:
         run: python3 -m unittest discover -s tests -v
       - name: Run complete simulation
         run: python3 tools/agent_team.py simulate --approve-production
+      - name: Generate and validate an instance
+        run: make instance-smoke
       - name: Verify clean-clone bootstrap
         run: tools/cold-start.sh

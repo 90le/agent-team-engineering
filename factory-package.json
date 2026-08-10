@@ -1,0 +1,28 @@
+{
+  "$schema": "schemas/factory-package.schema.json",
+  "schema_version": "1.0.0",
+  "id": "factory.agent-team-engineering",
+  "name": "Agent Team Engineering Factory",
+  "version": "0.2.0",
+  "status": "STABLE",
+  "instance_schema_version": "1.0.0",
+  "maximum_bootstrap_autonomy": "A2",
+  "management_skill": "manage-agent-team-factory",
+  "team_packs": [
+    {
+      "id": "team-pack.software-delivery",
+      "version": "0.2.0",
+      "path": "team-packs/software-delivery"
+    }
+  ],
+  "contract_files": [
+    "docs/01-principles/project-constitution.md",
+    "docs/03-security/threat-model.md",
+    "team-packs/software-delivery/context-policy.json",
+    "team-packs/software-delivery/quality-gates.json",
+    "team-packs/software-delivery/risk-policy.json",
+    "team-packs/software-delivery/team-pack.json",
+    "team-packs/software-delivery/tool-policy.json",
+    "team-packs/software-delivery/workflow.json"
+  ]
+}

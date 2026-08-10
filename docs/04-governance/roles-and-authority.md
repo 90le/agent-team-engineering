@@ -20,4 +20,6 @@
 
 前端、后端、全栈和文档开发是 `builder` 的专业化实例；每个实例仍使用独立任务租约、分支和工作区，可以并行但不能共享可写目录。
 
+`owner` 是人工权责角色，不生成Agent上下文，也不能由模型冒充。`orchestrator` 是控制平面能力而不是可取得业务权限的万能角色。`public-intake` 只能把不可信反馈规范化为数据；`operations` 与 `release` 可以复用部署回退Skill，但使用不同能力和工具白名单。
+
 角色能力以 `team-packs/software-delivery/team-pack.json` 为准，实际工具白名单以同目录 `tool-policy.json` 为准；本文只解释责任，不授予机器权限。

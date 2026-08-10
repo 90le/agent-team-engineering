@@ -5,9 +5,9 @@
 ## 接管顺序
 
 1. 完整读取本文件。
-2. 读取 `docs/01-principles/project-constitution.md`、`docs/02-architecture/reference-architecture.md` 和 `docs/03-security/threat-model.md`。
+2. 读取 `docs/01-principles/project-constitution.md`、`docs/02-architecture/reference-architecture.md` 和 `docs/03-security/threat-model.md`；创建或维护实例时还要读取 `factory-package.json` 与 `docs/08-factory/instance-lifecycle.md`。
 3. 读取 `team-packs/software-delivery/` 下的团队、工作流、风险、质量、工具和上下文策略 JSON。
-4. 根据当前角色只读取对应 `skills/<skill-id>/SKILL.md`；不要把所有 Skill 同时装入上下文。
+4. 根据当前角色只读取对应 `skills/<skill-id>/SKILL.md`；Factory实例生命周期使用 `manage-agent-team-factory`，不要把所有 Skill 同时装入上下文。
 5. 根据接入平台读取一个 `adapters/<adapter-id>/adapter.json`。
 6. 在修改前运行 `python3 tools/agent_team.py validate`，并确认当前 Git 分支和任务授权。
 
@@ -19,6 +19,7 @@
 - 可复用方法：本仓库 `skills/`。
 - 历史证据：Git、Issue、PR、CI、发布记录和审计事件。
 - 秘密值：外部秘密系统；本仓库永远没有答案。
+- 实例配置和版本绑定：实例自己的 `.agent-team/instance.json` 与 `.agent-team/instance.lock.json`；Factory和目标项目不复制它们。
 
 ## 强制安全边界
 

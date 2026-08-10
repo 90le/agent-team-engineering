@@ -1,0 +1,8 @@
+# Instance authority files
+
+- `instance.json` is the human-reviewed declarative authority for `{{INSTANCE_ID}}`.
+- `instance.lock.json` binds that authority to a Factory release, team pack, contract digest, and generated-file hashes.
+
+Edit only `instance.json`, then validate and explicitly relock it. Factory-managed files must not be edited manually. Seeded files may be customized; validation reports their drift without treating it as Factory corruption.
+
+Never place passwords, tokens, private keys, runtime databases, raw logs, user exports, or Runner workspaces in this repository. Use only opaque `secret.*` references.
