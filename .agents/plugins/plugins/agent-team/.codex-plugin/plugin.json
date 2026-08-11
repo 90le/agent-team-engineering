@@ -1,7 +1,7 @@
 {
   "name": "agent-team",
-  "version": "0.8.1",
-  "description": "Guide a goal into a previewed, confirmed, portable AI team.",
+  "version": "0.9.0",
+  "description": "Build and safely install portable teams in the AI hosts you already use.",
   "author": {
     "name": "90le",
     "url": "https://github.com/90le"
@@ -9,20 +9,20 @@
   "homepage": "https://github.com/90le/agent-team-engineering",
   "repository": "https://github.com/90le/agent-team-engineering",
   "license": "Apache-2.0",
-  "keywords": ["agent-team", "multi-agent", "context-engineering", "codex", "openclaw"],
+  "keywords": ["agent-team", "multi-agent", "context-engineering", "codex", "openclaw", "hermes-agent"],
   "skills": "./skills/",
   "interface": {
     "displayName": "Agent Team Engineering",
-    "shortDescription": "Guide a goal into a confirmed portable AI team",
-    "longDescription": "Inspect a project read-only, ask focused questions, recommend and preview a portable role, workflow, Skill, and shared-context team, wait for confirmation, then create and validate it for Codex, Claude, OpenClaw, or Generic AI.",
+    "shortDescription": "Build native teams for the AI hosts you already use",
+    "longDescription": "Inspect a project and installed AI hosts read-only, recommend roles, Skills, context and human gates, compile a portable team, then separately preview and confirm its managed projection for OpenClaw, Hermes Agent, Codex, Claude Code or a Multica experimental plan.",
     "developerName": "90le",
     "category": "Developer Tools",
     "capabilities": ["Interactive", "Write"],
     "websiteURL": "https://github.com/90le/agent-team-engineering",
     "defaultPrompt": [
-      "Inspect this project and guide me to the right AI team without asking me to choose an internal mode.",
-      "Create a source-checked research and knowledge team after showing me the exact plan.",
-      "Recommend a governed feedback-to-Draft-PR team and explain what live integrations remain disabled."
+      "Inspect this project and build a team for an AI host I already use.",
+      "Create a source-checked expert team after showing me the exact plan.",
+      "Safely preview how to install this locked team into OpenClaw or Hermes Agent."
     ]
   }
 }

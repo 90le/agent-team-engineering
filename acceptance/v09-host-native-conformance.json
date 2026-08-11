@@ -1,0 +1,75 @@
+{
+  "$schema": "schemas/host-conformance-report.schema.json",
+  "schema_version": "1.0.0",
+  "factory_release": "v0.9.0",
+  "status": "RELEASED",
+  "observed_at": "2026-08-12",
+  "hosts": [
+    {
+      "host_id": "codex",
+      "support_tier": "verified-export",
+      "evidence_scope": "Deterministic native project-file projection; no isolated Codex load test in this release.",
+      "version_or_release": null,
+      "production_execution": false
+    },
+    {
+      "host_id": "claude",
+      "support_tier": "verified-export",
+      "evidence_scope": "Deterministic native project-file projection; no isolated Claude Code load test in this release.",
+      "version_or_release": null,
+      "production_execution": false
+    },
+    {
+      "host_id": "openclaw",
+      "support_tier": "native-install-verified",
+      "evidence_scope": "Credential-free isolated agent add, list, lint, and delete with zero bindings.",
+      "version_or_release": "2026.7.1-2",
+      "production_execution": false
+    },
+    {
+      "host_id": "hermes",
+      "support_tier": "native-install-verified",
+      "evidence_scope": "Credential-free isolated profile distribution parse, install, list, describe, and delete.",
+      "version_or_release": "0.20.0",
+      "production_execution": false
+    },
+    {
+      "host_id": "multica",
+      "support_tier": "experimental-plan",
+      "evidence_scope": "Official v0.4.23 contract and custom license reviewed; data-only overlay plan generated, without authenticated import.",
+      "version_or_release": "v0.4.23@e0d0b3815342a80460f8a1c66c56ddfc662c7d46",
+      "production_execution": false
+    },
+    {
+      "host_id": "generic-ai",
+      "support_tier": "portable",
+      "evidence_scope": "Portable Markdown and JSON role, Skill, workflow, and context package.",
+      "version_or_release": null,
+      "production_execution": false
+    }
+  ],
+  "unknown_hosts": [
+    {
+      "name": "Leda",
+      "support_tier": "research-unknown",
+      "reason": "No authoritative repository, product identity, or occurrence in the supplied discussion evidence was available; the Factory does not guess a similarly named product."
+    }
+  ],
+  "gates": {
+    "unit_tests": 288,
+    "repository_errors": 0,
+    "repository_findings": 0,
+    "skill_validations": 4,
+    "plugin_validations": 2,
+    "isolated_load_tests": 2
+  },
+  "authority_boundaries": {
+    "credentials_read": false,
+    "live_accounts_used": false,
+    "channels_bound": false,
+    "models_invoked": false,
+    "tasks_started": false,
+    "automatic_merge": false,
+    "automatic_deploy": false
+  }
+}

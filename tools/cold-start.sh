@@ -31,7 +31,7 @@ diff -ru "$temp_root/context-team-a" "$temp_root/context-team-b"
   --purpose software \
   --automation assisted \
   --goal "Create a portable team for reviewed changes" \
-  --platform generic-ai \
+  --platform hermes \
   --team-name "Cold Start Guided Team" \
   --project-name "Cold Start Project" \
   --owner "Cold Start Owner" \
@@ -48,6 +48,23 @@ guided_digest="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))
 ./agent-team onboard apply --plan "$temp_root/guided-plan.json" >/dev/null
 ./agent-team context validate --root "$temp_root/guided-team" >/dev/null
 test -f "$temp_root/guided-team/GETTING-STARTED.md"
+./agent-team host list >/dev/null
+./agent-team host plan \
+  --team "$temp_root/guided-team" \
+  --target hermes \
+  --destination "$temp_root/hermes-projection" \
+  --output "$temp_root/hermes-host-plan.json" >/dev/null
+./agent-team host preview --plan "$temp_root/hermes-host-plan.json" >/dev/null
+host_digest="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["proposal_digest"])' "$temp_root/hermes-host-plan.json")"
+./agent-team host confirm \
+  --plan "$temp_root/hermes-host-plan.json" \
+  --digest "$host_digest" \
+  --approved-by "Cold Start Owner" >/dev/null
+./agent-team host apply --plan "$temp_root/hermes-host-plan.json" >/dev/null
+./agent-team host verify --root "$temp_root/hermes-projection" >/dev/null
+./agent-team host uninstall \
+  --root "$temp_root/hermes-projection" \
+  --digest "$host_digest" >/dev/null
 test -z "$(git status --porcelain --untracked-files=all)"
 python3 -m unittest discover -s tests -v
 python3 tools/agent_team.py simulate --approve-production >/dev/null

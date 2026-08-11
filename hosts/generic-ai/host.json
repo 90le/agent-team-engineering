@@ -1,0 +1,17 @@
+{
+  "$schema": "urn:agent-team:schema:host-capability:1.0.0",
+  "schema_version": "1.0.0",
+  "host_id": "generic-ai",
+  "display_name": "Generic AI",
+  "description": "Portable Markdown and JSON fallback for an AI host that has no verified native team extension surface.",
+  "support_tier": "portable",
+  "integration_mode": "portable",
+  "probe": {"mode": "unavailable", "command": [], "timeout_seconds": 1},
+  "capabilities": ["markdown-context", "portable-role-contracts", "portable-skills"],
+  "native_surfaces": [],
+  "tested_versions": [],
+  "upstream": {"repository": "https://github.com/90le/agent-team-engineering"},
+  "license": {"classification": "not-applicable", "identifier": "Factory-portable-format", "source": "https://github.com/90le/agent-team-engineering/blob/main/LICENSE"},
+  "limitations": ["No host-native installation or runtime behavior is claimed; a human or AI must map portable artifacts into the selected host."],
+  "safety": {"probe_reads_configuration": false, "probe_reads_credentials": false, "probe_uses_network": false, "probe_mutates_state": false}
+}

@@ -26,11 +26,11 @@ Yes. Select multiple platforms and they receive thin native adapters over the sa
 
 ## Does confirmation approve GitHub, OpenClaw, merge or deploy access?
 
-No. Guided confirmation authorizes only creation of one named new local team directory. Project export, live integrations, merge and deployment are separate gates.
+No. The first guided confirmation authorizes only creation of one named new local team directory. A second exact confirmation can authorize only the files in a host-package plan. Native activation, project reconciliation, live integrations, merge and deployment remain separate gates.
 
 ## Where should the generated team live?
 
-Use a new directory outside both the Factory and target project. It may become its own private Git repository when it spans projects or needs an independent lifecycle. A single-project team can later be adopted into that project's proposal branch after separate review.
+Use a new directory outside both the Factory and target project. It may become its own private Git repository when it spans projects or needs an independent lifecycle. Generate a host package into another reviewed destination; reconcile it into a real project or live host only under that project's normal review and a separate authorization.
 
 ## How do I ask for help?
 

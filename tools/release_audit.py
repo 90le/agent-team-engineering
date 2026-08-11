@@ -22,6 +22,7 @@ from core.schema_validation import validate_schema  # noqa: E402
 from core.security import CREDENTIAL_PATTERNS  # noqa: E402
 
 ALLOWED_EVALUATION_LICENSES = {"Apache-2.0", "MIT"}
+REVIEWED_CUSTOM_EVALUATION_LICENSES = {"host.multica": "Multica-License"}
 EXPECTED_SCM_REPOSITORY = "90le/agent-team-v08-conformance-private"
 EXPECTED_SCM_REPOSITORY_ID = "repo.conformance.github.v08"
 EXPECTED_SCM_ACTOR_ID = "github:68719118"
@@ -140,18 +141,46 @@ def validate_release_assets() -> dict[str, Any]:
         if identity in identities:
             raise ReleaseAuditError(f"duplicate evaluated upstream: {identity}")
         identities.add(identity)
-        if record.get("license") not in ALLOWED_EVALUATION_LICENSES:
+        license_id = record.get("license")
+        allowed_custom = REVIEWED_CUSTOM_EVALUATION_LICENSES.get(identity)
+        if license_id not in ALLOWED_EVALUATION_LICENSES and license_id != allowed_custom:
             raise ReleaseAuditError(f"unreviewed upstream license: {identity}")
         revision = str(record.get("revision", ""))
         if len(revision) != 40 or any(character not in "0123456789abcdef" for character in revision):
             raise ReleaseAuditError(f"upstream revision is not an immutable commit: {identity}")
         if record.get("runtime_dependency") is not False:
             raise ReleaseAuditError(f"upstream unexpectedly became a runtime dependency: {identity}")
+
+    conformance = _json("acceptance/v09-host-native-conformance.json")
+    conformance_schema = _json("schemas/host-conformance-report.schema.json")
+    conformance_issues = validate_schema(conformance, conformance_schema)
+    if conformance_issues:
+        details = "; ".join(
+            f"{issue.path}: {issue.message}" for issue in conformance_issues
+        )
+        raise ReleaseAuditError(f"host-native conformance report violates schema: {details}")
+    if conformance.get("factory_release") != f"v{version}":
+        raise ReleaseAuditError("host-native conformance release differs from VERSION")
+    claimed_hosts = {
+        str(record.get("host_id")): str(record.get("support_tier"))
+        for record in conformance.get("hosts", [])
+        if isinstance(record, dict)
+    }
+    descriptor_hosts: dict[str, str] = {}
+    for descriptor_path in sorted((ROOT / "hosts").glob("*/host.json")):
+        descriptor = _json(descriptor_path.relative_to(ROOT).as_posix())
+        descriptor_hosts[str(descriptor.get("host_id"))] = str(descriptor.get("support_tier"))
+    if claimed_hosts != descriptor_hosts:
+        raise ReleaseAuditError(
+            "host-native conformance claims differ from host descriptors: "
+            f"report={claimed_hosts}, descriptors={descriptor_hosts}"
+        )
     return {
         "version": version,
         "metadata_sources": len(observed),
         "spdx_packages": len(packages),
         "evaluated_upstreams": len(upstreams),
+        "host_claims": len(claimed_hosts),
     }
 
 
@@ -385,7 +414,7 @@ def scan_git_history(since_tag: str) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--since-tag", default="v0.7.0")
+    parser.add_argument("--since-tag", default="v0.8.1")
     parser.add_argument("--require-external-evidence", action="store_true")
     arguments = parser.parse_args()
     try:

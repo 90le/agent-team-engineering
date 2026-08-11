@@ -10,15 +10,21 @@ from pathlib import Path
 from typing import Any
 
 from core.adoption import scan_project
-from core.context_team import build_design, create_context_team
-from core.instance import is_safe_git_branch
+from core.context_team import (
+    PLATFORMS,
+    build_design,
+    create_context_team,
+    validate_design_document,
+)
+from core.instance import factory_contract_digest, is_safe_git_branch
 from core.json_support import loads_strict
 from core.schema_validation import validate_schema
 from core.security import find_inline_secret
 
 ROOT = Path(__file__).resolve().parents[1]
 PLAN_SCHEMA = ROOT / "schemas" / "guided-adoption-plan.schema.json"
-PLATFORMS = ("openclaw", "codex", "claude", "generic-ai")
+PRESET_ROOT = ROOT / "presets"
+FACTORY_PACKAGE = ROOT / "factory-package.json"
 PURPOSES = ("software", "research-knowledge", "content", "operations", "custom")
 AUTOMATION_LEVELS = ("files", "assisted", "managed")
 CONFIRMATION_STATEMENT = "I approve this exact adoption proposal for local team creation."
@@ -80,6 +86,17 @@ def _compact(value: Any) -> str:
 
 def _digest(value: Any) -> str:
     return "sha256:" + hashlib.sha256(_compact(value).encode("utf-8")).hexdigest()
+
+
+def _file_digest(path: Path) -> str:
+    return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _factory_version() -> str:
+    value = loads_strict(FACTORY_PACKAGE.read_text(encoding="utf-8"))
+    if not isinstance(value, dict) or not isinstance(value.get("version"), str):
+        raise GuidedAdoptionError("Factory package has no valid version")
+    return value["version"]
 
 
 def _fsync_directory(path: Path) -> None:
@@ -156,6 +173,7 @@ def _recommendation(
             ],
             [
                 "Live model accounts, repository writes, intake channels, and a production sandbox remain disabled.",
+                "The v0.9 Managed controller uses one source-writing builder identity; it does not provide independent frontend and backend writer identities.",
                 "The generated controller stops at a reviewed Draft PR; it does not merge or deploy.",
             ],
             roles,
@@ -278,6 +296,37 @@ def build_plan(
         unknowns.append(
             "Live intake, authenticated approval, model, SCM, and isolated Runner adapters are intentionally unconfigured."
         )
+    team = {
+        "name": team_name.strip(),
+        "project_name": selected_name,
+        "owner": owner.strip(),
+        "provider": provider,
+        "repository": selected_repository,
+        "default_branch": selected_branch,
+        "summary": (summary or selected_goals[0]).strip(),
+        "output_path": str(output),
+    }
+    design = build_design(
+        preset,
+        team_name=team["name"],
+        project_name=team["project_name"],
+        repository=team["repository"],
+        provider=team["provider"],
+        default_branch=team["default_branch"],
+        owner_name=team["owner"],
+        platforms=selected_platforms,
+        custom_roles=selected_roles,
+        summary=team["summary"],
+    )
+    preset_path = PRESET_ROOT / f"{preset}.json"
+    compilation = {
+        "factory_version": _factory_version(),
+        "factory_contract_digest": factory_contract_digest(),
+        "preset_path": preset_path.relative_to(ROOT).as_posix(),
+        "preset_digest": _file_digest(preset_path),
+        "design_digest": _digest(design),
+        "design": design,
+    }
     proposal = {
         "discovery": {
             key: discovery[key]
@@ -308,29 +357,21 @@ def build_plan(
             "alternatives": alternatives,
             "limitations": limitations,
         },
-        "team": {
-            "name": team_name.strip(),
-            "project_name": selected_name,
-            "owner": owner.strip(),
-            "provider": provider,
-            "repository": selected_repository,
-            "default_branch": selected_branch,
-            "summary": (summary or selected_goals[0]).strip(),
-            "output_path": str(output),
-        },
+        "team": team,
+        "compilation": compilation,
         "effects": {
             "target_project_mutated": False,
             "factory_mutated": False,
             "external_writes": False,
             "creates_new_team_directory": True,
-            "project_export_requires_separate_confirmation": True,
+            "host_install_requires_separate_confirmation": True,
         },
         "unknowns": unknowns,
     }
     digest = _digest(proposal)
     plan = {
-        "$schema": "urn:agent-team:schema:guided-adoption-plan:1.0.0",
-        "schema_version": "1.0.0",
+        "$schema": "urn:agent-team:schema:guided-adoption-plan:1.1.0",
+        "schema_version": "1.1.0",
         "plan_id": "adoption-plan-" + digest.removeprefix("sha256:")[:32],
         "state": "DRAFT",
         "proposal": proposal,
@@ -366,10 +407,43 @@ def validate_plan(plan: dict[str, Any]) -> dict[str, Any]:
     proposal = plan["proposal"]
     recommendation = proposal["recommendation"]
     intent = proposal["intent"]
+    compilation = proposal["compilation"]
+    design = compilation["design"]
+    design_findings = validate_design_document(design)
+    design_errors = [item for item in design_findings if item.severity == "ERROR"]
+    if design_errors:
+        details = "; ".join(f"{item.path}: {item.message}" for item in design_errors)
+        raise GuidedAdoptionError(f"compiled team design is invalid: {details}")
+    if compilation["design_digest"] != _digest(design):
+        raise GuidedAdoptionError("compiled team design digest differs from its content")
+    if compilation["factory_version"] != _factory_version():
+        raise GuidedAdoptionError("Factory version changed after planning; create a new plan")
+    if compilation["factory_contract_digest"] != factory_contract_digest():
+        raise GuidedAdoptionError("Factory contract changed after planning; create a new plan")
+    preset_path = ROOT / compilation["preset_path"]
+    expected_preset = f"presets/{recommendation['preset']}.json"
+    if compilation["preset_path"] != expected_preset or not preset_path.is_file():
+        raise GuidedAdoptionError("compiled preset path differs from the recommendation")
+    if compilation["preset_digest"] != _file_digest(preset_path):
+        raise GuidedAdoptionError("compiled preset changed after planning; create a new plan")
     if recommendation["mode"] == "managed" and intent["purpose"] != "software":
         raise GuidedAdoptionError("managed mode requires software purpose")
     if recommendation["preset"] == "custom" and not intent["custom_roles"]:
         raise GuidedAdoptionError("custom recommendation requires explicit roles")
+    team = proposal["team"]
+    if (
+        design["preset"] != recommendation["preset"]
+        or design["mode"] != recommendation["mode"]
+        or design["platform_targets"] != intent["platforms"]
+        or design["display_name"] != team["name"]
+        or design["project"]["name"] != team["project_name"]
+        or design["project"]["provider"] != team["provider"]
+        or design["project"]["repository"] != team["repository"]
+        or design["project"]["default_branch"] != team["default_branch"]
+        or design["owner"]["display_name"] != team["owner"]
+        or design["summary"] != team["summary"]
+    ):
+        raise GuidedAdoptionError("compiled team design differs from the approved intent or team")
     source = Path(proposal["discovery"]["source_path"])
     output = Path(proposal["team"]["output_path"])
     if not source.is_absolute() or not output.is_absolute():
@@ -411,7 +485,11 @@ def preview_plan(plan: dict[str, Any]) -> str:
     intent = proposal["intent"]
     recommendation = proposal["recommendation"]
     team = proposal["team"]
-    roles = intent["custom_roles"] or ["Built-in software team role map"]
+    compilation = proposal["compilation"]
+    roles = [
+        f"{role['id']} ({role['display_name']})"
+        for role in compilation["design"]["roles"]
+    ]
     lines = [
         "# Agent Team adoption proposal",
         "",
@@ -430,8 +508,15 @@ def preview_plan(plan: dict[str, Any]) -> str:
         f"- Project: `{team['provider']}:{team['repository']}`",
         f"- AI platforms: `{', '.join(intent['platforms'])}`",
         f"- Implementation mapping: `{recommendation['preset']}` / `{recommendation['mode']}`",
-        f"- Roles: `{', '.join(roles)}`",
+        f"- Factory version: `{compilation['factory_version']}`",
+        f"- Factory contract digest: `{compilation['factory_contract_digest']}`",
+        f"- Preset digest: `{compilation['preset_digest']}`",
+        f"- Compiled team design digest: `{compilation['design_digest']}`",
         f"- New output directory: `{team['output_path']}`",
+        "",
+        "### Exact roles",
+        "",
+        *[f"- `{role}`" for role in roles],
         "",
         "### Why this fits",
         "",
@@ -444,7 +529,7 @@ def preview_plan(plan: dict[str, Any]) -> str:
         "### Not enabled by this plan",
         "",
         *[f"- {item}" for item in recommendation["limitations"]],
-        "- The target project is not modified; exporting an adapter into it is a later, separate confirmation.",
+        "- The target project is not modified; installing a host-native package is a later, separately previewed confirmation.",
         "",
         "### Known unknowns",
         "",
@@ -518,21 +603,7 @@ def apply_plan(path: Path) -> dict[str, Any]:
     output = Path(proposal["team"]["output_path"])
     if output.exists() or output.is_symlink():
         raise GuidedAdoptionError("team output already exists; guided adoption never overwrites")
-    intent = proposal["intent"]
-    team = proposal["team"]
-    recommendation = proposal["recommendation"]
-    design = build_design(
-        recommendation["preset"],
-        team_name=team["name"],
-        project_name=team["project_name"],
-        repository=team["repository"],
-        provider=team["provider"],
-        default_branch=team["default_branch"],
-        owner_name=team["owner"],
-        platforms=intent["platforms"],
-        custom_roles=intent["custom_roles"],
-        summary=team["summary"],
-    )
+    design = proposal["compilation"]["design"]
     with tempfile.TemporaryDirectory(prefix="agent-team-guided-apply-") as temporary:
         design_path = Path(temporary) / "team-design.json"
         design_path.write_text(_canonical(design), encoding="utf-8")

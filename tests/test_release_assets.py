@@ -58,9 +58,10 @@ def _report(*, created: bool, run_id: int, scope_character: str) -> dict:
 class ReleaseAssetTests(unittest.TestCase):
     def test_versions_sbom_license_and_provenance_are_consistent(self) -> None:
         report = validate_release_assets()
-        self.assertEqual(report["version"], "0.8.1")
+        self.assertEqual(report["version"], "0.9.0")
         self.assertEqual(report["spdx_packages"], 1)
-        self.assertGreaterEqual(report["evaluated_upstreams"], 6)
+        self.assertGreaterEqual(report["evaluated_upstreams"], 8)
+        self.assertEqual(report["host_claims"], 6)
 
     def test_live_scm_evidence_requires_one_creation_and_one_exact_replay(self) -> None:
         first = _report(created=True, run_id=101, scope_character="c")

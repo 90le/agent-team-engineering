@@ -39,9 +39,9 @@
     "platform_targets": {
       "type": "array",
       "minItems": 1,
-      "maxItems": 4,
+      "maxItems": 6,
       "uniqueItems": true,
-      "items": {"enum": ["openclaw", "codex", "claude", "generic-ai"]}
+      "items": {"enum": ["openclaw", "codex", "claude", "generic-ai", "hermes", "multica"]}
     },
     "principles": {
       "type": "array",
@@ -112,7 +112,7 @@
           },
           "success_conditions": {"type": "array", "minItems": 1, "maxItems": 20, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 500}},
           "stop_conditions": {"type": "array", "minItems": 1, "maxItems": 20, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 500}},
-          "engine": {"enum": ["openclaw", "codex", "claude", "generic-ai"]},
+          "engine": {"enum": ["openclaw", "codex", "claude", "generic-ai", "hermes", "multica"]},
           "model": {"type": ["string", "null"], "maxLength": 200},
           "reasoning_effort": {"enum": ["inherit", "low", "medium", "high", "xhigh", "max", "ultra"]},
           "sandbox_mode": {"enum": ["read-only", "workspace-write"]},

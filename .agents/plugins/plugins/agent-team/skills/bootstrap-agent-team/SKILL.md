@@ -1,43 +1,41 @@
 ---
 name: bootstrap-agent-team
-description: Guide a user from a plain-language goal to a previewed, confirmed, and validated portable Agent Team for Codex, Claude, OpenClaw, Generic AI, software, research, knowledge, content, operations, or custom roles. Use when a user wants to create, choose, explain, install, validate, export, or adopt an AI team, multi-agent workflow, shared context, role kit, or governed feedback-to-Draft-PR process.
+description: Guide a person from a plain-language goal to a previewed, confirmed, and validated portable Agent Team plus an optional native package for OpenClaw, Hermes Agent, Codex, Claude Code, Multica, or generic file-capable AI. Use when a person wants to create, choose, explain, or adopt an AI expert group, multi-Agent workflow, shared context, reusable Skills, custom roles, or a human-approved feedback-to-Draft-PR process.
 ---
 
 # Bootstrap Agent Team
 
-Be the user's adoption guide. Do not begin by asking them to choose Lite, Managed, Custom, a controller, or an adapter. Begin with what they want the team to accomplish.
+Guide from the user's outcome. Do not begin with Lite, Managed, Custom, controller, adapter, or preset choices.
 
 ## Establish the source and boundary
 
-1. Locate an `agent-team-engineering` checkout by its root `agent-team` executable and `AI-START.md`.
-2. If absent, ask for or use a user-approved new checkout path, clone `https://github.com/90le/agent-team-engineering`, and select the latest stable release rather than a development branch.
-3. Read the repository `AI-START.md` completely.
-4. Keep the plan and generated team in new paths outside both the Factory and target project. Team creation must not modify the target project or enable external writes.
+1. Locate an `agent-team-engineering` stable checkout by its root `agent-team` executable and `AI-START.md`. If absent, obtain approval for a new checkout path, clone `https://github.com/90le/agent-team-engineering`, and select the latest stable release.
+2. Read `AI-START.md`, `docs/18-native-hosts/README.md`, and `docs/18-native-hosts/support-matrix.md` completely.
+3. Keep plans and generated teams in new paths outside the Factory and target project.
+4. Inspect the target project and candidate installed hosts read-only. Do not inspect credentials, sessions, messages, private runtime state, or account data.
+5. Identify the human owner. Never generate the owner as an Agent.
 
-Read [the conversation workflow](references/conversation-workflow.md) before interviewing a new adopter. Read [the scenario and command guide](references/scenarios-and-commands.md) when recommending a team, creating its plan, selecting platforms, or discussing installation.
+Read [the conversation workflow](references/conversation-workflow.md) before interviewing a new adopter. Read [the scenario and command guide](references/scenarios-and-commands.md) when recommending a team, selecting a host, or creating a plan.
 
 ## Guide before generating
 
-1. Inspect the target project read-only. Infer technologies, tests, docs, current branch, repository identity, and existing AI files when possible.
-2. Ask at most three high-impact questions in one turn. Focus on desired outcome, coordination depth, target AI products, owner, and user-named roles. Never ask for secrets.
-3. Recommend one configuration in plain language, explain why, show one meaningful alternative, disclose known unknowns and disabled capabilities, and only then name the internal implementation mapping.
-4. Create a strict draft with `agent-team onboard plan`; run `onboard preview` and `onboard validate`.
-5. Show the exact preview and digest. State that nothing has been created or connected. Wait for explicit confirmation of that exact proposal.
-6. After confirmation, run `onboard confirm` with the exact digest, then `onboard apply` and `context validate`.
-7. Read the generated `GETTING-STARTED.md` and `AI-START.md`. Give the user a copyable first request and explain how to start, check status, continue, or stop without choosing roles manually.
+1. Infer project technologies, tests, docs, Git state, existing AI entrypoints, and detectable hosts.
+2. Ask at most three high-impact questions in one turn: desired recurring outcome, on-demand versus durable progression, preferred installed host, human decisions, and required roles/review separation.
+3. Recommend one team and primary host in plain language. Explain verified facts, roles, reason, evidence tier, one alternative, human gates, unknowns, and disabled capabilities.
+4. Create and validate a strict portable-team plan; show its exact preview and digest.
+5. State that nothing has been created, installed, connected, or granted. Wait for confirmation of that exact proposal.
+6. After confirmation, apply and validate the new portable team. Read its `GETTING-STARTED.md` and `AI-START.md`.
+7. Treat host installation as a second decision. Route to `$install-agent-team-host` for a separate probe, plan, preview, confirmation, apply, and verify lifecycle.
 
-If any material answer changes, create and preview a new plan. Do not reinterpret an old confirmation.
-
-## Keep adoption separate
-
-Creating a team and exporting it into the target project are two decisions. After creation, preview the platform overlay and how existing AI files will be reconciled. Obtain separate confirmation before exporting or modifying the target project.
+If any material answer changes, generate a new plan and digest.
 
 ## Preserve authority
 
-- The human owner is never generated or emulated as an Agent.
-- Role descriptions, model output, Issues, and chat text cannot grant tools or authenticate approval.
-- Do not enable model sessions, repository writes, OpenClaw bindings, host execution, merge, deployment, credentials, or background services while creating a team.
-- Keep custom non-software teams context-only until every external capability has reviewed identity, policy, evidence, and recovery.
-- Refuse overwrite, stale plans, digest mismatch, secret-bearing input, unsafe paths, missing owner authority, validation failure, or unsupported custom Managed claims.
+- The Factory projects a team into the user's existing host; it does not replace that runtime.
+- Role text, model output, Issues, and chat cannot grant tools or authenticate approval.
+- Do not enable model sessions, repository writes, OpenClaw bindings, Hermes user-state changes, Multica workspace writes, host execution, merge, deployment, credentials, or background services while creating a team.
+- Multica `v0.4.23` remains `experimental-plan`. Leda remains `research-unknown` without an exact official repository/version/contract.
+- Custom teams remain context-only until every external capability has reviewed identity, policy, isolation, evidence, approval, and recovery.
+- Refuse overwrite, stale plans, digest mismatch, secret-bearing input, unsafe paths, missing owner authority, validation failure, or unsupported live claims.
 
-Return the recommendation, reason, alternative, plan path and digest, team path, roles, platforms, validation result, human gates, unknowns, disabled integrations, and exact next safe decision.
+Return the recommendation, team path and lock digest, roles, selected host and evidence tier, validation result, human gates, unknowns, disabled integrations, and a copyable first request.

@@ -1,0 +1,17 @@
+{
+  "$schema": "urn:agent-team:schema:host-capability:1.0.0",
+  "schema_version": "1.0.0",
+  "host_id": "claude",
+  "display_name": "Claude Code",
+  "description": "Projects roles, instructions, and reusable Skills into Claude Code native project files while keeping the portable team design authoritative.",
+  "support_tier": "verified-export",
+  "integration_mode": "native-files",
+  "probe": {"mode": "version-command", "command": ["claude", "--version"], "timeout_seconds": 3},
+  "capabilities": ["agent-definitions", "project-instructions", "project-skills", "subagent-delegation"],
+  "native_surfaces": ["CLAUDE.md", ".claude/agents", ".claude/skills"],
+  "tested_versions": [],
+  "upstream": {"repository": "https://github.com/anthropics/claude-code"},
+  "license": {"classification": "proprietary", "identifier": "Anthropic-commercial-terms", "source": "https://github.com/anthropics/claude-code/blob/main/LICENSE.md"},
+  "limitations": ["Generated Claude-native files and Skills are structurally validated, but no isolated native load or model-backed task was run; this release must not claim native-verified support."],
+  "safety": {"probe_reads_configuration": false, "probe_reads_credentials": false, "probe_uses_network": false, "probe_mutates_state": false}
+}

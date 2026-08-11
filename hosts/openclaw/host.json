@@ -1,0 +1,20 @@
+{
+  "$schema": "urn:agent-team:schema:host-capability:1.0.0",
+  "schema_version": "1.0.0",
+  "host_id": "openclaw",
+  "display_name": "OpenClaw",
+  "description": "Projects a portable team into OpenClaw agent workspaces, workspace-local Skills, and an explicit agent registration plan.",
+  "support_tier": "native-install-verified",
+  "integration_mode": "native-cli-plan",
+  "probe": {"mode": "version-command", "command": ["openclaw", "--version"], "timeout_seconds": 3},
+  "capabilities": ["agent-bindings", "agent-workspaces", "multi-agent-routing", "workspace-skills"],
+  "native_surfaces": ["agents", "bindings", "workspaces/AGENTS.md", "workspaces/SOUL.md", "workspaces/skills"],
+  "tested_versions": [
+    {"version": "2026.7.1-2", "observed_output": "OpenClaw 2026.7.1-2 (0790d9f)", "observed_at": "2026-08-11", "scope": "local-version-probe"},
+    {"version": "2026.7.1-2", "observed_output": "Isolated agents add/list/delete passed with zero bindings; doctor lint completed 24 checks with zero errors.", "observed_at": "2026-08-12", "scope": "isolated-load-test"}
+  ],
+  "upstream": {"repository": "https://github.com/openclaw/openclaw"},
+  "license": {"classification": "permissive-open-source", "identifier": "MIT", "source": "https://github.com/openclaw/openclaw/blob/main/LICENSE"},
+  "limitations": ["Generated Agent registration, listing, lint, and deletion were verified in an isolated credential-free home. No channel binding, model-backed task, Gateway, production configuration, or live account was tested."],
+  "safety": {"probe_reads_configuration": false, "probe_reads_credentials": false, "probe_uses_network": false, "probe_mutates_state": false}
+}

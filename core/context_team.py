@@ -17,7 +17,7 @@ from core.instance import _canonical_json, _factory_metadata, _git_revision, _is
 from core.json_support import loads_strict
 from core.schema_validation import validate_schema
 from core.security import find_inline_secret
-from core.team_creator import create_team, validate_team_directory
+from core.team_creator import compile_team_files, create_team, validate_team_directory
 
 ROOT = Path(__file__).resolve().parents[1]
 DESIGN_SCHEMA = ROOT / "schemas" / "team-design.schema.json"
@@ -27,7 +27,8 @@ PRESET_ROOT = ROOT / "presets"
 DESIGN_RELATIVE = ".agent-team/team-design.json"
 LOCK_RELATIVE = ".agent-team/context.lock.json"
 SAFE_SLUG = re.compile(r"^[a-z][a-z0-9-]*$")
-PLATFORMS = ("openclaw", "codex", "claude", "generic-ai")
+PLATFORMS = ("openclaw", "codex", "claude", "generic-ai", "hermes", "multica")
+LEGACY_RUNTIME_PLATFORMS = ("openclaw", "codex", "claude", "generic-ai")
 USER_MAINTAINED_FILES = frozenset(
     {
         "PROJECT-CONTEXT.md",
@@ -602,8 +603,8 @@ def _architecture(design: dict[str, Any]) -> str:
         "## Execution plane\n\n"
         f"{runtime}\n\n"
         "## Adapter plane\n\n"
-        "Codex, Claude, OpenClaw, and Generic AI files are thin discovery adapters. They load the "
-        "same team context and cannot create authority. Platform outputs may be regenerated from "
+        "Codex, Claude, OpenClaw, Hermes, Multica, and Generic AI files are thin native projections. "
+        "They load the same team context and cannot create authority. Platform outputs may be regenerated from "
         "`.agent-team/team-design.json`; do not edit them as a second source of truth.\n\n"
         "## Project boundary\n\n"
         "This team package contains no target source code, credential, model session, or production "
@@ -695,10 +696,324 @@ def _platform_role_instruction(role: dict[str, Any]) -> str:
     )
 
 
+def _role_skill_map(roles: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    skill_roles: dict[str, list[dict[str, Any]]] = {}
+    for role in roles:
+        for skill_id in role["skills"]:
+            skill_roles.setdefault(str(skill_id), []).append(role)
+    return skill_roles
+
+
+def _hermes_profile_name(team_prefix: str, role_id: str) -> str:
+    # Hermes profile identifiers are limited to 64 lowercase characters.
+    candidate = re.sub(
+        r"[^a-z0-9_-]+", "-", f"ate-{team_prefix}-{role_id}"
+    ).strip("-")
+    if len(candidate) <= 64:
+        return candidate
+    suffix = hashlib.sha256(role_id.encode("utf-8")).hexdigest()[:8]
+    return f"{candidate[:55].rstrip('-_')}-{suffix}"
+
+
+def _hermes_distribution(
+    profile_name: str, role: dict[str, Any]
+) -> str:
+    description = (
+        f"Generated Agent Team Engineering profile for {role['display_name']}: "
+        f"{role['mission']}"
+    )
+    return (
+        f"name: {json.dumps(profile_name, ensure_ascii=False)}\n"
+        'version: "1.0.0"\n'
+        f"description: {json.dumps(description, ensure_ascii=False)}\n"
+        'hermes_requires: ">=0.20.0"\n'
+        'author: "Agent Team Engineering compiler"\n'
+        'license: "Apache-2.0"\n'
+        "env_requires: []\n"
+        "distribution_owned:\n"
+        "  - SOUL.md\n"
+        "  - skills\n"
+        "  - distribution.yaml\n"
+    )
+
+
+def _hermes_plan(
+    design: dict[str, Any], roles: list[dict[str, Any]], team_prefix: str
+) -> dict[str, Any]:
+    profile_names = {
+        str(role["id"]): _hermes_profile_name(team_prefix, str(role["id"]))
+        for role in roles
+    }
+    verifier = next(
+        (
+            role
+            for role in roles
+            if str(role["id"]) == "independent-reviewer"
+            or "reviewer" in str(role["id"])
+        ),
+        None,
+    )
+    synthesizer = next(
+        (
+            role
+            for role in roles
+            if str(role["id"]) in {"product-manager", "editor", "release-operator"}
+            and role is not verifier
+        ),
+        None,
+    )
+    workers = [role for role in roles if role is not verifier and role is not synthesizer]
+    swarm_ready = verifier is not None and synthesizer is not None and bool(workers)
+    command: list[str] | None = None
+    if swarm_ready:
+        command = ["hermes", "kanban", "swarm", "__HUMAN_APPROVED_GOAL__"]
+        for role in workers:
+            skills = ",".join(str(value) for value in role["skills"])
+            worker = f"{profile_names[str(role['id'])]}:{role['id']}"
+            if skills:
+                worker += f":{skills}"
+            command.extend(["--worker", worker])
+        command.extend(
+            [
+                "--verifier",
+                profile_names[str(verifier["id"])],
+                "--synthesizer",
+                profile_names[str(synthesizer["id"])],
+                "--idempotency-key",
+                f"ate-{team_prefix}-__WORK_ITEM_ID__",
+                "--json",
+            ]
+        )
+    return {
+        "$schema": "urn:agent-team:schema:hermes-native-plan:1.0.0",
+        "schema_version": "1.0.0",
+        "team_id": design["team_id"],
+        "status": "PLAN_ONLY",
+        "execution": {
+            "enabled": False,
+            "requires_human_review": True,
+            "requires_separate_confirmation_per_mutation": True,
+        },
+        "safety": {
+            "profile_is_security_sandbox": False,
+            "profile_text_grants_authority": False,
+            "credentials_included": False,
+            "warning": (
+                "A Hermes Profile packages persona and Skills; it does not isolate tools, "
+                "credentials, processes, files, or network access. Configure those controls separately."
+            ),
+        },
+        "shared_context": ".agent-team/context",
+        "profiles": [
+            {
+                "role_id": role["id"],
+                "profile_name": profile_names[str(role["id"])],
+                "source": f"profiles/{role['id']}",
+                "install_command": [
+                    "hermes",
+                    "profile",
+                    "install",
+                    f"__EXPORT_ROOT__/profiles/{role['id']}",
+                    "--name",
+                    profile_names[str(role["id"])],
+                ],
+                "mutating": True,
+                "executed": False,
+            }
+            for role in roles
+        ],
+        "collaboration": {
+            "kind": "kanban-swarm-v1",
+            "status": "READY_FOR_REVIEW" if swarm_ready else "BLOCKED_ROLE_SEPARATION",
+            "creates_durable_work_immediately": True,
+            "command": command,
+            "executed": False,
+            "stop_reason": (
+                None
+                if swarm_ready
+                else "A distinct worker, verifier, and synthesizer are required before a swarm can be proposed."
+            ),
+        },
+        "secrets": [],
+    }
+
+
+def _multica_plan(
+    design: dict[str, Any],
+    roles: list[dict[str, Any]],
+    skill_roles: dict[str, list[dict[str, Any]]],
+    team_prefix: str,
+) -> dict[str, Any]:
+    first_workflow_role = next(
+        (
+            str(stage["owner_role"])
+            for stage in design["workflow"]["stages"]
+            if any(str(role["id"]) == str(stage["owner_role"]) for role in roles)
+        ),
+        str(roles[0]["id"]),
+    )
+    leader_role = next(
+        (
+            str(role["id"])
+            for role in roles
+            if str(role["id"])
+            in {"product-manager", "software-architect", "research-lead", "editor"}
+        ),
+        first_workflow_role,
+    )
+    role_refs = {
+        str(role["id"]): f"agent:{team_prefix}:{role['id']}" for role in roles
+    }
+    skill_refs = {
+        skill_id: f"skill:{team_prefix}:{skill_id}" for skill_id in skill_roles
+    }
+    phases: list[dict[str, Any]] = [
+        {
+            "order": 1,
+            "kind": "skills",
+            "actions": [
+                {
+                    "operation": "skill.import",
+                    "logical_ref": skill_refs[skill_id],
+                    "source_directory": f"skills/{skill_id}",
+                    "packaged_skill_file": None,
+                    "status": "BLOCKED_UNTIL_PACKAGED_AND_REVIEWED",
+                }
+                for skill_id in sorted(skill_roles)
+            ],
+        },
+        {
+            "order": 2,
+            "kind": "agents",
+            "actions": [
+                {
+                    "operation": "agent.create",
+                    "logical_ref": role_refs[str(role["id"])],
+                    "arguments": {
+                        "name": f"ate-{team_prefix}-{role['id']}",
+                        "description": role["mission"],
+                        "instructions": (
+                            _platform_role_instruction(role)
+                            + (
+                                " As the Multica Squad leader, route a bounded request to the "
+                                "smallest responsible member and preserve human gates; do not "
+                                "simulate the portable workflow as a runtime DAG."
+                                if str(role["id"]) == leader_role
+                                else ""
+                            )
+                        ),
+                        "runtime_id": None,
+                        "visibility": "private",
+                    },
+                    "status": "BLOCKED_RUNTIME_UNRESOLVED",
+                }
+                for role in roles
+            ],
+        },
+        {
+            "order": 3,
+            "kind": "agent-skill-bindings",
+            "actions": [
+                {
+                    "operation": "agent.skills.add",
+                    "agent_ref": role_refs[str(role["id"])],
+                    "skill_ref": skill_refs[str(skill_id)],
+                    "agent_id": None,
+                    "skill_id": None,
+                    "status": "BLOCKED_EXTERNAL_IDS_UNRESOLVED",
+                }
+                for role in roles
+                for skill_id in role["skills"]
+            ],
+        },
+        {
+            "order": 4,
+            "kind": "squad",
+            "semantics": {
+                "leader_router": True,
+                "dag": False,
+                "note": (
+                    "The Squad leader routes work to members. Workflow stages remain portable "
+                    "context and are not represented as a Multica execution DAG."
+                ),
+            },
+            "actions": [
+                {
+                    "operation": "squad.create",
+                    "logical_ref": f"squad:{team_prefix}",
+                    "arguments": {
+                        "name": design["display_name"],
+                        "description": design["summary"],
+                        "leader_agent_ref": role_refs[leader_role],
+                        "leader_agent_id": None,
+                    },
+                    "status": "BLOCKED_EXTERNAL_IDS_UNRESOLVED",
+                },
+                {
+                    "operation": "squad.update",
+                    "squad_ref": f"squad:{team_prefix}",
+                    "squad_id": None,
+                    "arguments": {
+                        "instructions": (
+                            "Route each bounded request through the named leader to the smallest "
+                            "responsible member. Preserve the portable WorkflowSpec, durable evidence, "
+                            "and every human approval gate; Squad roles are context labels, not authority."
+                        )
+                    },
+                    "status": "BLOCKED_EXTERNAL_IDS_UNRESOLVED",
+                },
+                *[
+                    {
+                        "operation": "squad.member.add",
+                        "squad_ref": f"squad:{team_prefix}",
+                        "member_agent_ref": role_refs[str(role["id"])],
+                        "squad_id": None,
+                        "member_agent_id": None,
+                        "role": role["id"],
+                        "status": "BLOCKED_EXTERNAL_IDS_UNRESOLVED",
+                    }
+                    for role in roles
+                    if str(role["id"]) != leader_role
+                ],
+            ],
+        },
+    ]
+    return {
+        "$schema": "urn:agent-team:schema:multica-experimental-plan:1.0.0",
+        "schema_version": "1.0.0",
+        "team_id": design["team_id"],
+        "support_tier": "EXPERIMENTAL_PLAN_ONLY",
+        "upstream": {
+            "release": "v0.4.23",
+            "commit": "e0d0b3815342a80460f8a1c66c56ddfc662c7d46",
+            "license": "Multica License (custom terms; not plain Apache-2.0)",
+        },
+        "execution": {
+            "enabled": False,
+            "authenticated_workspace_resolved": False,
+            "owner_confirmation_bound": False,
+        },
+        "runtime": {"status": "UNRESOLVED", "runtime_id": None},
+        "ordered_phases": phases,
+        "external_effects": {
+            "performed": False,
+            "tasks_created": False,
+            "agents_invoked": False,
+            "channels_bound": False,
+        },
+        "secrets": [],
+    }
+
+
 def _platform_files(design: dict[str, Any]) -> dict[str, str]:
     files: dict[str, str] = {}
     selected = set(design["platform_targets"])
     roles = sorted(design["roles"], key=lambda item: str(item["id"]))
+    skill_roles = _role_skill_map(roles)
+    skill_texts = {
+        skill_id: _skill_markdown(skill_id, owners)
+        for skill_id, owners in sorted(skill_roles.items())
+    }
     if "codex" in selected:
         files["platforms/codex/.codex/config.toml"] = (
             "# Generated context-first team adapter. No credentials belong here.\n"
@@ -736,6 +1051,8 @@ def _platform_files(design: dict[str, Any]) -> dict[str, str]:
             "# Codex adapter\n\nUse `agent-team context export --target codex` so this adapter and "
             "its authoritative shared context travel together. Review the export in a proposal branch.\n"
         )
+        for skill_id, content in skill_texts.items():
+            files[f"platforms/codex/.agents/skills/{skill_id}/SKILL.md"] = content
     if "claude" in selected:
         for role in roles:
             tools = (
@@ -765,6 +1082,8 @@ def _platform_files(design: dict[str, Any]) -> dict[str, str]:
             "# Claude Code adapter\n\nUse `agent-team context export --target claude` so the "
             "subagents and authoritative shared context are exported together.\n"
         )
+        for skill_id, content in skill_texts.items():
+            files[f"platforms/claude/.claude/skills/{skill_id}/SKILL.md"] = content
     if "openclaw" in selected:
         prefix = hashlib.sha256(str(design["team_id"]).encode("utf-8")).hexdigest()[:8]
         agents: list[dict[str, Any]] = []
@@ -793,6 +1112,10 @@ def _platform_files(design: dict[str, Any]) -> dict[str, str]:
             files[f"platforms/openclaw/workspaces/{role['id']}/SOUL.md"] = (
                 f"You are the {role['id']} role. Be evidence-driven and conservative about authority.\n"
             )
+            for skill_id in role["skills"]:
+                files[
+                    f"platforms/openclaw/workspaces/{role['id']}/skills/{skill_id}/SKILL.md"
+                ] = skill_texts[str(skill_id)]
         agents.append(
             {
                 "id": f"ate-{prefix}-approval-relay",
@@ -819,6 +1142,35 @@ def _platform_files(design: dict[str, Any]) -> dict[str, str]:
             "# OpenClaw adapter\n\nThe empty `bindings` array is an intentional safe stop. Export "
             "the adapter with shared context, replace path placeholders, bind public intake and "
             "approval relay to different authenticated channels, then run OpenClaw Doctor and sandbox checks.\n"
+        )
+    if "hermes" in selected:
+        prefix = hashlib.sha256(str(design["team_id"]).encode("utf-8")).hexdigest()[:8]
+        for role in roles:
+            profile_name = _hermes_profile_name(prefix, str(role["id"]))
+            profile_root = f"platforms/hermes/profiles/{role['id']}"
+            files[f"{profile_root}/distribution.yaml"] = _hermes_distribution(
+                profile_name, role
+            )
+            files[f"{profile_root}/SOUL.md"] = (
+                f"# Hermes role profile: {role['display_name']}\n\n"
+                f"{_platform_role_instruction(role)}\n\n"
+                "A Hermes Profile is a persona and capability package, not a security sandbox. "
+                "Treat its tools, filesystem, processes, credentials, and network as separately governed. "
+                "Do not start work until the exported shared context and a human-approved task are available.\n"
+            )
+            for skill_id in role["skills"]:
+                files[f"{profile_root}/skills/{skill_id}/SKILL.md"] = skill_texts[
+                    str(skill_id)
+                ]
+        files["platforms/hermes/hermes-team-plan.json"] = _canonical_json(
+            _hermes_plan(design, roles, prefix)
+        )
+    if "multica" in selected:
+        prefix = hashlib.sha256(str(design["team_id"]).encode("utf-8")).hexdigest()[:8]
+        for skill_id, content in skill_texts.items():
+            files[f"platforms/multica/skills/{skill_id}/SKILL.md"] = content
+        files["platforms/multica/multica-overlay-plan.json"] = _canonical_json(
+            _multica_plan(design, roles, skill_roles, prefix)
         )
     if "generic-ai" in selected:
         for role in roles:
@@ -896,6 +1248,18 @@ def compile_context_files(design: dict[str, Any], *, include_platforms: bool = T
         files[f"SKILLS/{skill_id}/SKILL.md"] = _skill_markdown(skill_id, roles)
     if include_platforms:
         files.update(_platform_files(design))
+    elif design["mode"] == "managed":
+        # The governed controller still uses the v0.8 runtime blueprint, while the
+        # v0.9 host compiler may target additional native products. Preserve every
+        # legacy-runtime-owned file and add only non-overlapping native projections.
+        legacy_paths = set(compile_team_files(_legacy_blueprint(design)))
+        files.update(
+            {
+                relative: content
+                for relative, content in _platform_files(design).items()
+                if relative not in legacy_paths
+            }
+        )
     for relative in files:
         if not _is_safe_relative(relative) or relative.startswith("runtime/"):
             raise ContextTeamError(f"compiler produced unsafe context path: {relative}")
@@ -903,7 +1267,17 @@ def compile_context_files(design: dict[str, Any], *, include_platforms: bool = T
 
 
 def _legacy_blueprint(design: dict[str, Any]) -> dict[str, Any]:
-    roles = sorted(design["roles"], key=lambda item: str(item["managed_role"]))
+    roles = sorted(
+        (role for role in design["roles"] if role["managed_role"] is not None),
+        key=lambda item: str(item["managed_role"]),
+    )
+    legacy_targets = [
+        target
+        for target in design["platform_targets"]
+        if target in LEGACY_RUNTIME_PLATFORMS
+    ]
+    if not legacy_targets:
+        legacy_targets = ["generic-ai"]
     return {
         "$schema": "urn:agent-team:schema:team-blueprint:1.0.0",
         "schema_version": "1.0.0",
@@ -957,11 +1331,15 @@ def _legacy_blueprint(design: dict[str, Any]) -> dict[str, Any]:
                 "max_budget_units": 100,
             },
         },
-        "platform_targets": design["platform_targets"],
+        "platform_targets": legacy_targets,
         "role_bindings": [
             {
                 "role": role["managed_role"],
-                "engine": role["engine"],
+                "engine": (
+                    role["engine"]
+                    if role["engine"] in legacy_targets
+                    else legacy_targets[0]
+                ),
                 "model": role["model"],
                 "reasoning_effort": role["reasoning_effort"],
                 "sandbox_mode": role["sandbox_mode"],

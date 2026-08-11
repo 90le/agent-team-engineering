@@ -71,6 +71,12 @@ class ContextTeamDesignTests(unittest.TestCase):
             self.assertTrue(frontend[field], field)
         self.assertIsNone(frontend["managed_role"])
 
+    def test_hermes_and_multica_are_valid_explicit_platform_targets(self) -> None:
+        document = design_for("software-lite", platforms=["hermes", "multica"])
+        self.assertEqual(validate_design_document(document), [])
+        self.assertEqual(document["platform_targets"], ["hermes", "multica"])
+        self.assertTrue(all(role["engine"] == "hermes" for role in document["roles"]))
+
     def test_custom_design_accepts_arbitrary_role_names(self) -> None:
         document = design_for("custom")
         self.assertEqual(validate_design_document(document), [])
@@ -130,11 +136,38 @@ class ContextTeamCompilerTests(unittest.TestCase):
                 "DECISIONS/DECISION-0001-team-boundaries.md",
                 "KNOWLEDGE/README.md",
                 "platforms/codex/.codex/agents/frontend-engineer.toml",
+                "platforms/codex/.agents/skills/implement-frontend-change/SKILL.md",
                 "platforms/claude/.claude/agents/independent-reviewer.md",
+                "platforms/claude/.claude/skills/review-software-candidate/SKILL.md",
                 "platforms/openclaw/openclaw.fragment.json",
+                "platforms/openclaw/workspaces/frontend-engineer/skills/implement-frontend-change/SKILL.md",
                 "platforms/generic-ai/roles/qa-engineer.md",
             ):
                 self.assertTrue((team / relative).is_file(), relative)
+            shared_skill = (team / "SKILLS/implement-frontend-change/SKILL.md").read_text(
+                encoding="utf-8"
+            )
+            self.assertEqual(
+                shared_skill,
+                (
+                    team
+                    / "platforms/codex/.agents/skills/implement-frontend-change/SKILL.md"
+                ).read_text(encoding="utf-8"),
+            )
+            self.assertEqual(
+                shared_skill,
+                (
+                    team
+                    / "platforms/claude/.claude/skills/implement-frontend-change/SKILL.md"
+                ).read_text(encoding="utf-8"),
+            )
+            self.assertEqual(
+                shared_skill,
+                (
+                    team
+                    / "platforms/openclaw/workspaces/frontend-engineer/skills/implement-frontend-change/SKILL.md"
+                ).read_text(encoding="utf-8"),
+            )
             self.assertFalse((team / "runtime").exists())
             text = (team / "TEAM.md").read_text(encoding="utf-8")
             self.assertEqual(text.count("# software-lite Example Team"), 1)
@@ -145,6 +178,117 @@ class ContextTeamCompilerTests(unittest.TestCase):
             ai_start = (team / "AI-START.md").read_text(encoding="utf-8")
             self.assertIn("no more than three", ai_start)
             self.assertIn("First response contract", ai_start)
+
+    def test_hermes_profiles_and_multica_overlay_are_native_but_plan_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            team = self._create(
+                temporary,
+                design_for("software-lite", platforms=["hermes", "multica"]),
+            )
+            self.assertEqual(validate_context_team(team), [])
+
+            hermes_plan = json.loads(
+                (team / "platforms/hermes/hermes-team-plan.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(hermes_plan["status"], "PLAN_ONLY")
+            self.assertFalse(hermes_plan["execution"]["enabled"])
+            self.assertFalse(hermes_plan["safety"]["profile_is_security_sandbox"])
+            self.assertFalse(hermes_plan["safety"]["credentials_included"])
+            self.assertEqual(hermes_plan["secrets"], [])
+            self.assertEqual(
+                hermes_plan["collaboration"]["status"], "READY_FOR_REVIEW"
+            )
+            self.assertFalse(hermes_plan["collaboration"]["executed"])
+            self.assertEqual(
+                hermes_plan["collaboration"]["command"][:3],
+                ["hermes", "kanban", "swarm"],
+            )
+            for profile in hermes_plan["profiles"]:
+                self.assertTrue(profile["mutating"])
+                self.assertFalse(profile["executed"])
+                self.assertNotIn("--yes", profile["install_command"])
+                profile_root = team / "platforms/hermes" / profile["source"]
+                distribution = (profile_root / "distribution.yaml").read_text(
+                    encoding="utf-8"
+                )
+                self.assertIn('hermes_requires: ">=0.20.0"', distribution)
+                self.assertIn("env_requires: []", distribution)
+                soul = (profile_root / "SOUL.md").read_text(encoding="utf-8")
+                self.assertIn("not a security sandbox", soul)
+
+            frontend_skill = (
+                team
+                / "platforms/hermes/profiles/frontend-engineer/skills/implement-frontend-change/SKILL.md"
+            )
+            self.assertEqual(
+                frontend_skill.read_text(encoding="utf-8"),
+                (team / "SKILLS/implement-frontend-change/SKILL.md").read_text(
+                    encoding="utf-8"
+                ),
+            )
+
+            multica_plan = json.loads(
+                (team / "platforms/multica/multica-overlay-plan.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(multica_plan["support_tier"], "EXPERIMENTAL_PLAN_ONLY")
+            self.assertFalse(multica_plan["execution"]["enabled"])
+            self.assertEqual(multica_plan["runtime"], {"runtime_id": None, "status": "UNRESOLVED"})
+            self.assertEqual(multica_plan["secrets"], [])
+            self.assertEqual(
+                [phase["kind"] for phase in multica_plan["ordered_phases"]],
+                ["skills", "agents", "agent-skill-bindings", "squad"],
+            )
+            operations = {
+                action["operation"]
+                for phase in multica_plan["ordered_phases"]
+                for action in phase["actions"]
+            }
+            self.assertEqual(
+                operations,
+                {
+                    "skill.import",
+                    "agent.create",
+                    "agent.skills.add",
+                    "squad.create",
+                    "squad.update",
+                    "squad.member.add",
+                },
+            )
+            self.assertTrue(
+                multica_plan["ordered_phases"][-1]["semantics"]["leader_router"]
+            )
+            self.assertFalse(multica_plan["ordered_phases"][-1]["semantics"]["dag"])
+            for action in multica_plan["ordered_phases"][1]["actions"]:
+                self.assertIsNone(action["arguments"]["runtime_id"])
+                self.assertEqual(action["status"], "BLOCKED_RUNTIME_UNRESOLVED")
+            self.assertEqual(
+                (team / "platforms/multica/skills/implement-frontend-change/SKILL.md").read_text(
+                    encoding="utf-8"
+                ),
+                (team / "SKILLS/implement-frontend-change/SKILL.md").read_text(
+                    encoding="utf-8"
+                ),
+            )
+
+    def test_hermes_swarm_plan_fails_closed_without_independent_roles(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            team = self._create(
+                temporary, design_for("custom", platforms=["hermes"]), "custom-hermes"
+            )
+            plan = json.loads(
+                (team / "platforms/hermes/hermes-team-plan.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(
+                plan["collaboration"]["status"], "BLOCKED_ROLE_SEPARATION"
+            )
+            self.assertIsNone(plan["collaboration"]["command"])
+            self.assertIsNotNone(plan["collaboration"]["stop_reason"])
 
     def test_same_design_has_deterministic_lock_and_content(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -167,6 +311,25 @@ class ContextTeamCompilerTests(unittest.TestCase):
             self.assertTrue((team / ".agent-team/team-blueprint.json").is_file())
             self.assertTrue((team / ".agent-team/team.lock.json").is_file())
             self.assertTrue((team / "ROLES/builder.md").is_file())
+
+    def test_managed_controller_composes_with_hermes_and_multica_projections(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            for host, expected in (
+                ("hermes", "platforms/hermes/hermes-team-plan.json"),
+                ("multica", "platforms/multica/multica-overlay-plan.json"),
+            ):
+                team = self._create(
+                    temporary,
+                    design_for("software-managed", platforms=[host]),
+                    f"managed-{host}",
+                )
+                self.assertEqual(validate_context_team(team), [], host)
+                self.assertEqual(validate_team_directory(team), [], host)
+                self.assertTrue((team / expected).is_file(), host)
+                self.assertTrue((team / "platforms/generic-ai/README.md").is_file(), host)
+                summary = inspect_context_team(team)
+                self.assertEqual(summary["platform_targets"], [host])
+                self.assertTrue(summary["managed_runtime_available"])
 
     def test_creation_never_overwrites_and_rejects_factory_descendant(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -309,6 +472,42 @@ class ContextTeamCompilerTests(unittest.TestCase):
             self.assertTrue((output / "agent-team-context-export.json").is_file())
             with self.assertRaisesRegex(ContextTeamError, "already exists"):
                 export_context_target(team, "codex", output)
+
+    def test_hermes_and_multica_exports_include_native_plans_and_shared_context(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            team = self._create(
+                temporary,
+                design_for("software-lite", platforms=["hermes", "multica"]),
+                "native-team",
+            )
+            hermes_output = base / "hermes-export"
+            hermes_report = export_context_target(team, "hermes", hermes_output)
+            self.assertEqual(hermes_report["platform"], "hermes")
+            self.assertTrue((hermes_output / "hermes-team-plan.json").is_file())
+            self.assertTrue(
+                (
+                    hermes_output
+                    / "profiles/frontend-engineer/distribution.yaml"
+                ).is_file()
+            )
+            self.assertTrue(
+                (hermes_output / ".agent-team/context/AI-START.md").is_file()
+            )
+
+            multica_output = base / "multica-export"
+            multica_report = export_context_target(team, "multica", multica_output)
+            self.assertEqual(multica_report["platform"], "multica")
+            self.assertTrue((multica_output / "multica-overlay-plan.json").is_file())
+            self.assertTrue(
+                (
+                    multica_output
+                    / "skills/implement-frontend-change/SKILL.md"
+                ).is_file()
+            )
+            self.assertTrue(
+                (multica_output / ".agent-team/context/CONSTITUTION.md").is_file()
+            )
 
 
 if __name__ == "__main__":

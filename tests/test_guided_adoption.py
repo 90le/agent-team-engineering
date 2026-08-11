@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from core.guided_adoption import (
     GuidedAdoptionError,
@@ -73,7 +74,14 @@ class GuidedAdoptionPlanTests(unittest.TestCase):
             self.assertEqual(plan["proposal"]["discovery"]["technologies"], ["python"])
             self.assertFalse(plan["proposal"]["effects"]["target_project_mutated"])
             self.assertFalse(plan["proposal"]["effects"]["external_writes"])
-            self.assertIn("Why this fits", preview_plan(plan))
+            preview = preview_plan(plan)
+            self.assertIn("Why this fits", preview)
+            self.assertIn("frontend-engineer (Frontend Engineer)", preview)
+            self.assertEqual(
+                plan["proposal"]["compilation"]["design"]["preset"],
+                "software-lite",
+            )
+            self.assertEqual(plan["schema_version"], "1.1.0")
 
     def test_nonsoftware_scenarios_get_rich_roles_but_not_managed_authority(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -125,6 +133,15 @@ class GuidedAdoptionPlanTests(unittest.TestCase):
                     default_branch="main",
                     output_path=base / "custom-team",
                 )
+
+    def test_managed_recommendation_discloses_single_writer_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            project = make_project(base)
+            plan = software_plan(base, project, automation="managed")
+            preview = preview_plan(plan)
+            self.assertIn("one source-writing builder identity", preview)
+            self.assertNotIn("frontend-engineer (Frontend Engineer)", preview)
 
     def test_confirmation_is_digest_bound_and_tampering_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -182,6 +199,45 @@ class GuidedAdoptionPlanTests(unittest.TestCase):
             self.assertEqual(before, after)
             with self.assertRaisesRegex(GuidedAdoptionError, "already exists"):
                 apply_plan(plan_path)
+
+    def test_confirmation_binds_factory_preset_and_exact_compiled_design(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            project = make_project(base)
+            plan_path = base / "plan.json"
+            plan = software_plan(base, project)
+            self.assertRegex(
+                plan["proposal"]["compilation"]["factory_contract_digest"],
+                r"^sha256:[a-f0-9]{64}$",
+            )
+            self.assertRegex(
+                plan["proposal"]["compilation"]["preset_digest"],
+                r"^sha256:[a-f0-9]{64}$",
+            )
+            write_plan(plan, plan_path)
+            confirm_plan(
+                plan_path,
+                digest=plan["proposal_digest"],
+                approved_by="Product Owner",
+            )
+            with mock.patch(
+                "core.guided_adoption.factory_contract_digest",
+                return_value="sha256:" + ("0" * 64),
+            ):
+                with self.assertRaisesRegex(GuidedAdoptionError, "Factory contract changed"):
+                    apply_plan(plan_path)
+
+            tampered = software_plan(base / "tampered", project)
+            tampered["proposal"]["compilation"]["design"]["display_name"] = "Other Team"
+            from core import guided_adoption
+
+            tampered["proposal_digest"] = guided_adoption._digest(tampered["proposal"])
+            tampered["plan_id"] = (
+                "adoption-plan-"
+                + tampered["proposal_digest"].removeprefix("sha256:")[:32]
+            )
+            with self.assertRaisesRegex(GuidedAdoptionError, "design digest"):
+                validate_plan(tampered)
 
     def test_stale_commit_and_secret_or_unsafe_paths_fail(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

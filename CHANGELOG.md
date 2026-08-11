@@ -2,6 +2,25 @@
 
 本项目遵循语义化版本。版本标签只在仓库验证、测试、Skill校验和空目录冷启动全部通过后创建；已发布标签不移动。
 
+## 0.9.0 — 2026-08-12
+
+Agent Team Factory 的“宿主原生团队投影与安全安装生命周期”版本：
+
+- 将公开定位从“自成一套多智能体运行时”校准为 Host-native Agent Team Factory。用户只需提供现有项目、目标和已经使用的AI工具；Factory先生成可迁移的Markdown/JSON/Skill/Git权威团队，再按目标宿主真实能力投影角色、Skills、上下文与协作说明。原有Managed控制器保留为可选的持久执行层。
+- 新增严格宿主能力目录和`host list/probe`命令。描述符区分`native-verified`、`native-install-verified`、`verified-export`、`experimental-plan`、`portable`与`research-unknown`；版本探测只允许无Shell、无stdin、无凭据环境中的`--version`或`version`，超时和错误均返回稳定状态。
+- 新增OpenClaw原生工作空间、workspace Skill和注册计划，以及Hermes Agent Profile distribution、SOUL、Skill bundle与Kanban swarm计划。OpenClaw 2026.7.1-2和Hermes 0.20.0均在隔离、无凭据状态目录完成创建、发现和删除验证；没有绑定频道、调用模型或启动任务，因此准确等级为`native-install-verified`。
+- Codex现在把复用Skill投影到`.agents/skills`，Claude投影到`.claude/skills`；两者保持`verified-export`，不把确定性文件生成夸大为已加载或已执行。
+- 新增固定Multica v0.4.23/`e0d0b3815342a80460f8a1c66c56ddfc662c7d46`的实验overlay计划，按Skills、Agents、additive Skill绑定、Squad、Squad instructions与成员顺序表达；不猜测Runtime/Workspace UUID、不使用replace-all、不启动Task。其自定义Multica License进入显式来源审计，不被错误标记为Apache-2.0，也不成为运行依赖。
+- 新增`host plan/preview/confirm/apply/verify/uninstall`两阶段生命周期。第二次确认绑定团队设计、Context Lock、宿主等级、目标目录、逐文件路径与SHA-256；安装只创建缺失文件，拒绝覆盖、秘密、符号链接、陈旧来源和摘要篡改，支持同计划中断恢复、幂等重放、漂移检测和只删除未改变托管文件的精确卸载。
+- 引导采用方案升级为Schema 1.1.0：第一次确认现在直接绑定完整Team Design、Design摘要、Preset摘要、Factory版本与Factory合同摘要；执行使用方案中已确认的设计，不再按可变Preset名称重新编译。v0.8.1尚未执行的1.0.0方案需重新生成并确认。
+- Managed控制器与宿主投影现在可以组合：OpenClaw/Codex/Claude保留既有受治理运行时文件并补充Skill，Hermes与Multica可在同一权威团队中生成独立宿主投影。v0.9的Managed写入身份仍是单一`builder`；它不虚构已实现的前后端多写者并发控制。
+- 重写中英文首页、AI采用入口、AI接管入口与创建Skill；新增宿主安装Skill、宿主支持矩阵、对话工作流、OpenClaw/Hermes/Multica指南、ADR-0011和机器可校验的v0.9宿主一致性报告。无历史AI必须先发现并解释推荐，团队创建与宿主安装各自预览、各自等待准确确认；真实宿主导入仍是第三个授权点。
+- 新增从v0.8.1以及所有既有受支持版本到v0.9.0的显式实例迁移路径。Factory版本、能力包、Python包、Codex/Claude插件、SBOM与来源证明统一到0.9.0。
+
+限制：v0.9不会读取真实宿主配置或凭据，也不会自动创建OpenClaw绑定、Hermes模型任务、Multica对象、GitHub写入、merge或deploy。Multica仍是`experimental-plan`；无法确认身份的Leda保持`research-unknown`。宿主安装管理的是文件投影，不替代各产品自己的认证、安全隔离与运行时权限。
+
+回退：`v0.8.1`保持不可移动。先运行`host verify`；对无漂移的v0.9安装使用安装锁中的准确proposal digest执行`host uninstall`，有漂移的文件必须人工对账且不会被删除。普通Team Instance使用升级时生成的外部恢复包执行标准回滚，不删除锁、不移动标签、不复用旧摘要确认。
+
 ## 0.8.1 — 2026-08-11
 
 Agent Team Factory 的“场景优先引导采用与生成后可用性”补丁版：

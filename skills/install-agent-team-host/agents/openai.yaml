@@ -1,0 +1,4 @@
+interface:
+  display_name: "Install Agent Team Host"
+  short_description: "Safely install a team into an existing AI host"
+  default_prompt: "Use $install-agent-team-host to probe my chosen AI host read-only, preview a digest-bound installation plan for this locked team, and wait for confirmation before applying it."

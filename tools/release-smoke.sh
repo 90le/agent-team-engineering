@@ -39,7 +39,7 @@ python3 "$temp_root/installed/tools/agent_team.py" doctor >/dev/null
   --purpose research-knowledge \
   --automation assisted \
   --goal "Create a source-checked release knowledge team" \
-  --platform generic-ai \
+  --platform openclaw \
   --team-name "Release Knowledge Team" \
   --project-name "Release Knowledge" \
   --owner "Release Owner" \
@@ -57,6 +57,26 @@ guided_digest="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))
 "$temp_root/installed/agent-team" context validate \
   --root "$temp_root/guided-team" >/dev/null
 test -f "$temp_root/guided-team/GETTING-STARTED.md"
+"$temp_root/installed/agent-team" host list >/dev/null
+"$temp_root/installed/agent-team" host plan \
+  --team "$temp_root/guided-team" \
+  --target openclaw \
+  --destination "$temp_root/openclaw-projection" \
+  --output "$temp_root/openclaw-host-plan.json" >/dev/null
+"$temp_root/installed/agent-team" host preview \
+  --plan "$temp_root/openclaw-host-plan.json" >/dev/null
+host_digest="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["proposal_digest"])' "$temp_root/openclaw-host-plan.json")"
+"$temp_root/installed/agent-team" host confirm \
+  --plan "$temp_root/openclaw-host-plan.json" \
+  --digest "$host_digest" \
+  --approved-by "Release Owner" >/dev/null
+"$temp_root/installed/agent-team" host apply \
+  --plan "$temp_root/openclaw-host-plan.json" >/dev/null
+"$temp_root/installed/agent-team" host verify \
+  --root "$temp_root/openclaw-projection" >/dev/null
+"$temp_root/installed/agent-team" host uninstall \
+  --root "$temp_root/openclaw-projection" \
+  --digest "$host_digest" >/dev/null
 python3 "$temp_root/installed/tools/agent_team.py" instance init \
   --config "$temp_root/installed/examples/team-instance/input/instance.json" \
   --output "$temp_root/instance" >/dev/null

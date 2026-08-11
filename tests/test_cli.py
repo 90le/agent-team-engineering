@@ -166,6 +166,9 @@ class FactoryCliTests(unittest.TestCase):
             previewed = run_root_cli("onboard", "preview", "--plan", str(plan_path))
             self.assertEqual(previewed.returncode, 0, previewed.stderr)
             self.assertIn("No team has been created", previewed.stdout)
+            self.assertIn("./agent-team onboard confirm", previewed.stdout)
+            self.assertIn(planned_report["proposal_digest"], previewed.stdout)
+            self.assertIn("./agent-team context validate", previewed.stdout)
             refused = run_root_cli("onboard", "apply", "--plan", str(plan_path))
             self.assertEqual(refused.returncode, 2)
             self.assertIn("confirm", refused.stderr)
@@ -208,6 +211,97 @@ class FactoryCliTests(unittest.TestCase):
         issue = next(item for item in github["operations"] if item["name"] == "issue.create")
         self.assertEqual(issue["delivery"], "reconcile-before-retry")
         self.assertTrue(issue["project_scoped"])
+
+    def test_host_catalog_and_digest_bound_file_installation_round_trip(self) -> None:
+        listed = run_root_cli("host", "list")
+        self.assertEqual(listed.returncode, 0, listed.stderr)
+        catalog = json.loads(listed.stdout)
+        tiers = {item["id"]: item["support_tier"] for item in catalog["hosts"]}
+        self.assertEqual(tiers["openclaw"], "native-install-verified")
+        self.assertEqual(tiers["hermes"], "native-install-verified")
+        self.assertEqual(tiers["multica"], "experimental-plan")
+        self.assertFalse(catalog["live_configuration_read"])
+
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            team = base / "team"
+            destination = base / "target-project"
+            plan = base / "host-plan.json"
+            destination.mkdir()
+            (destination / "user.txt").write_text("preserve\n", encoding="utf-8")
+            created = run_root_cli(
+                "create",
+                "--preset",
+                "custom",
+                "--name",
+                "CLI Native Team",
+                "--project",
+                "CLI Native Project",
+                "--repo",
+                "local/cli-native",
+                "--provider",
+                "generic-git",
+                "--platform",
+                "codex",
+                "--role",
+                "builder:Builder",
+                "--role",
+                "reviewer:Reviewer",
+                "--output",
+                str(team),
+            )
+            self.assertEqual(created.returncode, 0, created.stderr)
+            planned = run_root_cli(
+                "host",
+                "plan",
+                "--team",
+                str(team),
+                "--target",
+                "codex",
+                "--destination",
+                str(destination),
+                "--output",
+                str(plan),
+            )
+            self.assertEqual(planned.returncode, 0, planned.stderr)
+            proposal = json.loads(planned.stdout)
+            self.assertFalse(proposal["external_writes"])
+            previewed = run_root_cli("host", "preview", "--plan", str(plan))
+            self.assertEqual(previewed.returncode, 0, previewed.stderr)
+            self.assertIn("## Exact managed files", previewed.stdout)
+            self.assertIn(str(plan.resolve()), previewed.stdout)
+            self.assertIn(proposal["proposal_digest"], previewed.stdout)
+            refused = run_root_cli("host", "apply", "--plan", str(plan))
+            self.assertEqual(refused.returncode, 2)
+            self.assertIn("confirm", refused.stderr)
+            confirmed = run_root_cli(
+                "host",
+                "confirm",
+                "--plan",
+                str(plan),
+                "--digest",
+                proposal["proposal_digest"],
+                "--approved-by",
+                "CLI Owner",
+            )
+            self.assertEqual(confirmed.returncode, 0, confirmed.stderr)
+            applied = run_root_cli("host", "apply", "--plan", str(plan))
+            self.assertEqual(applied.returncode, 0, applied.stderr)
+            self.assertEqual(json.loads(applied.stdout)["status"], "VALID")
+            verified = run_root_cli("host", "verify", "--root", str(destination))
+            self.assertEqual(verified.returncode, 0, verified.stderr)
+            uninstalled = run_root_cli(
+                "host",
+                "uninstall",
+                "--root",
+                str(destination),
+                "--digest",
+                proposal["proposal_digest"],
+            )
+            self.assertEqual(uninstalled.returncode, 0, uninstalled.stderr)
+            self.assertEqual(
+                (destination / "user.txt").read_text(encoding="utf-8"), "preserve\n"
+            )
 
     def test_native_cli_runs_no_network_demo_and_verifies_recovery_state(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

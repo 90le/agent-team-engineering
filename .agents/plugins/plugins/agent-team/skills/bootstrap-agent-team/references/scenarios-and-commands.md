@@ -1,75 +1,57 @@
-# Scenario decisions and deterministic commands
+# Scenario and command guide
 
-## Internal recommendation mapping
+## Recommendation mapping
 
-| User outcome | Coordination need | Internal mapping | Important boundary |
+| User outcome | Recommended shape | Internal mapping | Boundary |
 |---|---|---|---|
-| Build or maintain software | People or AI tools invoke roles as needed | `software-lite` | No persistent controller |
-| Feedback progresses across restarts to tested, independently reviewed Draft PR after exact human approval | Durable governed automation | `software-managed` | Live adapters disabled; no merge or deploy |
-| Research, knowledge, content, operations, or user-named responsibilities | File-based or AI-assisted collaboration | `custom` | Context-only by default |
-| Custom roles plus durable external automation | Advanced adoption project | Do not silently map | Specify each capability, identity, approval, evidence, and recovery first |
+| Specialists invoked in an existing host | Native context-first team | `software-lite` or `custom` | Host remains the runtime |
+| Feedback progresses across restarts to a tested, independently reviewed Draft PR | Native team plus optional Managed controller | `software-managed` | No automatic merge or deploy |
+| Custom roles with live external actions | Advanced integration project | No silent mapping | Engineer each capability, identity, approval, isolation, evidence, and recovery |
 
-## Platform meaning
+## Host meaning
 
-- `codex`: project Agent TOML plus an `AGENTS.md` discovery adapter.
-- `claude`: project subagent Markdown plus a `CLAUDE.md` discovery adapter.
-- `openclaw`: isolated role workspaces plus an unbound `agents.list` fragment; `bindings` remains empty.
-- `generic-ai`: portable Markdown role adapters for Kimi, Gemini, local models, and other file-capable AI hosts.
+- `openclaw`: isolated role workspaces, workspace-local Skills, empty bindings by default.
+- `hermes`: role profile distributions, profile-local Skills, project/bundle/Kanban plan.
+- `codex`: project Agents, `AGENTS.md`, and project-local Skills.
+- `claude`: project subagents, `CLAUDE.md`, and project-local Skills.
+- `multica`: `v0.4.23` `experimental-plan`; never execute workspace writes in the normal lifecycle.
+- `generic-ai`: portable Markdown/JSON only.
+- `leda`: `research-unknown` until exact official identity/version/contract is provided.
 
-Select every platform the user actually plans to use. Platform files do not create accounts, sessions, credentials, sandboxes, or tool grants.
-
-## Deterministic lifecycle
+## Portable-team lifecycle
 
 ```bash
 ./agent-team onboard inspect --project-path /path/to/project
-
 ./agent-team onboard plan \
   --project-path /path/to/project \
   --purpose software \
   --automation assisted \
   --goal "Turn requests into reviewed changes" \
-  --platform codex \
+  --platform openclaw \
   --team-name "Example Team" \
   --project-name "Example Product" \
   --owner "Project Owner" \
   --provider github \
   --repository example/product \
   --output /new/path/example-team \
-  --plan /new/path/example-team-adoption-plan.json
-
-./agent-team onboard preview --plan /new/path/example-team-adoption-plan.json
-./agent-team onboard validate --plan /new/path/example-team-adoption-plan.json
+  --plan /new/path/example-team-plan.json
+./agent-team onboard preview --plan /new/path/example-team-plan.json
+./agent-team onboard validate --plan /new/path/example-team-plan.json
 ```
 
-After the user confirms the exact preview:
+After exact confirmation, use the displayed digest with `onboard confirm`, then `onboard apply` and `context validate`.
+
+## Separate host lifecycle
 
 ```bash
-./agent-team onboard confirm \
-  --plan /new/path/example-team-adoption-plan.json \
-  --digest sha256:<exact-digest> \
-  --approved-by "Project Owner"
-
-./agent-team onboard apply --plan /new/path/example-team-adoption-plan.json
-./agent-team context validate --root /new/path/example-team
+./agent-team host list
+./agent-team host probe --target openclaw
+./agent-team host plan \
+  --team /new/path/example-team \
+  --target openclaw \
+  --destination /new/path/openclaw-team \
+  --output /new/path/openclaw-plan.json
+./agent-team host preview --plan /new/path/openclaw-plan.json
 ```
 
-An interactive human can instead run:
-
-```bash
-./agent-team onboard guided --output /new/path/example-team
-```
-
-For custom roles, repeat `--role role-id:Display Name`. Research/knowledge, content, and operations purposes receive a safe starter role set when roles are not specified.
-
-## Separate project adoption
-
-After team creation and a second explicit confirmation, export one reviewed overlay:
-
-```bash
-./agent-team context export \
-  --root /path/to/team \
-  --target codex \
-  --output /new/path/codex-overlay
-```
-
-Reconcile the overlay in a proposal branch. Never overwrite existing `AGENTS.md`, `CLAUDE.md`, `.codex/`, `.claude/`, or OpenClaw configuration.
+After a second exact confirmation, use the previewed `host confirm` and `host apply` commands, then run `./agent-team host verify --root <destination>`. Apply preserves unrelated destination content but never overwrites a planned path.
