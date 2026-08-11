@@ -7,7 +7,7 @@ v0.8 支持三条采用路线。先从最小路线开始；“角色更多”不
 适合大多数用户。Factory 生成 Markdown 上下文、角色、Skill、工作流和平台发现文件，用户在 Codex、Claude、OpenClaw 或其它 AI 中按需使用。没有 Controller、账号或后台服务。
 
 ```bash
-./agent-team create --guided --output /new/path/my-team
+./agent-team onboard guided --output /new/path/my-team
 ./agent-team context validate --root /new/path/my-team
 ```
 
@@ -38,7 +38,7 @@ OpenClaw 可以收集反馈和发送通知，但公开入口与 owner 控制入�
 
 ## 交给任意 AI 的采用提示
 
-> 克隆 `https://github.com/90le/agent-team-engineering` 并检出 `v0.8.0`。先完整阅读 `AI-START.md`。只读检查我的项目，推荐文件化团队、离线参考或受控试点；在新目录生成并验证团队。不要自动创建凭据、外部写入、OpenClaw bindings、Host Runner、merge 或 deploy。若我要求试点，先输出逐端口权限、威胁、恢复和人工门禁清单，等待逐项授权。
+> 克隆 `https://github.com/90le/agent-team-engineering` 并检出 `v0.8.1`。先完整阅读 `AI-START.md`。只读检查我的项目，每轮最多问三个高影响问题；用普通语言推荐团队，展示准确方案并等我确认后，才在新目录生成和验证。不要自动创建凭据、外部写入、OpenClaw bindings、Host Runner、merge 或 deploy。若我要求真实试点，先输出逐端口权限、威胁、恢复和人工门禁清单，等待逐项授权。
 
 ## 迁移与复刻
 

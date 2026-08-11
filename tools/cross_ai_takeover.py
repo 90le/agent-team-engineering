@@ -36,11 +36,13 @@ def _load_object(path: Path) -> dict[str, Any]:
     return value
 
 
-def _run(*arguments: str, cwd: Path = ROOT) -> subprocess.CompletedProcess[str]:
+def _run_unchecked(
+    *arguments: str, cwd: Path = ROOT
+) -> subprocess.CompletedProcess[str]:
     environment = os.environ.copy()
     environment["PYTHONDONTWRITEBYTECODE"] = "1"
     environment["GIT_OPTIONAL_LOCKS"] = "0"
-    result = subprocess.run(
+    return subprocess.run(
         list(arguments),
         cwd=cwd,
         env=environment,
@@ -48,9 +50,24 @@ def _run(*arguments: str, cwd: Path = ROOT) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
     )
+
+
+def _run(*arguments: str, cwd: Path = ROOT) -> subprocess.CompletedProcess[str]:
+    result = _run_unchecked(*arguments, cwd=cwd)
     if result.returncode != 0:
         raise TakeoverAcceptanceError(
             f"command failed ({' '.join(arguments)}): {result.stderr.strip()}"
+        )
+    return result
+
+
+def _run_expect_failure(
+    *arguments: str, cwd: Path = ROOT
+) -> subprocess.CompletedProcess[str]:
+    result = _run_unchecked(*arguments, cwd=cwd)
+    if result.returncode == 0:
+        raise TakeoverAcceptanceError(
+            f"command unexpectedly succeeded ({' '.join(arguments)})"
         )
     return result
 
@@ -164,6 +181,157 @@ def run_takeover_acceptance() -> dict[str, Any]:
         _run("git", "add", "README.md", "pyproject.toml", cwd=target)
         _run("git", "commit", "-q", "-m", "acceptance fixture", cwd=target)
         target_before = _tree_digest(target)
+
+        discovery = loads_strict(
+            _run(
+                sys.executable,
+                str(ROOT / "tools" / "agent_team.py"),
+                "onboard",
+                "inspect",
+                "--project-path",
+                str(target),
+            ).stdout
+        )
+        if discovery.get("source_path") != str(target.resolve()):
+            raise TakeoverAcceptanceError("guided inspection did not resolve the target project")
+        if _tree_digest(target) != target_before:
+            raise TakeoverAcceptanceError("guided inspection mutated the target repository")
+
+        guided_plan = workspace / "guided-adoption-plan.json"
+        guided_team = workspace / "guided-team"
+        planned = loads_strict(
+            _run(
+                sys.executable,
+                str(ROOT / "tools" / "agent_team.py"),
+                "onboard",
+                "plan",
+                "--project-path",
+                str(target),
+                "--purpose",
+                "software",
+                "--automation",
+                "assisted",
+                "--goal",
+                "Coordinate a portable software team without hidden chat context.",
+                "--platform",
+                "codex",
+                "--platform",
+                "claude",
+                "--platform",
+                "openclaw",
+                "--platform",
+                "generic-ai",
+                "--team-name",
+                "Portable Target Team",
+                "--project-name",
+                "Portable Target",
+                "--owner",
+                "Acceptance Owner",
+                "--provider",
+                "generic-git",
+                "--repository",
+                "local/portable-target",
+                "--output",
+                str(guided_team),
+                "--plan",
+                str(guided_plan),
+            ).stdout
+        )
+        if planned.get("status") != "PLANNED" or planned.get("state") != "DRAFT":
+            raise TakeoverAcceptanceError("guided adoption did not create a draft plan")
+        plan_document = _load_object(guided_plan)
+        effects = plan_document["proposal"]["effects"]
+        if any(
+            effects[field]
+            for field in ("target_project_mutated", "factory_mutated", "external_writes")
+        ):
+            raise TakeoverAcceptanceError("guided draft proposes an unauthorized side effect")
+        preview = _run(
+            sys.executable,
+            str(ROOT / "tools" / "agent_team.py"),
+            "onboard",
+            "preview",
+            "--plan",
+            str(guided_plan),
+        ).stdout
+        for expected in (
+            plan_document["proposal_digest"],
+            "Why this fits",
+            "Alternative",
+            "Not enabled by this plan",
+            "Known unknowns",
+        ):
+            if expected not in preview:
+                raise TakeoverAcceptanceError(
+                    f"guided preview is missing required decision context: {expected}"
+                )
+        refused = _run_expect_failure(
+            sys.executable,
+            str(ROOT / "tools" / "agent_team.py"),
+            "onboard",
+            "apply",
+            "--plan",
+            str(guided_plan),
+        )
+        if "confirm" not in (refused.stderr + refused.stdout).lower():
+            raise TakeoverAcceptanceError("unconfirmed guided apply did not explain its stop")
+        if guided_team.exists() or _tree_digest(target) != target_before:
+            raise TakeoverAcceptanceError("unconfirmed guided apply created a side effect")
+        confirmed = loads_strict(
+            _run(
+                sys.executable,
+                str(ROOT / "tools" / "agent_team.py"),
+                "onboard",
+                "confirm",
+                "--plan",
+                str(guided_plan),
+                "--digest",
+                plan_document["proposal_digest"],
+                "--approved-by",
+                "Acceptance Owner",
+            ).stdout
+        )
+        if (
+            confirmed.get("status") != "CONFIRMED"
+            or confirmed.get("external_writes_authorized") is not False
+        ):
+            raise TakeoverAcceptanceError("guided confirmation expanded its authority")
+        guided_report = loads_strict(
+            _run(
+                sys.executable,
+                str(ROOT / "tools" / "agent_team.py"),
+                "onboard",
+                "apply",
+                "--plan",
+                str(guided_plan),
+            ).stdout
+        )
+        _run(
+            sys.executable,
+            str(ROOT / "tools" / "agent_team.py"),
+            "context",
+            "validate",
+            "--root",
+            str(guided_team),
+        )
+        if (
+            guided_report.get("target_project_mutated") is not False
+            or guided_report.get("external_integrations_enabled") is not False
+            or _tree_digest(target) != target_before
+        ):
+            raise TakeoverAcceptanceError("guided team creation crossed its approved boundary")
+        human_start = (guided_team / "GETTING-STARTED.md").read_text(encoding="utf-8")
+        ai_start = (guided_team / "AI-START.md").read_text(encoding="utf-8")
+        for expected in ("start a new task", "status", "stop"):
+            if expected not in human_start.lower():
+                raise TakeoverAcceptanceError(
+                    f"generated human guide is missing daily-use guidance: {expected}"
+                )
+        for expected in ("no more than three", "select and explain", "durable"):
+            if expected not in ai_start.lower():
+                raise TakeoverAcceptanceError(
+                    f"generated AI guide is missing takeover guidance: {expected}"
+                )
 
         proposal = workspace / "adoption-proposal"
         _run(
@@ -377,6 +545,16 @@ def run_takeover_acceptance() -> dict[str, Any]:
         "context_roles": sorted(context_digests),
         "context_bundle_digests": context_digests,
         "instance_doctor": doctor_report["overall"],
+        "guided_adoption": {
+            "initial_state": planned["state"],
+            "unconfirmed_apply_refused": True,
+            "confirmation_digest_bound": True,
+            "generated_team_valid": True,
+            "human_start_present": True,
+            "ai_start_present": True,
+            "target_repository_unchanged": True,
+            "external_integrations_enabled": False,
+        },
         "adoption_package_id": package["package_id"],
         "target_repository_unchanged": True,
         "external_integrations_enabled": False,

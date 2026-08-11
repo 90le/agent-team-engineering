@@ -58,7 +58,7 @@ def _report(*, created: bool, run_id: int, scope_character: str) -> dict:
 class ReleaseAssetTests(unittest.TestCase):
     def test_versions_sbom_license_and_provenance_are_consistent(self) -> None:
         report = validate_release_assets()
-        self.assertEqual(report["version"], "0.8.0")
+        self.assertEqual(report["version"], "0.8.1")
         self.assertEqual(report["spdx_packages"], 1)
         self.assertGreaterEqual(report["evaluated_upstreams"], 6)
 

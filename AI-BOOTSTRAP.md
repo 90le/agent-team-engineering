@@ -5,7 +5,7 @@
 ## 接管顺序
 
 1. 完整读取本文件。
-2. 第一次创建团队先读 `AI-START.md` 和 `docs/14-context-first/context-first-team-kit.md`；选择平台插件时再读 `docs/14-context-first/platform-installation.md`。
+2. 第一次创建团队先读 `AI-START.md`、`docs/17-guided-adoption/README.md` 和 `docs/14-context-first/context-first-team-kit.md`；选择平台插件时再读 `docs/14-context-first/platform-installation.md`。
 3. 读取 `docs/01-principles/project-constitution.md`、`docs/02-architecture/reference-architecture.md` 和 `docs/03-security/threat-model.md`；创建或运行受治理团队时读 `docs/13-team-creator/blueprint-compiler-and-reference-runtime.md`，创建或维护普通实例时还要读取 `factory-package.json` 与 `docs/08-factory/instance-lifecycle.md`，安装、升级、恢复、回滚或接入已有项目时再读 `docs/11-lifecycle/installation-upgrade-and-adoption.md`，运行或恢复控制平面时读 `docs/09-control-plane/persistence-and-recovery.md`，实现或启用接入时读 `docs/10-adapters/sdk-isolation-and-approval.md`。
 4. 只有使用 Managed 模式或旧版严格蓝图时，才读取 `team-packs/software-delivery/` 下的团队、工作流、风险、质量、工具和上下文策略 JSON。
 5. 根据当前角色只读取对应 `skills/<skill-id>/SKILL.md`；创建、导出或运行团队使用 `create-agent-team`，Factory实例日常治理使用 `manage-agent-team-factory`，版本迁移使用 `upgrade-agent-team-instance`，适配器工作使用`implement-agent-team-adapter`，不要把所有Skill同时装入上下文。
@@ -14,11 +14,11 @@
 
 无历史聊天的跨设备或跨AI交接，还应读取 `docs/12-acceptance/cross-ai-takeover.md` 并运行 `python3 tools/cross_ai_takeover.py`。自动通过只证明可发现性和安全冷启动路径，不替代不同模型的人工独立重放。
 
-## v0.8 供应商中立核心接管路线
+## v0.8.1 供应商中立核心接管路线
 
 任务涉及 Native Controller、Adapter Port、隔离 Runner、SCM/身份、外部投影或 ADR-0009 时，使用以下路线：
 
-1. 普通使用检出 annotated tag `v0.8.0`；开发修改使用提案分支。确认 `VERSION=0.8.0` 且 `factory-package.status=STABLE`。
+1. 普通使用检出 annotated tag `v0.8.1`；开发修改使用提案分支。确认 `VERSION=0.8.1` 且 `factory-package.status=STABLE`。v0.8.1保留v0.8.0的供应商中立控制内核，并在其上增加场景优先引导采用层。
 2. 按顺序完整读取 `docs/15-upstream-independent/README.md`、`docs/adr/ADR-0009-vendor-neutral-core-and-replaceable-ports.md`、该章引用的设计文档、`contracts/core-contracts.json`、`contracts/native-reference-workflow.json`、`contracts/runner-candidates.json`、`contracts/external-adapter-candidates.json` 与 `acceptance/v08-native-conformance.json`。
 3. 将机器契约、SQLite事务状态和Git证据作为权威，不以历史聊天或供应商对象覆盖它们。
 4. 先运行准确命令：
@@ -50,6 +50,7 @@
 - 外部副作用权限：同一工作项的持久审计事件、`policies/adapter-authority.json`、操作slot/项目作用域、适配器Manifest与实例绑定共同决定；outbox本身不是授权。
 - 团队编译权威：`.agent-team/team-blueprint.json`与`.agent-team/team.lock.json`；平台生成文件不能反向修改blueprint，任何漂移都必须重新提案并编译到新路径。
 - 上下文团队权威：`.agent-team/team-design.json` 与 `.agent-team/context.lock.json`；`AI-START.md`、角色、Skill、工作流和平台覆盖层都必须与锁一致。Lite 不存在运行状态，Managed 同时服从上下文锁和既有运行时锁。
+- 引导采用权威：采用方案JSON中的完整`proposal`、其SHA-256摘要和绑定确认；草案不能应用，任何方案修改都必须产生新摘要并重新确认。该确认只允许创建准确的新团队目录，不授权目标项目写入或外部集成。
 
 ## 强制安全边界
 
@@ -69,6 +70,7 @@
 python3 tools/agent_team.py validate
 python3 -m unittest discover -s tests -v
 python3 tools/agent_team.py simulate --approve-production
+python3 tools/release_audit.py --since-tag v0.8.0
 ```
 
 修改入口、Schema、适配器或工作流后，再运行 `tools/cold-start.sh`。只把通过验证的提交合并到 `main`。

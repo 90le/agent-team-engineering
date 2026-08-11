@@ -117,6 +117,7 @@ class ContextTeamCompilerTests(unittest.TestCase):
             )
             self.assertEqual(validate_context_team(team), [])
             for relative in (
+                "GETTING-STARTED.md",
                 "AI-START.md",
                 "TEAM.md",
                 "CONSTITUTION.md",
@@ -138,6 +139,12 @@ class ContextTeamCompilerTests(unittest.TestCase):
             text = (team / "TEAM.md").read_text(encoding="utf-8")
             self.assertEqual(text.count("# software-lite Example Team"), 1)
             self.assertIn("| Role | Mission | Engine | Write |", text)
+            getting_started = (team / "GETTING-STARTED.md").read_text(encoding="utf-8")
+            self.assertIn("You do not need to memorize role names", getting_started)
+            self.assertIn("Useful requests", getting_started)
+            ai_start = (team / "AI-START.md").read_text(encoding="utf-8")
+            self.assertIn("no more than three", ai_start)
+            self.assertIn("First response contract", ai_start)
 
     def test_same_design_has_deterministic_lock_and_content(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -297,6 +304,7 @@ class ContextTeamCompilerTests(unittest.TestCase):
             report = export_context_target(team, "codex", output)
             self.assertTrue(report["context_included"])
             self.assertTrue((output / ".codex/agents/frontend-engineer.toml").is_file())
+            self.assertTrue((output / ".agent-team/context/GETTING-STARTED.md").is_file())
             self.assertTrue((output / ".agent-team/context/AI-START.md").is_file())
             self.assertTrue((output / "agent-team-context-export.json").is_file())
             with self.assertRaisesRegex(ContextTeamError, "already exists"):

@@ -127,6 +127,68 @@ class FactoryCliTests(unittest.TestCase):
             self.assertEqual(design["project"]["provider"], "generic-git")
             self.assertEqual(design["project"]["repository"], "local/local-project")
 
+    def test_guided_onboarding_requires_previewable_digest_confirmation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            plan_path = base / "adoption-plan.json"
+            output = base / "guided-team"
+            planned = run_root_cli(
+                "onboard",
+                "plan",
+                "--project-path",
+                str(ROOT),
+                "--purpose",
+                "software",
+                "--automation",
+                "assisted",
+                "--goal",
+                "Create a portable reviewed software team.",
+                "--platform",
+                "codex",
+                "--team-name",
+                "CLI Guided Team",
+                "--project-name",
+                "CLI Guided Project",
+                "--owner",
+                "CLI Owner",
+                "--provider",
+                "github",
+                "--repository",
+                "example/cli-guided",
+                "--output",
+                str(output),
+                "--plan",
+                str(plan_path),
+            )
+            self.assertEqual(planned.returncode, 0, planned.stderr)
+            planned_report = json.loads(planned.stdout)
+            self.assertEqual(planned_report["state"], "DRAFT")
+            previewed = run_root_cli("onboard", "preview", "--plan", str(plan_path))
+            self.assertEqual(previewed.returncode, 0, previewed.stderr)
+            self.assertIn("No team has been created", previewed.stdout)
+            refused = run_root_cli("onboard", "apply", "--plan", str(plan_path))
+            self.assertEqual(refused.returncode, 2)
+            self.assertIn("confirm", refused.stderr)
+            confirmed = run_root_cli(
+                "onboard",
+                "confirm",
+                "--plan",
+                str(plan_path),
+                "--digest",
+                planned_report["proposal_digest"],
+                "--approved-by",
+                "CLI Owner",
+            )
+            self.assertEqual(confirmed.returncode, 0, confirmed.stderr)
+            self.assertFalse(json.loads(confirmed.stdout)["external_writes_authorized"])
+            applied = run_root_cli("onboard", "apply", "--plan", str(plan_path))
+            self.assertEqual(applied.returncode, 0, applied.stderr)
+            applied_report = json.loads(applied.stdout)
+            self.assertFalse(applied_report["target_project_mutated"])
+            self.assertTrue((output / "GETTING-STARTED.md").is_file())
+            validated = run_root_cli("context", "validate", "--root", str(output))
+            self.assertEqual(validated.returncode, 0, validated.stdout + validated.stderr)
+
     def test_doctor_reports_factory_identity_without_enabling_production(self) -> None:
         result = run_cli("doctor")
         self.assertEqual(result.returncode, 0, result.stderr)

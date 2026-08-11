@@ -4,14 +4,14 @@
     "name": "90le",
     "url": "https://github.com/90le"
   },
-  "description": "Context-first, vendor-neutral Agent Team creation tools.",
+  "description": "Scenario-first, vendor-neutral guidance and creation for portable Agent Teams.",
   "version": "1.0.0",
   "plugins": [
     {
       "name": "agent-team",
       "source": "./.agents/plugins/plugins/agent-team",
-      "description": "Create portable context-first AI teams for Codex, Claude, OpenClaw, and Generic AI.",
-      "version": "0.8.0",
+      "description": "Guide a user from a project outcome to a previewed, confirmed Agent Team for Codex, Claude, OpenClaw, and Generic AI.",
+      "version": "0.8.1",
       "author": {
         "name": "90le"
       },
