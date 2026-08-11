@@ -1,8 +1,8 @@
 # ADR-0009: Vendor-neutral core and replaceable ports
 
-- Status: Accepted for v0.8 W1-W3 implementation
+- Status: Accepted and implemented in v0.8.0
 - Date: 2026-08-11
-- Release impact: unreleased; does not modify the `v0.7.0` tag
+- Release impact: introduced by `v0.8.0`; the historical `v0.7.0` tag remains immutable
 
 ## Context
 

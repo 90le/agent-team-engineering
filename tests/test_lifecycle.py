@@ -67,7 +67,7 @@ def _make_old_instance(base: Path, version: str) -> Path:
     lock = json.loads(lock_path.read_text(encoding="utf-8"))
     for record in lock["files"]:
         path = instance / record["path"]
-        content = path.read_text(encoding="utf-8").replace("0.7.0", version)
+        content = path.read_text(encoding="utf-8").replace("0.8.0", version)
         path.write_text(content, encoding="utf-8")
         record["sha256"] = _digest(content.encode("utf-8"))
     revision, contract = OLD_RELEASES[version]
@@ -114,7 +114,7 @@ class InstanceLifecycleTests(unittest.TestCase):
                         _allow_dirty_factory=True,
                     )
                     self.assertEqual(result["status"], "UPGRADED")
-                    self.assertEqual(_locked_version(instance), "0.7.0")
+                    self.assertEqual(_locked_version(instance), "0.8.0")
 
     def test_upgrade_plan_output_cannot_be_a_symbolic_link(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -136,7 +136,7 @@ class InstanceLifecycleTests(unittest.TestCase):
             plan = write_instance_upgrade_plan(instance, plan_path)
 
             self.assertEqual(plan["source"]["factory_version"], "0.4.0")
-            self.assertEqual(plan["target"]["factory_version"], "0.7.0")
+            self.assertEqual(plan["target"]["factory_version"], "0.8.0")
             self.assertIn("README.md", plan["preserved_seeded_files"])
             result = apply_instance_upgrade(
                 instance,
@@ -146,7 +146,7 @@ class InstanceLifecycleTests(unittest.TestCase):
             )
 
             self.assertEqual(result["status"], "UPGRADED")
-            self.assertEqual(_locked_version(instance), "0.7.0")
+            self.assertEqual(_locked_version(instance), "0.8.0")
             self.assertEqual(readme.read_text(encoding="utf-8"), "owner customization\n")
             self.assertFalse((instance / "runtime" / ".factory-lifecycle-journal.json").exists())
             self.assertFalse(
@@ -162,7 +162,7 @@ class InstanceLifecycleTests(unittest.TestCase):
             second_rescue = base / "rescue-v04"
             restored = rollback_instance(instance, rescue, second_rescue)
             self.assertEqual(restored["status"], "ROLLED_BACK")
-            self.assertEqual(_locked_version(instance), "0.7.0")
+            self.assertEqual(_locked_version(instance), "0.8.0")
 
     def test_stale_plan_fails_before_recovery_or_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -291,7 +291,7 @@ class InstanceLifecycleTests(unittest.TestCase):
             result = recover_interrupted_lifecycle(instance)
             self.assertEqual(result["status"], "RECOVERED_TO_PRE_ROLLBACK")
             self.assertEqual(result["operation"], "ROLLBACK")
-            self.assertEqual(_locked_version(instance), "0.7.0")
+            self.assertEqual(_locked_version(instance), "0.8.0")
             self.assertFalse(journal_path.exists())
 
     def test_rollback_failure_automatically_restores_pre_rollback_release(self) -> None:
@@ -315,7 +315,7 @@ class InstanceLifecycleTests(unittest.TestCase):
                     base / "rescue-v05",
                     _fail_after_actions=1,
                 )
-            self.assertEqual(_locked_version(instance), "0.7.0")
+            self.assertEqual(_locked_version(instance), "0.8.0")
             self.assertFalse((instance / "runtime" / ".factory-lifecycle-journal.json").exists())
 
     def test_tampered_recovery_bundle_cannot_roll_back(self) -> None:
@@ -342,7 +342,7 @@ class InstanceLifecycleTests(unittest.TestCase):
 
             with self.assertRaisesRegex(LifecycleError, "digest differs"):
                 rollback_instance(instance, recovery, base / "rescue")
-            self.assertEqual(_locked_version(instance), "0.7.0")
+            self.assertEqual(_locked_version(instance), "0.8.0")
 
     def test_recovery_bundle_permissions_are_part_of_verification(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

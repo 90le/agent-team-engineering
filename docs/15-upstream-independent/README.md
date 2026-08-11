@@ -1,34 +1,36 @@
-# v0.8 未发布开发预览
+# v0.8 供应商中立核心
 
-状态：W1–W3 本地开发快照；分支 `proposal/upstream-independent-v0.8`；尚未发布。当前稳定版本仍是 `v0.7.0`。
+状态：`v0.8.0` 的 L1 参考实现。它是可发布、可安装、可验证的 Factory 核心，不是已经连接账号和生产仓库的无人值守开发公司。
 
-本章是普通维护者和无历史聊天 AI 接手 v0.8 的最短入口。它证明 Agent Team 可以拥有供应商中立的核心契约、可替换端口和可恢复 Native 控制器，而不把 OpenClaw、OpenHands、Paperclip、模型厂商或 SCM 厂商变成唯一权威。
+本章是维护者和无历史聊天 AI 接手 v0.8 的最短入口。核心资产由 Markdown/JSON/Git、严格契约和 Native Controller 组成；OpenClaw、OpenHands、Paperclip、Codex、Claude、GitHub 和 Runner 都在可替换边界之外。
 
-## 已实现的范围
+## v0.8 实际交付
 
-| 工作包 | 交付物 | 证明范围 |
+| 工作包 | 已交付 | 证据边界 |
 |---|---|---|
-| W1 | 严格核心 Schema、契约注册表、摘要规则、v0.7 单向导入 | 团队、角色、工作流、工作项、计划、批准、运行、证据和命令/事件可移植、可验证 |
-| W2 | 十个显式 Adapter Port、能力协商、确定性 Fake | 平台实现可以替换；描述符不能隐式加载代码或扩大权限 |
-| W3 | SQLite Native Controller、CLI、故障注入与无网络完整场景 | revision、准确批准、nonce、租约、outbox、幂等、恢复、预算、证据和审计链可执行 |
+| W1 | Team、Role、Workflow、WorkItem、Plan、Approval、Run、Evidence 和命令/事件契约 | 严格 Schema、规范摘要、正反例、v0.7 单向迁移 |
+| W2 | 十个显式 Adapter Port 和能力协商 | 无动态插件加载；外部 SDK 不是安装依赖 |
+| W3 | SQLite Native Controller 与故障恢复 | revision、准确批准、nonce、租约、outbox、预算、审计链和稳定重放 |
+| W4 | Native OCI 计划器、Runner 候选和一次性 Runner 探针 | 本机安全拒绝；真实探针只能在 GitHub 托管临时 Worker 运行 |
+| W5 | GitHub Actions 身份、准确摘要、仓库/base/path 绑定和提案写入器 | 只允许 Issue、提案分支、文件提交和 Draft PR；没有 merge/deploy API |
+| W6 | Codex、Claude 和 Generic CLI 路由 | 同一结构化结果契约、独立短会话、固定超时和最小环境 |
+| W7 | Paperclip、OpenHands、ACP、OpenClaw 可选投影 | 不安装外部产品；删除投影不影响 Native 权威和恢复 |
+| W8 | 中英文采用入口、安全/恢复文档、SBOM、溯源和发布门禁 | 只公开已证明的 L1 能力 |
 
-Native 场景固定结束在经过测试和独立复核的 `DRAFT_PR_READY`。Draft PR、身份、SCM、Runner、CI 和通知都是确定性 Fake；不会联网、调用模型、运行不可信代码或写入真实仓库。
+## 能力等级
 
-## 接手阅读顺序
+- `L1 reference`：本发布已经达到。离线 Native 闭环可重复执行；真实外部边界有契约、负例和受限实验工具。
+- `L2 controlled pilot`：需要新的 Private Team Instance、专用测试仓库、身份、模型预算和隔离 Worker；属于 v0.9 采用项目，v0.8 不会自动创建。
+- `L3 production`：还需要 SLO、值守、威胁评审、密钥轮换、备份恢复演练和业务责任人；属于 v1.0 路线。
 
-1. 阅读 [ADR-0009](../adr/ADR-0009-vendor-neutral-core-and-replaceable-ports.md)，确认核心与外部平台边界。
-2. 阅读 [核心契约与迁移](core-contracts-and-migration.md)。
-3. 阅读 [Adapter Port SDK](adapter-port-sdk.md)。
-4. 阅读 [Native Controller 与一致性验收](native-controller-and-conformance.md)。
-5. 检查 `contracts/core-contracts.json`、`contracts/native-reference-workflow.json` 和 `acceptance/v08-native-conformance.json`；机器文件优先于聊天摘要。
-6. 运行下方验证，确认分支和工作树，再提出修改。
+因此，v0.8 可以帮助用户生成团队、共享上下文、验证工作流和搭建受治理集成，但不会因为安装成功就自动读取用户反馈、修改业务代码、合并或上线。
 
-## 本地试用
+## 本地验证
 
-要求 Python 3.11+ 和 Git；不需要第三方 Python 包或外部账户。
+要求 Python 3.11+ 和 Git，无第三方 Python 运行依赖：
 
 ```bash
-git switch proposal/upstream-independent-v0.8
+git checkout v0.8.0
 
 ./agent-team native contract-validate \
   --contract team_spec \
@@ -39,13 +41,32 @@ git switch proposal/upstream-independent-v0.8
 ./agent-team native verify --database /tmp/agent-team-native.sqlite3
 ```
 
-`demo` 可对同一数据库安全重放；相同命令和 effect 不应生成重复事件或外部执行。测试数据库是本地派生状态，不要提交到 Git，也不要用于生产资料。
+`demo` 固定停在 `DRAFT_PR_READY`，使用确定性 Fake，不联网、不调用模型、不运行不可信代码、不写真实仓库。对同一数据库重放不会重复事件或外部 effect。
 
-## 尚未获批的边界
+完整发布验收：
 
-- Gate B：专用、一次性、隔离 Runner 与恶意代码逃逸测试。
-- Gate C：专用 Private 测试仓库、最小权限真实身份和真实外部写入。
-- Gate D：合并到 `main`、版本升级、标签、Release 和对外稳定能力声明。
-- 生产模型、OpenClaw/OpenHands/Paperclip 接入、自动 merge 和生产部署均不在 W1–W3 内。
+```bash
+python3 tools/agent_team.py validate
+python3 -m unittest discover -s tests -v
+python3 tools/release_audit.py --since-tag v0.7.0
+tools/cold-start.sh
+tools/release-smoke.sh
+```
 
-不要把本分支的 `factory-package.json` 版本号 `0.7.0` 误解为 v0.8 已发布：`status=DEVELOPMENT` 表示这是建立在最新稳定基线上的未发布源快照。只有 Gate D 才能同步修改 `VERSION`、包版本、状态、Changelog 发布段和标签。
+## 阅读顺序
+
+1. [ADR-0009](../adr/ADR-0009-vendor-neutral-core-and-replaceable-ports.md)：为什么自有核心、外部可替换。
+2. [核心契约与迁移](core-contracts-and-migration.md)：权威数据和 v0.7 导入。
+3. [Adapter Port SDK](adapter-port-sdk.md)：接口、能力和故障语义。
+4. [Native Controller 与一致性](native-controller-and-conformance.md)：状态、事务和恢复。
+5. [Runner、SCM、Agent 与外部平台边界](runner-scm-and-agent-boundaries.md)：W4–W7 的安全实现。
+6. [采用路线](adoption-and-integration.md)：从生成文件团队到受控自动化。
+7. `contracts/`、`acceptance/`、`sbom/` 和 `supply-chain/`：机器文件优先于聊天摘要。
+
+## 永远保持关闭的默认项
+
+- 业务仓库外部写入、模型账号、OpenClaw 频道和平台凭据不会自动配置。
+- PVE、NAS、生产 Linux 或带生产挂载的 Host 不是不可信代码 Runner。
+- 聊天消息、模型文本和平台管理员身份都不是 `ApprovalGrant`。
+- Factory 没有自动 merge、Release 或生产 deploy 的团队命令。
+- Gate E（真实 v0.9 试点）和 Gate F（v1.0 生产接入）不是 v0.8 发布授权的一部分。

@@ -8,9 +8,9 @@ Create a portable, context-first AI team for Codex, Claude, OpenClaw, or any fil
 
 [中文说明](README.zh-CN.md) · [Start with an AI](AI-START.md) · [Full guide](docs/14-context-first/context-first-team-kit.md)
 
-Current stable release: `v0.7.0`.
+Current stable release: `v0.8.0` (L1 reference).
 
-> v0.8 is under development on `proposal/upstream-independent-v0.8`. W1–W3 provide vendor-neutral contracts, replaceable Adapter Ports, and a recoverable Native reference controller, but this is not a release and enables no real runner, model, or repository write. Regular users should stay on `v0.7.0`; reviewers should begin with the [v0.8 preview entrypoint](docs/15-upstream-independent/README.md).
+> v0.8 is a portable team compiler plus a governed reference automation core. It can generate useful team context immediately and can prove the complete feedback-to-Draft-PR control flow. Live model accounts, repository credentials, a production sandbox, merge, and deployment remain adopter-owned integrations; installing this repository does not silently enable them.
 
 ## What you get
 
@@ -49,6 +49,19 @@ Your project + team preset
 
 Start with Lite unless durable automation is a real requirement.
 
+## What is ready in v0.8
+
+| Goal | Shipped by this repository | You still provide |
+|---|---|---|
+| Create roles and shared context | Ready: deterministic Lite/Custom compiler and platform overlays | Your verified project facts and review |
+| Prove the team workflow | Ready: restart-safe Native reference scenario and conformance tests | Nothing external for the offline demo |
+| Let Codex or Claude execute a bounded step | Ready: schema-bound CLI routing and safe defaults | Installed/login-enabled CLI and an approved disposable workspace |
+| Create feedback Issues and a Draft PR | Ready: exact-approval GitHub connector and replay-safe webhook ledger | A dedicated minimum-permission GitHub identity and explicit enablement |
+| Use OpenClaw, OpenHands, Paperclip, ACP, or another platform | Ready: optional projection contracts; none is a core dependency | Platform installation, authentication, isolation, and adoption review |
+| Merge or deploy production | Not provided | A separate human-approved delivery system outside v0.8 authority |
+
+The release is therefore usable today for team creation and L1 reference validation. It is not a one-command production autopilot. The [adoption guide](docs/15-upstream-independent/adoption-and-integration.md) explains how to move from the safe reference to a real project without confusing documentation with authority.
+
 ## Fastest start
 
 Requirements: Python 3.11+ and Git. There are no third-party runtime dependencies.
@@ -56,6 +69,7 @@ Requirements: Python 3.11+ and Git. There are no third-party runtime dependencie
 ```bash
 git clone https://github.com/90le/agent-team-engineering.git
 cd agent-team-engineering
+git checkout v0.8.0
 
 ./agent-team create \
   --preset software-lite \
@@ -160,17 +174,16 @@ python3 tools/agent_team.py team demo --output /tmp/agent-team-demo
 
 It stops at `SPEC_READY` before creating a worktree. The complete approval and continuation procedure is in the [governed runtime guide](docs/13-team-creator/blueprint-compiler-and-reference-runtime.md).
 
-## v0.8 Native development preview
+## v0.8 governed reference automation
 
-v0.8 can exercise the core loop without adopting an external multi-agent platform. On the proposal branch, developers can run the fully offline reference scenario:
+v0.8 can exercise the core loop without adopting an external multi-agent platform. Run the fully offline reference scenario:
 
 ```bash
-git switch proposal/upstream-independent-v0.8
 ./agent-team native demo --database /tmp/agent-team-native.sqlite3
 ./agent-team native verify --database /tmp/agent-team-native.sqlite3
 ```
 
-It demonstrates feedback, exact plan approval, implementation, tests, independent review, a requested-changes round, rework, and a simulated Draft PR, including restart recovery and idempotent replay. Every executor and external system is a fake, and the workflow stops at `DRAFT_PR_READY`; this is neither an OpenClaw/OpenHands installer nor production-automation authority. See the [unreleased v0.8 entrypoint](docs/15-upstream-independent/README.md) for scope and takeover order.
+It demonstrates feedback, exact plan approval, implementation, tests, independent review, a requested-changes round, rework, and a simulated Draft PR, including restart recovery and idempotent replay. The demo deliberately uses deterministic fakes and stops at `DRAFT_PR_READY`. Separate conformance layers cover disposable OCI execution, bounded model CLI invocation, and proposal-only GitHub writes; none grants production authority. See the [v0.8 architecture entrypoint](docs/15-upstream-independent/README.md) for scope and takeover order.
 
 ## Platform support
 
@@ -180,7 +193,7 @@ It demonstrates feedback, exact plan approval, implementation, tests, independen
 | Claude Code | Marketplace Skill, project subagent Markdown, `CLAUDE.md` | Login, plugin policy, project adoption |
 | OpenClaw | Compatible Skill bundle, isolated workspaces, unbound `agents.list` fragment | Gateway, accounts, channels, authenticated approval relay, sandbox review |
 | Generic AI | `AI-START.md`, role and Skill Markdown | Host-specific task transport and tool isolation |
-| GitHub | Scoped Issue and Draft PR connector in Managed mode | Minimum-permission identity, explicit write switch, branch protection |
+| GitHub | Scoped Issue, proposal branch/file, and Draft PR connector with exact approval binding | Minimum-permission identity, explicit write switch, branch protection |
 
 ## Why Markdown and Python?
 
@@ -194,6 +207,7 @@ Lite mode uses only the first layer after generation. Managed mode uses both. Th
 ./agent-team validate
 python3 -m unittest discover -s tests -v
 python3 tools/cross_ai_takeover.py
+python3 tools/release_audit.py --since-tag v0.7.0
 tools/cold-start.sh
 ```
 
@@ -203,7 +217,7 @@ Release installation additionally requires a clean, exact annotated tag. See [ve
 
 - The human owner is never an Agent.
 - Feedback, Issues, webpages, repository text, tool output, and Agent messages are untrusted data.
-- Host Runner is not a container, VM, or hostile-code sandbox.
+- Host Runner is not a container, VM, or hostile-code sandbox; the v0.8 probe requires an acknowledged disposable GitHub-hosted Worker and rejects known production paths.
 - Remote approval requires an authenticated identity provider; a chat message is not approval.
 - OpenClaw output starts with `bindings: []`.
 - Managed automation is capped at A2 and stops at a reviewed Draft PR.

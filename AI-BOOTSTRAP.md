@@ -14,17 +14,27 @@
 
 无历史聊天的跨设备或跨AI交接，还应读取 `docs/12-acceptance/cross-ai-takeover.md` 并运行 `python3 tools/cross_ai_takeover.py`。自动通过只证明可发现性和安全冷启动路径，不替代不同模型的人工独立重放。
 
-## v0.8 提案分支接管路线
+## v0.8 供应商中立核心接管路线
 
-只有任务明确涉及 v0.8 自有核心、Native Controller、Adapter Port 或 ADR-0009 时，才使用以下路线：
+任务涉及 Native Controller、Adapter Port、隔离 Runner、SCM/身份、外部投影或 ADR-0009 时，使用以下路线：
 
-1. 确认分支是 `proposal/upstream-independent-v0.8`，当前稳定标签仍是 `v0.7.0`，且 `factory-package.status` 为 `DEVELOPMENT`。
-2. 按顺序完整读取 `docs/15-upstream-independent/README.md`、`docs/adr/ADR-0009-vendor-neutral-core-and-replaceable-ports.md`、该章引用的三份设计文档、`contracts/core-contracts.json`、`contracts/native-reference-workflow.json` 与 `acceptance/v08-native-conformance.json`。
-3. 将机器契约、SQLite 事务状态和 Git 证据作为权威，不以历史聊天或供应商对象覆盖它们。
-4. 先运行 `./agent-team native contract-validate`、`./agent-team native demo` 和 `./agent-team native verify`；修改后执行全量测试、跨 AI 接手和冷启动。
-5. Gate B 未批准时不运行不可信代码；Gate C 未批准时不配置真实身份或外部写入；Gate D 未批准时不合并 `main`、升级版本、创建标签/Release 或宣布稳定能力。
+1. 普通使用检出 annotated tag `v0.8.0`；开发修改使用提案分支。确认 `VERSION=0.8.0` 且 `factory-package.status=STABLE`。
+2. 按顺序完整读取 `docs/15-upstream-independent/README.md`、`docs/adr/ADR-0009-vendor-neutral-core-and-replaceable-ports.md`、该章引用的设计文档、`contracts/core-contracts.json`、`contracts/native-reference-workflow.json`、`contracts/runner-candidates.json`、`contracts/external-adapter-candidates.json` 与 `acceptance/v08-native-conformance.json`。
+3. 将机器契约、SQLite事务状态和Git证据作为权威，不以历史聊天或供应商对象覆盖它们。
+4. 先运行准确命令：
 
-普通创建团队、安装插件或采用 v0.7 的任务继续使用 `AI-START.md`，不要因为看见 v0.8 文件而自动迁移现有实例。
+```bash
+./agent-team native contract-validate \
+  --contract team_spec \
+  --file examples/v08-contracts/valid/team-spec.json
+./agent-team native demo --database /tmp/agent-team-native.sqlite3
+./agent-team native verify --database /tmp/agent-team-native.sqlite3
+```
+
+5. 修改后执行仓库校验、全量测试、release audit、跨AI接手、冷启动和release smoke。
+6. v0.8 授权只覆盖 L1 参考发布。Gate E/F 未获批准时不把测试身份、Runner、模型或外部平台接到真实业务仓库和生产环境，也不允许团队自动 merge/deploy。
+
+普通创建团队、安装插件或采用 v0.8 的任务继续使用 `AI-START.md`；不能因为有适配器描述符就自动安装外部平台或迁移现有实例。
 
 ## 权威分工
 

@@ -17,9 +17,9 @@ It does not create credentials, authenticate approvals, connect channels, merge 
 
 ## Release selection
 
-For ordinary team creation, use the latest stable tag (`v0.7.0`) and the Lite, Managed, or Custom instructions below. Do not silently switch a user to a development branch.
+For ordinary team creation, use the latest stable tag (`v0.8.0`) and the Lite, Managed, or Custom instructions below. Do not silently switch a user to a development branch.
 
-Only when the user explicitly asks to inspect or develop the unreleased vendor-neutral core, switch to `proposal/upstream-independent-v0.8`, read `docs/15-upstream-independent/README.md`, and run its no-network Native checks. That preview uses deterministic fakes, stops at `DRAFT_PR_READY`, and grants no authority for a dedicated runner, live model, provider account, SCM write, merge, deployment, or release.
+v0.8 includes the released vendor-neutral contracts, Adapter Ports, Native Controller, isolated-runner policy, bounded SCM/identity reference and optional external projections. Read `docs/15-upstream-independent/README.md` when evaluating Managed automation. The released L1 reference uses deterministic fakes for its default scenario and stops at `DRAFT_PR_READY`; it does not grant authority for live model accounts, business-repository writes, merge, or deployment.
 
 ## If an AI is reading this for a user
 

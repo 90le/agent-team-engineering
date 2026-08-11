@@ -1,6 +1,6 @@
 # v0.8 core contracts and v0.7 import
 
-Status: unreleased v0.8 candidate on `proposal/upstream-independent-v0.8`. This document does not change the current `v0.7.0` release or authorize a real runner, external write identity, merge, deployment, or release.
+Status: released v0.8 L1 reference. This document defines the v0.8 contract and v0.7 import boundary; it does not authorize production Runner use, merge, or deployment.
 
 ## Why this layer exists
 

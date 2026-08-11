@@ -1,7 +1,7 @@
 # Factory安装、实例升级、恢复与项目接入
 
 - 文档ID：`ATE-OPS-011`
-- 适用版本：Factory `0.7.0`
+- 适用版本：Factory `0.8.0`
 - 适用对象：项目所有者、运维人员、Codex、Claude、Kimi、OpenClaw Agent及其他接管者
 
 本文是Factory分发、实例版本迁移和已有项目接入的规范操作入口。执行实例升级、恢复或回滚时，同时使用 `skills/upgrade-agent-team-instance/SKILL.md`；普通实例配置与控制平面管理使用 `manage-agent-team-factory`。
@@ -33,12 +33,12 @@
 
 ```bash
 python3 tools/agent_team.py factory install \
-  --output /opt/agent-team-factory-v0.7.0
+  --output /opt/agent-team-factory-v0.8.0
 
-python3 /opt/agent-team-factory-v0.7.0/tools/agent_team.py factory verify \
-  --root /opt/agent-team-factory-v0.7.0
+python3 /opt/agent-team-factory-v0.8.0/tools/agent_team.py factory verify \
+  --root /opt/agent-team-factory-v0.8.0
 
-python3 /opt/agent-team-factory-v0.7.0/tools/agent_team.py doctor
+python3 /opt/agent-team-factory-v0.8.0/tools/agent_team.py doctor
 ```
 
 安装目标必须不存在，并位于源仓库外。Factory先在目标父目录创建专用临时树，写入发布提交中的文件，生成 `.factory-installation.json`，逐文件验证路径、模式、大小和SHA-256，再通过原子目录重命名发布。失败不会覆盖同名现有路径。
@@ -62,7 +62,7 @@ Doctor不是外部服务健康检查，也不会证明Worker已经停止、GitHu
 
 ## 升级前置条件
 
-`v0.7.0`实现从 `0.2.0`、`0.3.0`、`0.4.0`、`0.5.0`、`0.5.1`、`0.6.0` 到 `0.7.0` 的显式迁移。以后每个目标版本必须单独声明可接受来源；能够读取旧实例不代表存在升级路径。
+`v0.8.0`实现从 `0.2.0`、`0.3.0`、`0.4.0`、`0.5.0`、`0.5.1`、`0.6.0`、`0.7.0` 到 `0.8.0` 的显式迁移。以后每个目标版本必须单独声明可接受来源；能够读取旧实例不代表存在升级路径。v0.7 到 v0.8 的 Factory 文件升级不会迁移旧运行批准；Native v0.8 导入规则另见 [v0.8 core 契约与 v0.7 导入](../15-upstream-independent/core-contracts-and-migration.md)。
 
 执行计划以外的任何生命周期动作前必须满足：
 
@@ -99,7 +99,7 @@ python3 tools/agent_team.py instance upgrade plan \
 python3 tools/agent_team.py instance upgrade apply \
   --root /path/to/team-instance \
   --plan /safe/change-records/upgrade-plan.json \
-  --recovery /safe/recovery/instance-v0.4-before-v0.7.0
+  --recovery /safe/recovery/instance-v0.7-before-v0.8.0
 ```
 
 执行顺序如下：
@@ -138,12 +138,12 @@ python3 tools/agent_team.py instance recover \
 
 ```bash
 python3 tools/agent_team.py instance recovery-inspect \
-  --bundle /safe/recovery/instance-v0.4-before-v0.7.0
+  --bundle /safe/recovery/instance-v0.7-before-v0.8.0
 
 python3 tools/agent_team.py instance rollback \
   --root /path/to/team-instance \
-  --recovery /safe/recovery/instance-v0.4-before-v0.7.0 \
-  --rescue /safe/recovery/instance-v0.7.0-before-rollback
+  --recovery /safe/recovery/instance-v0.7-before-v0.8.0 \
+  --rescue /safe/recovery/instance-v0.8.0-before-rollback
 ```
 
 回滚在变更前捕获当前版本救援包并创建同样的事务日志，因而回滚失败或进程中断也能恢复到回滚前版本。回滚完成后，原始恢复包可返回旧版，救援包可重新返回新版。两者都应保留到所有者验收和保留策略允许清理为止。

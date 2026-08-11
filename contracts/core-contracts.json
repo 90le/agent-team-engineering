@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0.0",
   "registry_id": "agent-team-native-core",
-  "status": "UNRELEASED_CANDIDATE",
+  "status": "STABLE_V08_REFERENCE",
   "contract_version": "1.0.0",
   "authority": "agent-team-engineering",
   "contracts": [

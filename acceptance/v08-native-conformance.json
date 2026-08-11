@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0.0",
   "profile_id": "acceptance.v08-native-reference",
-  "status": "UNRELEASED_W1_W3_REFERENCE",
+  "status": "RELEASED_V08_L1_REFERENCE",
   "workflow": "contracts/native-reference-workflow.json",
   "backend": "native-deterministic-fakes",
   "required_ports": ["ingress", "identity", "scm", "agent-executor", "sandbox", "ci", "state-store", "evidence", "notification", "secret"],
@@ -19,9 +19,9 @@
   "fault_points": ["before_commit", "after_commit", "after_claim", "before_invoke", "after_invoke", "before_finalize", "expired_lease", "expired_effect_claim", "unknown_side_effect"],
   "required_tests": ["tests.test_v08_contracts", "tests.test_v08_adapter_ports", "tests.test_native_controller", "tests.test_native_scenario"],
   "authority_boundaries": {
-    "gate_b_runner": "NOT_GRANTED",
-    "gate_c_external_write": "NOT_GRANTED",
-    "gate_d_release": "NOT_GRANTED",
+    "gate_b_runner": "GRANTED_DISPOSABLE_ONLY",
+    "gate_c_external_write": "AUTHORIZED_EVIDENCE_PENDING",
+    "gate_d_release": "GRANTED_V080_ONLY",
     "production_integrations": false
   }
 }

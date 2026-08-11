@@ -225,7 +225,7 @@ class AdapterCatalogTests(unittest.TestCase):
     def test_catalog_has_versioned_operations_and_safe_schema_refs(self) -> None:
         catalog = load_adapter_catalog()
         self.assertGreaterEqual(len(catalog), 9)
-        self.assertEqual(catalog["adapter.github"].version, "0.4.0")
+        self.assertEqual(catalog["adapter.github"].version, "0.8.0")
         self.assertEqual(
             catalog["adapter.github"].operations["issue.create"].delivery,
             "reconcile-before-retry",

@@ -8,7 +8,7 @@
   "properties": {
     "schema_version": {"const": "1.0.0"},
     "profile_id": {"const": "acceptance.v08-native-reference"},
-    "status": {"const": "UNRELEASED_W1_W3_REFERENCE"},
+    "status": {"const": "RELEASED_V08_L1_REFERENCE"},
     "workflow": {"const": "contracts/native-reference-workflow.json"},
     "backend": {"const": "native-deterministic-fakes"},
     "required_ports": {"type": "array", "minItems": 10, "maxItems": 10, "uniqueItems": true, "items": {"enum": ["ingress", "identity", "scm", "agent-executor", "sandbox", "ci", "state-store", "evidence", "notification", "secret"]}},
@@ -35,9 +35,9 @@
       "additionalProperties": false,
       "required": ["gate_b_runner", "gate_c_external_write", "gate_d_release", "production_integrations"],
       "properties": {
-        "gate_b_runner": {"const": "NOT_GRANTED"},
-        "gate_c_external_write": {"const": "NOT_GRANTED"},
-        "gate_d_release": {"const": "NOT_GRANTED"},
+        "gate_b_runner": {"const": "GRANTED_DISPOSABLE_ONLY"},
+        "gate_c_external_write": {"enum": ["GRANTED_DEDICATED_TEST_ONLY", "AUTHORIZED_EVIDENCE_PENDING"]},
+        "gate_d_release": {"const": "GRANTED_V080_ONLY"},
         "production_integrations": {"const": false}
       }
     }

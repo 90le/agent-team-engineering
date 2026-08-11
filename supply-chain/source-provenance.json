@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0.0",
+  "project": "90le/agent-team-engineering",
+  "release": "v0.8.0",
+  "release_commit_binding": "annotated-tag-object",
+  "license": "Apache-2.0",
+  "python_runtime_dependencies": [],
+  "copied_external_source_files": [],
+  "evaluated_upstreams": [
+    {"id": "runner.swe-rex", "repository": "https://github.com/SWE-agent/SWE-ReX", "revision": "5c995c365dfb1fd5bc56fda688be5d8538f9931f", "license": "MIT", "runtime_dependency": false},
+    {"id": "runner.container-use", "repository": "https://github.com/dagger/container-use", "revision": "8901a77bd80fbd0e3a867e4ac44aabf89588f377", "license": "Apache-2.0", "runtime_dependency": false},
+    {"id": "adapter.openhands-agent-server", "repository": "https://github.com/All-Hands-AI/OpenHands", "revision": "21f0967c8f7b728f5840730fe36a33d5833640cb", "license": "MIT", "runtime_dependency": false},
+    {"id": "adapter.paperclip-projection", "repository": "https://github.com/paperclipai/paperclip", "revision": "66575fe519db7320147aece94fa66e15eba375c1", "license": "MIT", "runtime_dependency": false},
+    {"id": "adapter.openclaw", "repository": "https://github.com/openclaw/openclaw", "revision": "c8571daa2fc883b80b46508bc2ebca14d28b01f3", "license": "MIT", "runtime_dependency": false},
+    {"id": "adapter.acp-bridge", "repository": "https://github.com/agentclientprotocol/agent-client-protocol", "revision": "0b1b1260419760501b9f399a44674ad1b270e0d2", "license": "Apache-2.0", "runtime_dependency": false}
+  ],
+  "github_actions": [
+    {"repository": "actions/checkout", "revision": "3d3c42e5aac5ba805825da76410c181273ba90b1", "tag_observed": "v7.0.1"},
+    {"repository": "actions/setup-python", "revision": "5fda3b95a4ea91299a34e894583c3862153e4b97", "tag_observed": "v7.0.0"},
+    {"repository": "actions/upload-artifact", "revision": "ea165f8d65b6e75b540449e92b4886f43607fa02", "tag_observed": "v4.6.2"}
+  ],
+  "claims": {
+    "external_products_are_optional": true,
+    "external_databases_are_not_core_authority": true,
+    "production_credentials_in_repository": false,
+    "automatic_merge_or_deploy": false
+  }
+}

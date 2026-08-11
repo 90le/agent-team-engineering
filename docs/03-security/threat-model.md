@@ -27,6 +27,8 @@
 | 伪造outbox或错误复用授权 | 适配器宿主要求同一工作项的持久审计事件，并由默认拒绝策略绑定事件类型、转换动作、操作和能力 |
 | 适配器供应链注入 | Manifest不动态加载代码；实现必须由受信进程显式注册，且身份、Schema和实例绑定一致 |
 | 凭据跨适配器泄漏 | 实例只保存`secret.*`引用，宿主按单个绑定限制解析作用域，并拒绝请求、结果、错误或数据库中的秘密值 |
+| GitHub批准被换仓库、换base、扩路径或超时重放 | 外部写入在调用前逐项重算并比对actor ID、repo、base commit、path/action、plan digest、TTL与nonce；任一不同即停止 |
+| Webhook重送导致重复副作用 | 持久delivery ledger先绑定provider/delivery ID与payload digest；同身份不同内容冲突，相同内容可幂等对账 |
 | 合法凭据操作错误项目 | 操作级project scope把payload绑定到实例声明的project ID/locator、provider、mode、默认分支和Runner source ref |
 | 被篡改或来源不明的Factory副本 | 正式安装只接受干净精确annotated tag；安装Manifest绑定提交、文件模式、逐文件与整树摘要，并拒绝额外文件、符号链接和缓存 |
 | 陈旧或被替换的升级计划 | apply重新计算实例、锁、契约、目标内容和计划ID；任何差异在写入前失败 |
@@ -38,6 +40,8 @@
 | 协调器误领取其他Worker任务 | outbox支持按准确effect ID领取；未匹配任务保持PENDING |
 | 模型把项目说明当成更高权限 | Codex live忽略项目规则；Claude使用safe mode；任务信封、宿主策略和状态机而非项目提示决定权限 |
 | 测试命令读取主机秘密 | Runner Profile无秘密、argv不经Shell、执行环境只保留最小非秘密变量；高风险项目必须改用外部隔离Runner |
+| 在PVE/NAS/生产Linux上把容器当恶意代码沙箱 | v0.8一致性探针要求显式一次性环境确认和GitHub-hosted Worker标识，并在启动容器前拒绝`/srv/appdata`、`/mnt/synology`、`/etc/pve`等生产路径 |
+| 本地Codex/Claude用户配置暗中改变自动化权限 | Codex使用`--ignore-user-config`、`--ignore-rules`、显式sandbox与全局approval policy；Claude使用safe mode、显式tool集和无session persistence；两者都验证结果Schema与任务身份 |
 | Agent在批准前开始修改代码 | SPEC_READY固定返回人工计划门禁；worktree只在PLAN_APPROVED后创建，scope hash不匹配不能批准 |
 | GitHub写入被模型权限隐式开启 | code-hosting实例绑定、项目/remote/default branch和显式provider写入开关必须同时成立；模型slot与GitHub slot分离 |
 | 自动化越过Draft PR合并上线 | Team delivery contract固定merge/production forbidden；Reference Runtime停止在独立review，未实现team merge/deploy命令 |
@@ -48,6 +52,8 @@
 | 上下文包覆盖目标项目已有AI规则 | create/export只写不存在路径；采用者必须在提案分支人工协调已有`AGENTS.md`、`CLAUDE.md`和平台目录 |
 | 恶意Team Design穿越路径、携带秘密或伪造人工门禁 | 严格Schema、相对路径检查、inline secret扫描、人工actor/approval一致性检查和无覆盖原子发布 |
 | 可维护上下文被用来替换生成的角色或平台规则 | Context Lock区分管理类型；用户新增文件只允许在知识、决策和工作目录，额外根文件或生成资产自重算摘要仍会失败 |
+| 可选外部平台成为唯一状态权威或无法退出 | OpenClaw/OpenHands/Paperclip/ACP只是纯投影或端口候选，核心契约不引用其SDK类型；移除投影后Native状态、审计和恢复仍能独立验证 |
+| 引用上游时不可追溯或悄然增加依赖 | 候选清单绑定上游URL、commit和许可证；SPDX SBOM和source provenance进入发布门禁，当前上游只参考、不作为运行依赖 |
 
 ## 永久人工门禁
 
@@ -65,6 +71,6 @@ CLI的暂停/恢复操作假定调用者已经通过本机操作系统权限进�
 
 v0.6 `team approve-plan`进一步要求操作者回填完整规格scope hash，但其身份仍只来自本机操作系统权限。它适合单机参考和受控管理，不是互联网审批协议。OpenClaw approval relay必须与公开intake使用不同账号、频道、workspace，并把远程认证结果转换为同等绑定的短期断言。
 
-Host Runner刻意需要单独开关，也不会继承Token、SSH Agent、云凭据或用户HOME。它仍共享主机内核和网络，不能执行恶意第三方代码；`--allow-host-runner`表示操作者接受这一参考边界，不会把它提升为生产沙箱。
+Host Runner刻意需要单独开关，也不会继承Token、SSH Agent、云凭据或用户HOME。它仍共享主机内核和网络，不能执行恶意第三方代码；`--allow-host-runner`表示操作者接受这一参考边界，不会把它提升为生产沙箱。v0.8的Docker探针也不是长期Runner：它只用于GitHub-hosted一次性Worker上的三轮一致性证据，完成后删除容器/卷/网络，不应改为PVE或业务Linux的自建Runner。
 
 Lite模式不等于“安全沙箱”：它移除了常驻控制器和外部副作用，却仍依赖采用平台正确隔离工具。平台把某个Markdown角色映射成Shell、网络或写权限前，必须由项目所有者重新审阅；Factory生成文件中的`allowed_tools`不是可执行授权令牌。

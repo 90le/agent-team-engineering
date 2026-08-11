@@ -1,7 +1,7 @@
 {
   "name": "agent-team",
   "displayName": "Agent Team Engineering",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Create portable context-first AI teams with optional governed automation.",
   "author": {
     "name": "90le",

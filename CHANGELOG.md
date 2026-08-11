@@ -2,18 +2,25 @@
 
 本项目遵循语义化版本。版本标签只在仓库验证、测试、Skill校验和空目录冷启动全部通过后创建；已发布标签不移动。
 
-## Unreleased — v0.8 W1–W3 development snapshot
+## 0.8.0 — 2026-08-11
 
-当前仅存在于 `proposal/upstream-independent-v0.8`，不构成版本发布或生产能力声明：
+Agent Team Factory 首个“供应商中立控制内核 + 可替换端口”的 L1 参考版：
 
-- 接受 ADR-0009，明确 Markdown/JSON/Git 的上下文权威、Native 控制器的确定性状态权威，以及十类可替换外部端口；任何可选上游平台都不能成为唯一核心。
-- 新增严格、供应商中立的 TeamSpec、RoleContract、WorkflowSpec、WorkItem v2、PlanRevision、ApprovalGrant、Run、EvidenceBundle、AdapterDescriptor 和命令/事件契约，以及规范摘要、负例和 v0.7 单向导入规则；旧批准不会迁移。
-- 新增显式 Adapter Port SDK、能力/版本协商、健康/取消/截止时间/幂等语义和确定性 Fake；描述符不能触发动态代码加载，异常与未知副作用安全停止。
-- 新增 SQLite Native 参考控制器，覆盖 optimistic revision、准确批准和身份绑定、全局单次 nonce、Worker 租约、事务 outbox、retry-after、预算/时间、内容寻址证据、哈希链审计、备份、重启和孤儿恢复。
-- 新增无网络反馈到 Draft PR 场景：实现、测试、独立复核、changes-requested、返工、复测和复核后停止；完整重放不重复事件或 effect。
-- 增加跨 AI 接手路径、机器一致性配置和崩溃矩阵。Gate B 专用 Runner、Gate C 真实外部写入以及 Gate D 合并/版本/标签/Release 均未获得授权。
+- 接受 ADR-0009，保持 Markdown/JSON/Skill/Git 为可迁移上下文权威，Native 控制器只负责必须确定的运行状态。Ingress、Identity、SCM、Agent Executor、Sandbox、CI、State、Evidence、Notification 和 Secret 全部通过可替换 Port 连接，任何外部平台都不是唯一核心。
+- 新增严格 TeamSpec、RoleContract、WorkflowSpec、WorkItem v2、PlanRevision、ApprovalGrant、Run、EvidenceBundle、AdapterDescriptor 及命令/事件契约。规范摘要、未知字段、版本冲突、权限越界和篡改均 fail closed；v0.7 只能单向导入，旧批准绝不迁移。
+- 新增无第三方依赖的 Adapter Port SDK，实施版本/能力协商、deadline、cancel、health、幂等和未知副作用停止语义；描述符不会动态加载代码。
+- 新增 SQLite Native 参考控制器，覆盖 optimistic revision、精确身份/计划批准、全局单次 nonce、Worker 租约、事务 outbox、retry-after、预算/超时、内容寻址证据、哈希链审计、备份、重启与孤儿恢复。
+- 新增完全离线的“反馈 → 精确人工批准 → 实现 → 测试 → 独立复核 → 要求修改 → 返工 → Draft PR”场景。崩溃矩阵、重启和完整重放不重复事件或外部 effect。
+- 新增一次性 OCI Runner 一致性门禁。它只允许显式确认的 GitHub-hosted 临时 Worker，三轮验证网络、挂载、凭据、进程和清理边界；发现 PVE/NAS/生产路径会在启动容器前拒绝。
+- 新增精确批准绑定的 GitHub SCM 端口和持久 webhook delivery ledger。身份ID、仓库、base、路径、plan digest、TTL 不完全一致就拒绝；写入仅限反馈 Issue、提案分支/文件和未合并 Draft PR，无 merge、release、settings 或 deploy 能力。
+- 新增受 Schema 约束的 Codex、Claude 和 Generic CLI 路由。进程使用 argv 而非 Shell、最小环境、明确沙箱/审批参数与不保留会话；通用协议 v0.8 只允许读取型请求。
+- 新增 OpenClaw、OpenHands、Paperclip 和 ACP 纯投影边界，以及 SWE-ReX、Container Use 的可选 Runner 候选记录。上游仅使用固定 commit/许可证参考，无新增 SDK 或运行时依赖；删除任一可选平台不影响 Native 闭环。
+- 新增 SPDX 2.3 SBOM、来源/候选引用清单、版本一致性审计、相对 v0.7.0 的历史凭据扫描、跨 AI takeover、干净克隆 cold start 和精确注释标签 release smoke。
+- 将 Factory、能力包、Python 项目、Codex/Claude 插件统一升级到 `0.8.0` 并标记 `STABLE`。保留 v0.2–v0.7 实例的显式、可恢复升级路径。
 
-开发树的 release 版本仍保持 `0.7.0`，`factory-package.status=DEVELOPMENT`。发布 v0.8 时必须在 Gate D 内统一升级所有版本元数据、恢复 `STABLE`、完成发布烟雾测试并生成不可移动标签。
+限制：v0.8 是 L1 参考实现，不是分布式多租户平台。仓库不携带模型/GitHub 凭据，不安装 OpenClaw/OpenHands，不将本机 Host Runner 声称为安全沙箱，不提供自动 merge 或生产 deploy。真实采用必须在专用 Private 测试项目逐项开启身份、Runner、模型和 SCM 端口。
+
+回退：`v0.8.0` 标签不移动。Factory 修复走新补丁版；普通实例使用升级前外部恢复包与当前救援包回滚。回退前必须停止 writer、备份 SQLite、验证审计链并对账已发生的 Issue/PR；不能用旧批准或手工改锁绕过 v0.8 权限。
 
 ## 0.7.0 — 2026-08-10
 

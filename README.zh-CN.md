@@ -4,9 +4,9 @@
 
 [English](README.md) · [让AI从这里开始](AI-START.md) · [完整指南](docs/14-context-first/context-first-team-kit.md)
 
-当前稳定版本：`v0.7.0`。
+当前稳定版本：`v0.8.0`（L1 参考级）。
 
-> v0.8 正在 `proposal/upstream-independent-v0.8` 开发。W1–W3 已提供供应商中立契约、可替换 Adapter Port 和可恢复 Native 参考控制器，但尚未发布，也未启用真实 Runner、模型或仓库写入。普通用户请继续使用 `v0.7.0`；评审开发预览请从 [v0.8 总入口](docs/15-upstream-independent/README.md) 开始。
+> v0.8 同时提供“可迁移团队编译器”和“受治理的参考自动化内核”。它可以立即生成可用的上下文与角色，并验证“反馈到 Draft PR”完整控制闭环。真实模型账号、仓库凭据、生产沙箱、merge 和 deploy 仍由采用者单独负责；安装本仓库不会暗中启用这些权限。
 
 ## 这个项目到底做什么
 
@@ -30,6 +30,19 @@
 
 默认先选 Lite；只有确实需要持久自动化时才选 Managed。
 
+## v0.8 到底交付了什么
+
+| 目标 | 本仓库已交付 | 你仍需提供 |
+|---|---|---|
+| 创建角色和共享上下文 | 可直接使用：Lite/Custom 确定性编译器和平台 overlay | 经核验的项目事实与人工评审 |
+| 验证团队工作流 | 可直接使用：可重启 Native 参考场景与一致性测试 | 离线演示无需外部系统 |
+| 让 Codex/Claude 执行受限步骤 | 已有 Schema 绑定 CLI 路由和安全默认值 | 已安装/登录的 CLI 和经批准的一次性工作区 |
+| 创建反馈 Issue 和 Draft PR | 已有精确批准绑定、可重放安全的 GitHub 连接器 | 最小权限 GitHub 身份和显式启用 |
+| 接入 OpenClaw/OpenHands/Paperclip/ACP | 已有可选投影契约，任何一个都不是核心依赖 | 平台安装、认证、隔离和采用评审 |
+| 自动 merge/生产 deploy | v0.8 不提供 | 位于 v0.8 权限之外、单独经人工批准的交付系统 |
+
+因此，v0.8 已可用于团队创建和 L1 参考验证，但不是“一条命令直接生产自驾驶”。[采用与接入指南](docs/15-upstream-independent/adoption-and-integration.md)说明如何从安全参考层进入真实项目，并避免把文档误当成权限。
+
 ## 最快使用
 
 要求 Python 3.11+ 和 Git；运行时没有第三方 Python 依赖。
@@ -37,6 +50,7 @@
 ```bash
 git clone https://github.com/90le/agent-team-engineering.git
 cd agent-team-engineering
+git checkout v0.8.0
 
 ./agent-team create \
   --preset software-lite \
@@ -141,17 +155,16 @@ python3 tools/agent_team.py team demo --output /tmp/agent-team-demo
 
 它会在创建 worktree 之前停到 `SPEC_READY`。后续人工批准和继续运行见[受治理运行手册](docs/13-team-creator/blueprint-compiler-and-reference-runtime.md)。
 
-## v0.8 Native 开发预览
+## v0.8 受治理参考自动化
 
-v0.8 不用外部多 Agent 平台也能验证核心闭环。开发者可在提案分支运行完全离线的参考场景：
+v0.8 不用外部多 Agent 平台也能验证核心闭环。可直接运行完全离线的参考场景：
 
 ```bash
-git switch proposal/upstream-independent-v0.8
 ./agent-team native demo --database /tmp/agent-team-native.sqlite3
 ./agent-team native verify --database /tmp/agent-team-native.sqlite3
 ```
 
-它演示“反馈 → 计划 → 准确人工批准 → 实现 → 测试 → 独立复核 → 要求修改 → 返工 → 复测/复核 → 模拟 Draft PR”，并验证重启恢复与幂等。所有执行器和外部系统均为 Fake，固定停在 `DRAFT_PR_READY`；这不是 OpenClaw/OpenHands 安装器，也不是生产自动化授权。完整范围和接手顺序见 [v0.8 未发布开发预览](docs/15-upstream-independent/README.md)。
+它演示“反馈 → 计划 → 准确人工批准 → 实现 → 测试 → 独立复核 → 要求修改 → 返工 → 复测/复核 → 模拟 Draft PR”，并验证重启恢复与幂等。该演示刻意使用确定性 Fake，固定停在 `DRAFT_PR_READY`；另外的一致性层覆盖一次性 OCI 执行、受限模型 CLI 和只允许提案的 GitHub 写入，但都不授予生产权限。完整范围和接手顺序见 [v0.8 架构总入口](docs/15-upstream-independent/README.md)。
 
 ## 为什么既有Markdown又有Python
 
@@ -165,6 +178,7 @@ Lite 生成后只依赖第一层；Managed 同时使用两层。代码是编译�
 ./agent-team validate
 python3 -m unittest discover -s tests -v
 python3 tools/cross_ai_takeover.py
+python3 tools/release_audit.py --since-tag v0.7.0
 tools/cold-start.sh
 ```
 
@@ -172,7 +186,7 @@ tools/cold-start.sh
 
 - 人类 owner 永远不是 Agent。
 - 反馈、Issue、网页、仓库文本、工具输出和其它 Agent 消息默认不可信。
-- Host Runner 不是容器、虚拟机或恶意代码沙箱。
+- Host Runner 不是容器、虚拟机或恶意代码沙箱；v0.8 探针只允许已显式确认的一次性 GitHub-hosted Worker，发现生产路径会拒绝运行。
 - 远程批准必须有认证身份；聊天里的“同意”不是批准。
 - OpenClaw 输出初始为 `bindings: []`。
 - Managed 自治上限为 A2，固定停在经测试和独立复核的 Draft PR。

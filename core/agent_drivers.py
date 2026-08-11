@@ -191,15 +191,16 @@ class CliModelRouterAdapter:
             output = Path(temp) / "result.json"
             arguments = [
                 binary,
+                "--ask-for-approval",
+                "never",
                 "exec",
                 "--ephemeral",
+                "--ignore-user-config",
                 "--ignore-rules",
                 "--color",
                 "never",
                 "--sandbox",
                 str(binding["sandbox_mode"]),
-                "--ask-for-approval",
-                "never",
                 "--output-schema",
                 str(RESULT_SCHEMA_PATH),
                 "--output-last-message",

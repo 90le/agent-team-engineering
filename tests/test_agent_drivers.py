@@ -101,7 +101,9 @@ class CliModelRouterTests(unittest.TestCase):
             self.assertEqual(envelope["status"], "SUCCEEDED")
             arguments = calls[0]
             self.assertIn("--output-schema", arguments)
+            self.assertIn("--ignore-user-config", arguments)
             self.assertIn("--ignore-rules", arguments)
+            self.assertLess(arguments.index("--ask-for-approval"), arguments.index("exec"))
             self.assertEqual(arguments[arguments.index("--sandbox") + 1], "read-only")
             self.assertEqual(arguments[arguments.index("--ask-for-approval") + 1], "never")
             self.assertNotIn("--dangerously-bypass-approvals-and-sandbox", arguments)
@@ -135,6 +137,7 @@ class CliModelRouterTests(unittest.TestCase):
             )
             adapter.execute(request(work), CONTEXT)
             arguments = calls[0]
+            self.assertLess(arguments.index("--ask-for-approval"), arguments.index("exec"))
             self.assertEqual(arguments[arguments.index("--sandbox") + 1], "workspace-write")
             self.assertEqual(arguments[arguments.index("--ask-for-approval") + 1], "never")
             self.assertNotIn("--dangerously-bypass-approvals-and-sandbox", arguments)
