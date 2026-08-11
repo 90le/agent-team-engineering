@@ -1,0 +1,45 @@
+name: Disposable Runner Conformance
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/disposable-runner.yml"
+      - "adapters/native-oci/**"
+      - "contracts/runner-candidates.json"
+      - "core/isolation.py"
+      - "core/runner_conformance.py"
+      - "schemas/execution-request.schema.json"
+      - "schemas/runner-conformance-report.schema.json"
+      - "schemas/sandbox-profile.schema.json"
+      - "tools/disposable_runner_probe.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: disposable-runner-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  conformance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      AGENT_TEAM_DISPOSABLE_ACK: I_UNDERSTAND_THIS_RUNNER_IS_DISPOSABLE
+      RUNNER_ENVIRONMENT: ${{ runner.environment }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Run three isolated conformance trials
+        run: python3 tools/disposable_runner_probe.py --output artifacts/runner-conformance.json
+      - name: Upload sanitized evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: runner-conformance-${{ github.run_attempt }}
+          path: artifacts/runner-conformance.json
+          if-no-files-found: error
+          retention-days: 14

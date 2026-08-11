@@ -35,6 +35,12 @@
       "actions": ["open_pr"]
     },
     {
+      "operation": "runner.execute",
+      "capability": "sandbox.execute",
+      "event_kind": "workflow.transition",
+      "actions": ["open_pr"]
+    },
+    {
       "operation": "feedback.notify",
       "capability": "feedback.notify",
       "event_kind": "work.created",

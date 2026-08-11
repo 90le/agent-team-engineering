@@ -1,0 +1,58 @@
+{
+  "schema_version": "1.0.0",
+  "selection_policy": {
+    "minimum_runs": 3,
+    "minimum_score": 80,
+    "hard_gate_required": true,
+    "production_host_execution_forbidden": true
+  },
+  "candidates": [
+    {
+      "candidate_id": "runner.native-oci",
+      "adapter_id": "adapter.native-oci",
+      "status": "REFERENCE",
+      "upstream": null,
+      "runtime_dependency": false,
+      "evaluation_mode": "DISPOSABLE_WORKER_CONFORMANCE",
+      "decision_before_external_evidence": "PENDING",
+      "limitations": [
+        "A container is not a universal hostile-code boundary; the entire worker must be disposable.",
+        "The worker-side container engine is trusted infrastructure and is never mounted into the sandbox."
+      ]
+    },
+    {
+      "candidate_id": "runner.swe-rex",
+      "adapter_id": "adapter.swe-rex",
+      "status": "EXPERIMENTAL",
+      "upstream": {
+        "repository": "https://github.com/SWE-agent/SWE-ReX",
+        "revision": "5c995c365dfb1fd5bc56fda688be5d8538f9931f",
+        "license": "MIT"
+      },
+      "runtime_dependency": false,
+      "evaluation_mode": "CONTRACT_AND_DEDICATED_WORKER_REQUIRED",
+      "decision_before_external_evidence": "NO_GO",
+      "limitations": [
+        "The upstream local runtime is host execution and is forbidden for untrusted work.",
+        "A deployment adapter must independently enforce network, resource, mount and cleanup policy before this candidate can become eligible."
+      ]
+    },
+    {
+      "candidate_id": "runner.container-use",
+      "adapter_id": "adapter.container-use",
+      "status": "EXPERIMENTAL",
+      "upstream": {
+        "repository": "https://github.com/dagger/container-use",
+        "revision": "8901a77bd80fbd0e3a867e4ac44aabf89588f377",
+        "license": "Apache-2.0"
+      },
+      "runtime_dependency": false,
+      "evaluation_mode": "CONTRACT_AND_DEDICATED_WORKER_REQUIRED",
+      "decision_before_external_evidence": "NO_GO",
+      "limitations": [
+        "The pinned upstream revision describes itself as experimental.",
+        "The exposed MCP workflow does not by itself prove the Factory resource, network and credential hard gates."
+      ]
+    }
+  ]
+}
