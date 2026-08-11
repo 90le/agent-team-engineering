@@ -29,9 +29,6 @@ jobs:
   proposal-only:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    env:
-      RUNNER_ENVIRONMENT: ${{ runner.environment }}
-      APPROVED_PLAN_DIGEST: ${{ inputs.approved_plan_digest }}
     steps:
       - name: Checkout dedicated evidence repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -50,6 +47,8 @@ jobs:
           python-version: "3.12"
       - name: Verify exact approval and reconcile proposal-only objects
         env:
+          RUNNER_ENVIRONMENT: ${{ runner.environment }}
+          APPROVED_PLAN_DIGEST: ${{ inputs.approved_plan_digest }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           python3 framework/tools/github_scm_conformance.py \
