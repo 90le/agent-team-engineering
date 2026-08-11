@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:github-scm-conformance-report:1.0.0",
+  "title": "Sanitized GitHub SCM conformance report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "repository", "framework_commit", "plan_digest", "approval_scope_digest", "actor_id", "issue", "branch", "commit", "draft_pull_request", "merge_performed", "deployment_performed"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "repository": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"},
+    "framework_commit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "plan_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "approval_scope_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "actor_id": {"type": "string", "pattern": "^github:[0-9]+$"},
+    "issue": {"type": "object"},
+    "branch": {"type": "object"},
+    "commit": {"type": "object"},
+    "draft_pull_request": {"type": "object"},
+    "merge_performed": {"const": false},
+    "deployment_performed": {"const": false}
+  }
+}

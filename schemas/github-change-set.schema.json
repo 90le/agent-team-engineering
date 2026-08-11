@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:github-change-set:1.0.0",
+  "title": "Bound GitHub proposal change set",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "repository", "repository_id", "work_item_id", "base_branch", "proposal_branch", "file_path", "file_content", "issue_title", "issue_body", "commit_message", "pull_request_title", "pull_request_body", "idempotency_marker"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "repository": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", "maxLength": 200},
+    "repository_id": {"type": "string", "pattern": "^repo\\.[a-z0-9][a-z0-9.-]*$"},
+    "work_item_id": {"type": "string", "pattern": "^work-[a-z0-9][a-z0-9-]*$"},
+    "base_branch": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$", "maxLength": 200},
+    "proposal_branch": {"type": "string", "pattern": "^agent-team/[a-z0-9][a-z0-9._/-]*$", "maxLength": 200},
+    "file_path": {"type": "string", "minLength": 1, "maxLength": 500},
+    "file_content": {"type": "string", "minLength": 1, "maxLength": 100000},
+    "issue_title": {"type": "string", "minLength": 1, "maxLength": 200},
+    "issue_body": {"type": "string", "maxLength": 10000},
+    "commit_message": {"type": "string", "minLength": 1, "maxLength": 200},
+    "pull_request_title": {"type": "string", "minLength": 1, "maxLength": 200},
+    "pull_request_body": {"type": "string", "maxLength": 10000},
+    "idempotency_marker": {"type": "string", "pattern": "^agent-team:[a-f0-9]{64}$"}
+  }
+}
