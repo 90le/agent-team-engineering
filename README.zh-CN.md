@@ -6,6 +6,8 @@
 
 当前稳定版本：`v0.7.0`。
 
+> v0.8 正在 `proposal/upstream-independent-v0.8` 开发。W1–W3 已提供供应商中立契约、可替换 Adapter Port 和可恢复 Native 参考控制器，但尚未发布，也未启用真实 Runner、模型或仓库写入。普通用户请继续使用 `v0.7.0`；评审开发预览请从 [v0.8 总入口](docs/15-upstream-independent/README.md) 开始。
+
 ## 这个项目到底做什么
 
 你提供项目名、仓库、目标平台和团队预设，它会在一个全新目录中生成：
@@ -138,6 +140,18 @@ python3 tools/agent_team.py team demo --output /tmp/agent-team-demo
 ```
 
 它会在创建 worktree 之前停到 `SPEC_READY`。后续人工批准和继续运行见[受治理运行手册](docs/13-team-creator/blueprint-compiler-and-reference-runtime.md)。
+
+## v0.8 Native 开发预览
+
+v0.8 不用外部多 Agent 平台也能验证核心闭环。开发者可在提案分支运行完全离线的参考场景：
+
+```bash
+git switch proposal/upstream-independent-v0.8
+./agent-team native demo --database /tmp/agent-team-native.sqlite3
+./agent-team native verify --database /tmp/agent-team-native.sqlite3
+```
+
+它演示“反馈 → 计划 → 准确人工批准 → 实现 → 测试 → 独立复核 → 要求修改 → 返工 → 复测/复核 → 模拟 Draft PR”，并验证重启恢复与幂等。所有执行器和外部系统均为 Fake，固定停在 `DRAFT_PR_READY`；这不是 OpenClaw/OpenHands 安装器，也不是生产自动化授权。完整范围和接手顺序见 [v0.8 未发布开发预览](docs/15-upstream-independent/README.md)。
 
 ## 为什么既有Markdown又有Python
 

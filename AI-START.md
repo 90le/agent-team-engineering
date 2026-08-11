@@ -15,6 +15,12 @@ Given a project, a team preset, and one or more target platforms, it creates a n
 
 It does not create credentials, authenticate approvals, connect channels, merge code, or deploy production.
 
+## Release selection
+
+For ordinary team creation, use the latest stable tag (`v0.7.0`) and the Lite, Managed, or Custom instructions below. Do not silently switch a user to a development branch.
+
+Only when the user explicitly asks to inspect or develop the unreleased vendor-neutral core, switch to `proposal/upstream-independent-v0.8`, read `docs/15-upstream-independent/README.md`, and run its no-network Native checks. That preview uses deterministic fakes, stops at `DRAFT_PR_READY`, and grants no authority for a dedicated runner, live model, provider account, SCM write, merge, deployment, or release.
+
 ## If an AI is reading this for a user
 
 1. Inspect the target project read-only. Do not modify it yet.

@@ -83,7 +83,7 @@ Run the no-network reference scenario into a new local database:
   --output /tmp/agent-team-native.backup.sqlite3
 ```
 
-`demo` performs no network request, model invocation, process execution, untrusted code execution, or real SCM write. Its Draft PR and identity are deterministic fakes. Do not point this reference database at production data or treat it as Gate B/C evidence.
+`demo` performs no network request, model invocation, process execution, untrusted code execution, or real SCM write. Its Draft PR, identity and fixture clock are deterministic fakes, so invoking the CLI again against the same intact database replays the same commands without new events or effects. Do not point this reference database at production data or treat it as Gate B/C evidence.
 
 Run focused acceptance:
 

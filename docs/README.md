@@ -19,4 +19,5 @@
 - [v0.8自有核心契约与v0.7迁移](15-upstream-independent/core-contracts-and-migration.md)
 - [v0.8可替换Adapter Port SDK](15-upstream-independent/adapter-port-sdk.md)
 - [v0.8 Native Controller、恢复与一致性验收](15-upstream-independent/native-controller-and-conformance.md)
+- [v0.8未发布开发预览总入口](15-upstream-independent/README.md)
 - [架构决策](adr/README.md)

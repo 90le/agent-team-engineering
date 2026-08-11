@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -29,6 +27,13 @@ from core.native_controller import NativeController
 ROOT = Path(__file__).resolve().parents[1]
 REFERENCE_WORKFLOW = ROOT / "contracts/native-reference-workflow.json"
 REFERENCE_DESCRIPTOR = ROOT / "examples/v08-contracts/valid/adapter-descriptor.json"
+REFERENCE_EPOCH = 1_786_425_600.0
+
+
+def _reference_clock() -> float:
+    """Return a stable fixture time so the CLI scenario is replayable across processes."""
+
+    return REFERENCE_EPOCH
 
 
 def _iso(epoch: float) -> str:
@@ -46,7 +51,7 @@ def load_reference_workflow() -> dict[str, Any]:
 
 def build_native_mock_ports(
     *,
-    clock: Callable[[], float] = time.time,
+    clock: Callable[[], float] = _reference_clock,
 ) -> tuple[PortRegistry, dict[str, DeterministicFakePort]]:
     descriptor = loads_strict(REFERENCE_DESCRIPTOR.read_text(encoding="utf-8"))
     if not isinstance(descriptor, dict):
@@ -317,7 +322,7 @@ def _effect(
 def run_native_reference_scenario(
     database: Path,
     *,
-    clock: Callable[[], float] = time.time,
+    clock: Callable[[], float] = _reference_clock,
 ) -> dict[str, Any]:
     """Run the deterministic fake scenario and stop at DRAFT_PR_READY."""
 

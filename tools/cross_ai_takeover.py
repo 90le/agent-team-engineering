@@ -305,6 +305,68 @@ def run_takeover_acceptance() -> dict[str, Any]:
         if replay_report.get("audit", {}).get("events") != team_report["audit"]["events"]:
             raise TakeoverAcceptanceError("reference team replay created a new side effect")
 
+        native_database = workspace / "native-reference.sqlite3"
+        native_first = _run(
+            sys.executable,
+            str(ROOT / "tools" / "agent_team.py"),
+            "native",
+            "demo",
+            "--database",
+            str(native_database),
+        )
+        native_first_report = loads_strict(native_first.stdout)
+        native_safety = native_first_report.get("safety", {})
+        if (
+            native_first_report.get("status") != "REFERENCE_SCENARIO_PASSED"
+            or native_first_report.get("work_item", {}).get("state") != "DRAFT_PR_READY"
+            or native_first_report.get("invariants", {}).get("status") != "VALID"
+            or native_safety.get("stopped_at") != "DRAFT_PR_READY"
+            or any(
+                native_safety.get(field) is not False
+                for field in (
+                    "external_network_used",
+                    "untrusted_code_executed",
+                    "real_scm_write_used",
+                    "merge_enabled",
+                    "deploy_enabled",
+                )
+            )
+        ):
+            raise TakeoverAcceptanceError(
+                "Native reference did not reach the closed-gate Draft PR stop"
+            )
+        native_verification = loads_strict(
+            _run(
+                sys.executable,
+                str(ROOT / "tools" / "agent_team.py"),
+                "native",
+                "verify",
+                "--database",
+                str(native_database),
+            ).stdout
+        )
+        if native_verification.get("status") != "VALID":
+            raise TakeoverAcceptanceError("Native reference invariants did not verify")
+        native_second_report = loads_strict(
+            _run(
+                sys.executable,
+                str(ROOT / "tools" / "agent_team.py"),
+                "native",
+                "demo",
+                "--database",
+                str(native_database),
+            ).stdout
+        )
+        if (
+            native_second_report.get("work_item") != native_first_report.get("work_item")
+            or native_second_report.get("run") != native_first_report.get("run")
+            or native_second_report.get("invariants", {}).get("audit", {}).get("events")
+            != native_first_report.get("invariants", {}).get("audit", {}).get("events")
+            or native_second_report.get("invariants", {}).get("effects")
+            != native_first_report.get("invariants", {}).get("effects")
+        ):
+            raise TakeoverAcceptanceError("Native reference replay created duplicate state")
+
     return {
         "schema_version": "1.0.0",
         "status": "PASS",
@@ -326,6 +388,18 @@ def run_takeover_acceptance() -> dict[str, Any]:
             "independent_reviewer": author != reviewer,
             "replay_events_unchanged": True,
             "synthetic_local_approval": True,
+        },
+        "native_reference": {
+            "final_state": native_first_report["work_item"]["state"],
+            "invariants": native_verification["status"],
+            "effects": native_first_report["invariants"]["effects"],
+            "events": native_first_report["invariants"]["audit"]["events"],
+            "replay_unchanged": True,
+            "external_network_used": False,
+            "untrusted_code_executed": False,
+            "real_scm_write_used": False,
+            "merge_enabled": False,
+            "deploy_enabled": False,
         },
     }
 

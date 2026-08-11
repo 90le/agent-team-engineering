@@ -170,6 +170,20 @@ class FactoryCliTests(unittest.TestCase):
             self.assertFalse(report["safety"]["external_network_used"])
             self.assertFalse(report["safety"]["real_scm_write_used"])
 
+            replayed = run_root_cli("native", "demo", "--database", str(database))
+            self.assertEqual(replayed.returncode, 0, replayed.stderr)
+            replay_report = json.loads(replayed.stdout)
+            self.assertEqual(replay_report["work_item"], report["work_item"])
+            self.assertEqual(replay_report["run"], report["run"])
+            self.assertEqual(
+                replay_report["invariants"]["audit"]["events"],
+                report["invariants"]["audit"]["events"],
+            )
+            self.assertEqual(
+                replay_report["invariants"]["effects"],
+                report["invariants"]["effects"],
+            )
+
             verified = run_root_cli("native", "verify", "--database", str(database))
             self.assertEqual(verified.returncode, 0, verified.stderr)
             self.assertEqual(json.loads(verified.stdout)["status"], "VALID")

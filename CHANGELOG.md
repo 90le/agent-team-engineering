@@ -2,6 +2,19 @@
 
 本项目遵循语义化版本。版本标签只在仓库验证、测试、Skill校验和空目录冷启动全部通过后创建；已发布标签不移动。
 
+## Unreleased — v0.8 W1–W3 development snapshot
+
+当前仅存在于 `proposal/upstream-independent-v0.8`，不构成版本发布或生产能力声明：
+
+- 接受 ADR-0009，明确 Markdown/JSON/Git 的上下文权威、Native 控制器的确定性状态权威，以及十类可替换外部端口；任何可选上游平台都不能成为唯一核心。
+- 新增严格、供应商中立的 TeamSpec、RoleContract、WorkflowSpec、WorkItem v2、PlanRevision、ApprovalGrant、Run、EvidenceBundle、AdapterDescriptor 和命令/事件契约，以及规范摘要、负例和 v0.7 单向导入规则；旧批准不会迁移。
+- 新增显式 Adapter Port SDK、能力/版本协商、健康/取消/截止时间/幂等语义和确定性 Fake；描述符不能触发动态代码加载，异常与未知副作用安全停止。
+- 新增 SQLite Native 参考控制器，覆盖 optimistic revision、准确批准和身份绑定、全局单次 nonce、Worker 租约、事务 outbox、retry-after、预算/时间、内容寻址证据、哈希链审计、备份、重启和孤儿恢复。
+- 新增无网络反馈到 Draft PR 场景：实现、测试、独立复核、changes-requested、返工、复测和复核后停止；完整重放不重复事件或 effect。
+- 增加跨 AI 接手路径、机器一致性配置和崩溃矩阵。Gate B 专用 Runner、Gate C 真实外部写入以及 Gate D 合并/版本/标签/Release 均未获得授权。
+
+开发树的 release 版本仍保持 `0.7.0`，`factory-package.status=DEVELOPMENT`。发布 v0.8 时必须在 Gate D 内统一升级所有版本元数据、恢复 `STABLE`、完成发布烟雾测试并生成不可移动标签。
+
 ## 0.7.0 — 2026-08-10
 
 Agent Team Factory 的“上下文优先、普通用户可创建团队”版本：

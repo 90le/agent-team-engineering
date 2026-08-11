@@ -12,6 +12,11 @@ git clone --quiet "file://$repo_root" "$temp_root/agent-team-engineering"
 cd "$temp_root/agent-team-engineering"
 python3 tools/agent_team.py validate
 test "$(./agent-team --version)" = "$(tr -d '\r\n' < VERSION)"
+./agent-team native contract-validate \
+  --contract team_spec \
+  --file examples/v08-contracts/valid/team-spec.json >/dev/null
+./agent-team native demo --database "$temp_root/native.sqlite3" >/dev/null
+./agent-team native verify --database "$temp_root/native.sqlite3" >/dev/null
 ./agent-team presets >/dev/null
 ./agent-team create \
   --design examples/context-first/team-design.json \

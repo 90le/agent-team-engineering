@@ -10,6 +10,8 @@ Create a portable, context-first AI team for Codex, Claude, OpenClaw, or any fil
 
 Current stable release: `v0.7.0`.
 
+> v0.8 is under development on `proposal/upstream-independent-v0.8`. W1–W3 provide vendor-neutral contracts, replaceable Adapter Ports, and a recoverable Native reference controller, but this is not a release and enables no real runner, model, or repository write. Regular users should stay on `v0.7.0`; reviewers should begin with the [v0.8 preview entrypoint](docs/15-upstream-independent/README.md).
+
 ## What you get
 
 Give the Factory a project name, repository, platform, and team preset. It creates a separate, validated package with:
@@ -157,6 +159,18 @@ python3 tools/agent_team.py team demo --output /tmp/agent-team-demo
 ```
 
 It stops at `SPEC_READY` before creating a worktree. The complete approval and continuation procedure is in the [governed runtime guide](docs/13-team-creator/blueprint-compiler-and-reference-runtime.md).
+
+## v0.8 Native development preview
+
+v0.8 can exercise the core loop without adopting an external multi-agent platform. On the proposal branch, developers can run the fully offline reference scenario:
+
+```bash
+git switch proposal/upstream-independent-v0.8
+./agent-team native demo --database /tmp/agent-team-native.sqlite3
+./agent-team native verify --database /tmp/agent-team-native.sqlite3
+```
+
+It demonstrates feedback, exact plan approval, implementation, tests, independent review, a requested-changes round, rework, and a simulated Draft PR, including restart recovery and idempotent replay. Every executor and external system is a fake, and the workflow stops at `DRAFT_PR_READY`; this is neither an OpenClaw/OpenHands installer nor production-automation authority. See the [unreleased v0.8 entrypoint](docs/15-upstream-independent/README.md) for scope and takeover order.
 
 ## Platform support
 

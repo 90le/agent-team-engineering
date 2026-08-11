@@ -16,7 +16,12 @@
     "docs/03-security/threat-model.md",
     "docs/08-factory/instance-lifecycle.md",
     "docs/11-lifecycle/installation-upgrade-and-adoption.md",
-    "docs/13-team-creator/blueprint-compiler-and-reference-runtime.md"
+    "docs/13-team-creator/blueprint-compiler-and-reference-runtime.md",
+    "docs/15-upstream-independent/README.md",
+    "docs/15-upstream-independent/core-contracts-and-migration.md",
+    "docs/15-upstream-independent/adapter-port-sdk.md",
+    "docs/15-upstream-independent/native-controller-and-conformance.md",
+    "docs/adr/ADR-0009-vendor-neutral-core-and-replaceable-ports.md"
   ],
   "context_roles": [
     "public-intake",
@@ -40,7 +45,11 @@
     "team.compiles-all-platforms",
     "team.stops-before-human-approval",
     "team.reference-loop-reaches-reviewed-draft-pr",
-    "team.replay-has-no-new-side-effects"
+    "team.replay-has-no-new-side-effects",
+    "native.contracts-discoverable",
+    "native.reference-loop-reaches-draft-pr",
+    "native.replay-has-no-new-side-effects",
+    "native.external-gates-remain-closed"
   ],
   "human_replay_required": true
 }
