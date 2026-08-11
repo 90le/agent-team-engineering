@@ -21,7 +21,12 @@
     "docs/15-upstream-independent/core-contracts-and-migration.md",
     "docs/15-upstream-independent/adapter-port-sdk.md",
     "docs/15-upstream-independent/native-controller-and-conformance.md",
-    "docs/adr/ADR-0009-vendor-neutral-core-and-replaceable-ports.md"
+    "docs/17-guided-adoption/README.md",
+    "docs/17-guided-adoption/conversation-protocol.md",
+    "docs/17-guided-adoption/plan-contract.md",
+    "docs/adr/ADR-0009-vendor-neutral-core-and-replaceable-ports.md",
+    "docs/adr/ADR-0010-scenario-first-guided-adoption.md",
+    "AI-START.md"
   ],
   "context_roles": [
     "public-intake",
@@ -39,6 +44,12 @@
     "role-contexts.hash-bound",
     "instance.generated-and-diagnosed",
     "target-repository.unchanged",
+    "guided-adoption.inspects-before-planning",
+    "guided-adoption.preview-precedes-confirmation",
+    "guided-adoption.unconfirmed-apply-refused",
+    "guided-adoption.confirmation-is-digest-bound",
+    "guided-adoption.generated-team-is-valid",
+    "guided-adoption.human-and-ai-starts-exist",
     "adoption.proposal-verified",
     "candidate.remains-proposal-only",
     "external-integrations.remain-disabled",

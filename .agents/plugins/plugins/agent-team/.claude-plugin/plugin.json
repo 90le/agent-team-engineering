@@ -1,8 +1,8 @@
 {
   "name": "agent-team",
   "displayName": "Agent Team Engineering",
-  "version": "0.8.0",
-  "description": "Create portable context-first AI teams with optional governed automation.",
+  "version": "0.8.1",
+  "description": "Guide a goal into a previewed, confirmed, portable AI team.",
   "author": {
     "name": "90le",
     "url": "https://github.com/90le"

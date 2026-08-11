@@ -1,4 +1,4 @@
 interface:
   display_name: "Bootstrap Agent Team"
-  short_description: "Create a portable context-first AI team"
-  default_prompt: "Use $bootstrap-agent-team to create a governed AI team for this project."
+  short_description: "Guide me from my goal to a confirmed AI team"
+  default_prompt: "Use $bootstrap-agent-team to inspect my project read-only, ask only high-impact questions, recommend a team in plain language, show me the exact plan, wait for confirmation, then create and validate it without enabling external integrations."

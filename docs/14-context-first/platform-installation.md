@@ -7,20 +7,20 @@ The repository is usable without installing a plugin: clone it, run `./agent-tea
 ```bash
 git clone https://github.com/90le/agent-team-engineering.git
 cd agent-team-engineering
-./agent-team presets
+./agent-team onboard --help
 ```
 
 Use a release tag for reproducible adoption:
 
 ```bash
-git checkout v0.8.0
+git checkout v0.8.1
 ```
 
 ## Give the repository to any AI
 
 Use this prompt:
 
-> Clone or open `https://github.com/90le/agent-team-engineering`, read `AI-START.md`, inspect my project read-only, recommend Lite, Managed, or Custom, then create the team in a new directory and validate it. Do not enable external writes, credentials, merge, or deployment.
+> Clone or open `https://github.com/90le/agent-team-engineering` at release `v0.8.1`, read `AI-START.md`, inspect my project read-only, ask at most three high-impact questions at a time, recommend a team in plain language, show the exact plan and wait for confirmation, then create and validate it. Do not enable external writes, credentials, merge, or deployment.
 
 An AI that can read files and run Python 3.11 needs no vendor-specific plugin.
 
@@ -35,7 +35,7 @@ codex plugin add agent-team@agent-team-engineering
 
 Start a new Codex thread, then ask:
 
-> Use `$bootstrap-agent-team` to create a context-first team for this project.
+> Use `$bootstrap-agent-team` to inspect this project read-only, ask only high-impact questions, recommend a team in plain language, show me the exact plan, wait for confirmation, then create and validate it without enabling external integrations.
 
 The plugin contains only a Skill and metadata. It has no MCP server, credential, hook, or background process.
 
@@ -48,7 +48,7 @@ claude plugin marketplace add 90le/agent-team-engineering
 claude plugin install agent-team@agent-team-engineering
 ```
 
-Then invoke the installed `bootstrap-agent-team` Skill or ask Claude to create a context-first team for the current project. Marketplace installation copies the plugin into Claude's cache, so the bundle is self-contained and does not reference files outside its plugin root.
+Then invoke the installed `bootstrap-agent-team` Skill or ask Claude to guide you from the desired outcome to a confirmed team proposal. Marketplace installation copies the plugin into Claude's cache, so the bundle is self-contained and does not reference files outside its plugin root.
 
 ## OpenClaw bundle
 

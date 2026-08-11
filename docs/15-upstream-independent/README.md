@@ -1,6 +1,6 @@
 # v0.8 供应商中立核心
 
-状态：`v0.8.0` 的 L1 参考实现。它是可发布、可安装、可验证的 Factory 核心，不是已经连接账号和生产仓库的无人值守开发公司。
+状态：核心由 `v0.8.0` 引入，并由当前稳定版 `v0.8.1` 完整保留。它是可发布、可安装、可验证的 Factory 核心，不是已经连接账号和生产仓库的无人值守开发公司。
 
 本章是维护者和无历史聊天 AI 接手 v0.8 的最短入口。核心资产由 Markdown/JSON/Git、严格契约和 Native Controller 组成；OpenClaw、OpenHands、Paperclip、Codex、Claude、GitHub 和 Runner 都在可替换边界之外。
 
@@ -30,7 +30,7 @@
 要求 Python 3.11+ 和 Git，无第三方 Python 运行依赖：
 
 ```bash
-git checkout v0.8.0
+git checkout v0.8.1
 
 ./agent-team native contract-validate \
   --contract team_spec \
@@ -48,7 +48,7 @@ git checkout v0.8.0
 ```bash
 python3 tools/agent_team.py validate
 python3 -m unittest discover -s tests -v
-python3 tools/release_audit.py --since-tag v0.7.0
+python3 tools/release_audit.py --since-tag v0.8.0
 tools/cold-start.sh
 tools/release-smoke.sh
 ```

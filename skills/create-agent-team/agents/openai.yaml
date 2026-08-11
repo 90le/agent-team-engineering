@@ -1,4 +1,4 @@
 interface:
   display_name: "Create Agent Team"
-  short_description: "Create portable context-first AI teams"
-  default_prompt: "Use $create-agent-team to create and validate a context-first AI team for this project."
+  short_description: "Guide a goal into a confirmed portable AI team"
+  default_prompt: "Use $create-agent-team to inspect this project read-only, ask only high-impact questions, recommend a team in plain language, preview the exact plan, wait for confirmation, then create and validate it without enabling external integrations."

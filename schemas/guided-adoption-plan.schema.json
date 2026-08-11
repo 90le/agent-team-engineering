@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:guided-adoption-plan:1.0.0",
+  "title": "Scenario-first Agent Team adoption plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "schema_version", "plan_id", "state", "proposal", "proposal_digest", "confirmation"],
+  "properties": {
+    "$schema": {"const": "urn:agent-team:schema:guided-adoption-plan:1.0.0"},
+    "schema_version": {"const": "1.0.0"},
+    "plan_id": {"type": "string", "pattern": "^adoption-plan-[a-f0-9]{32}$"},
+    "state": {"enum": ["DRAFT", "CONFIRMED"]},
+    "proposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["discovery", "intent", "recommendation", "team", "effects", "unknowns"],
+      "properties": {
+        "discovery": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source_path", "source_commit", "source_dirty", "current_branch", "technologies", "ai_entrypoints", "github_workflows", "has_tests", "has_architecture_docs"],
+          "properties": {
+            "source_path": {"type": "string", "minLength": 1, "maxLength": 4096},
+            "source_commit": {"type": ["string", "null"], "pattern": "^[a-f0-9]{40}$"},
+            "source_dirty": {"type": ["boolean", "null"]},
+            "current_branch": {"type": ["string", "null"], "maxLength": 200},
+            "technologies": {"type": "array", "maxItems": 30, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 100}},
+            "ai_entrypoints": {"type": "array", "maxItems": 30, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 300}},
+            "github_workflows": {"type": "array", "maxItems": 100, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 300}},
+            "has_tests": {"type": "boolean"},
+            "has_architecture_docs": {"type": "boolean"}
+          }
+        },
+        "intent": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["purpose", "goals", "automation", "platforms", "custom_roles"],
+          "properties": {
+            "purpose": {"enum": ["software", "research-knowledge", "content", "operations", "custom"]},
+            "goals": {"type": "array", "minItems": 1, "maxItems": 10, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 1000}},
+            "automation": {"enum": ["files", "assisted", "managed"]},
+            "platforms": {"type": "array", "minItems": 1, "maxItems": 4, "uniqueItems": true, "items": {"enum": ["openclaw", "codex", "claude", "generic-ai"]}},
+            "custom_roles": {"type": "array", "maxItems": 32, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 200}}
+          }
+        },
+        "recommendation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["preset", "mode", "plain_language", "reasons", "alternatives", "limitations"],
+          "properties": {
+            "preset": {"enum": ["software-lite", "software-managed", "custom"]},
+            "mode": {"enum": ["lite", "managed"]},
+            "plain_language": {"type": "string", "minLength": 1, "maxLength": 1000},
+            "reasons": {"type": "array", "minItems": 1, "maxItems": 10, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 500}},
+            "alternatives": {"type": "array", "minItems": 1, "maxItems": 10, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 500}},
+            "limitations": {"type": "array", "minItems": 1, "maxItems": 20, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 500}}
+          }
+        },
+        "team": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "project_name", "owner", "provider", "repository", "default_branch", "summary", "output_path"],
+          "properties": {
+            "name": {"type": "string", "minLength": 1, "maxLength": 160},
+            "project_name": {"type": "string", "minLength": 1, "maxLength": 160},
+            "owner": {"type": "string", "minLength": 1, "maxLength": 160},
+            "provider": {"enum": ["github", "gitlab", "gitea", "generic-git"]},
+            "repository": {"type": "string", "minLength": 1, "maxLength": 1000},
+            "default_branch": {"type": "string", "minLength": 1, "maxLength": 200},
+            "summary": {"type": "string", "minLength": 1, "maxLength": 1000},
+            "output_path": {"type": "string", "minLength": 1, "maxLength": 4096}
+          }
+        },
+        "effects": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["target_project_mutated", "factory_mutated", "external_writes", "creates_new_team_directory", "project_export_requires_separate_confirmation"],
+          "properties": {
+            "target_project_mutated": {"const": false},
+            "factory_mutated": {"const": false},
+            "external_writes": {"const": false},
+            "creates_new_team_directory": {"const": true},
+            "project_export_requires_separate_confirmation": {"const": true}
+          }
+        },
+        "unknowns": {"type": "array", "maxItems": 30, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 500}}
+      }
+    },
+    "proposal_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "confirmation": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["proposal_digest", "approved_by", "scope", "statement"],
+      "properties": {
+        "proposal_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "approved_by": {"type": "string", "minLength": 1, "maxLength": 160},
+        "scope": {"const": "create-new-team-directory-only"},
+        "statement": {"const": "I approve this exact adoption proposal for local team creation."}
+      }
+    }
+  }
+}

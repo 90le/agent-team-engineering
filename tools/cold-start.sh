@@ -26,6 +26,29 @@ test "$(./agent-team --version)" = "$(tr -d '\r\n' < VERSION)"
   --output "$temp_root/context-team-b" >/dev/null
 ./agent-team context validate --root "$temp_root/context-team-a" >/dev/null
 diff -ru "$temp_root/context-team-a" "$temp_root/context-team-b"
+./agent-team onboard plan \
+  --project-path . \
+  --purpose software \
+  --automation assisted \
+  --goal "Create a portable team for reviewed changes" \
+  --platform generic-ai \
+  --team-name "Cold Start Guided Team" \
+  --project-name "Cold Start Project" \
+  --owner "Cold Start Owner" \
+  --provider generic-git \
+  --repository local/cold-start \
+  --output "$temp_root/guided-team" \
+  --plan "$temp_root/guided-plan.json" >/dev/null
+./agent-team onboard preview --plan "$temp_root/guided-plan.json" >/dev/null
+guided_digest="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["proposal_digest"])' "$temp_root/guided-plan.json")"
+./agent-team onboard confirm \
+  --plan "$temp_root/guided-plan.json" \
+  --digest "$guided_digest" \
+  --approved-by "Cold Start Owner" >/dev/null
+./agent-team onboard apply --plan "$temp_root/guided-plan.json" >/dev/null
+./agent-team context validate --root "$temp_root/guided-team" >/dev/null
+test -f "$temp_root/guided-team/GETTING-STARTED.md"
+test -z "$(git status --porcelain --untracked-files=all)"
 python3 -m unittest discover -s tests -v
 python3 tools/agent_team.py simulate --approve-production >/dev/null
 python3 tools/cross_ai_takeover.py >/dev/null

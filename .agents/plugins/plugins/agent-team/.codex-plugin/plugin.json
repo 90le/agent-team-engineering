@@ -1,7 +1,7 @@
 {
   "name": "agent-team",
-  "version": "0.8.0",
-  "description": "Create portable context-first AI teams with optional governed automation.",
+  "version": "0.8.1",
+  "description": "Guide a goal into a previewed, confirmed, portable AI team.",
   "author": {
     "name": "90le",
     "url": "https://github.com/90le"
@@ -13,16 +13,16 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Agent Team Engineering",
-    "shortDescription": "Create portable context-first AI teams",
-    "longDescription": "Create rich role, workflow, Skill, and shared-context packages for Codex, Claude, OpenClaw, or Generic AI, with an optional governed Draft PR runtime.",
+    "shortDescription": "Guide a goal into a confirmed portable AI team",
+    "longDescription": "Inspect a project read-only, ask focused questions, recommend and preview a portable role, workflow, Skill, and shared-context team, wait for confirmation, then create and validate it for Codex, Claude, OpenClaw, or Generic AI.",
     "developerName": "90le",
     "category": "Developer Tools",
     "capabilities": ["Interactive", "Write"],
     "websiteURL": "https://github.com/90le/agent-team-engineering",
     "defaultPrompt": [
-      "Create a context-first software team for this project.",
-      "Generate custom AI roles and a safe handoff workflow.",
-      "Explain Lite versus Managed team mode for this repo."
+      "Inspect this project and guide me to the right AI team without asking me to choose an internal mode.",
+      "Create a source-checked research and knowledge team after showing me the exact plan.",
+      "Recommend a governed feedback-to-Draft-PR team and explain what live integrations remain disabled."
     ]
   }
 }

@@ -4,148 +4,173 @@
 [![Release](https://img.shields.io/github/v/release/90le/agent-team-engineering)](https://github.com/90le/agent-team-engineering/releases)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-Create a portable, context-first AI team for Codex, Claude, OpenClaw, or any file-capable Agent—then optionally add a governed feedback-to-Draft-PR runtime.
+Build the operating system for a portable AI team: shared context, specialized roles, Skills, handoffs, human approval gates, and native entrypoints for Codex, Claude, OpenClaw, or any file-capable AI.
 
-[中文说明](README.zh-CN.md) · [Start with an AI](AI-START.md) · [Full guide](docs/14-context-first/context-first-team-kit.md)
+[中文说明](README.zh-CN.md) · [Give this repository to an AI](AI-START.md) · [Guided adoption guide](docs/17-guided-adoption/README.md) · [Examples](examples/guided-adoption/README.md)
 
-Current stable release: `v0.8.0` (L1 reference).
+Current stable release: `v0.8.1`.
 
-> v0.8 is a portable team compiler plus a governed reference automation core. It can generate useful team context immediately and can prove the complete feedback-to-Draft-PR control flow. Live model accounts, repository credentials, a production sandbox, merge, and deployment remain adopter-owned integrations; installing this repository does not silently enable them.
+## Start with the outcome, not a mode
 
-## What you get
+You do not need to learn this project's architecture before using it. Tell an AI what you want the team to accomplish:
 
-Give the Factory a project name, repository, platform, and team preset. It creates a separate, validated package with:
+> Open `https://github.com/90le/agent-team-engineering` at release `v0.8.1`, read `AI-START.md`, and help me create an AI team for my project. Inspect the project read-only, ask me at most three high-impact questions at a time, recommend a team in plain language, show the exact plan and wait for my confirmation, then create and validate it. Do not enable credentials, external writes, merge, or deployment.
 
-- shared Markdown context, principles, architecture, decisions, and project knowledge;
-- rich role contracts: mission, responsibilities, inputs, outputs, read set, Skills, tools, prohibitions, handoffs, success, and stop conditions;
-- native Codex Agents, Claude subagents, isolated OpenClaw workspaces, or Generic AI role files;
-- a strict JSON design and SHA-256 lock;
-- optionally, durable state, exact human plan approval, isolated implementation, tests, independent review, and a Draft PR stop.
-
-It is not a new model or chat framework. It does not create credentials, treat chat as approval, merge code, or deploy production.
+The guided path is:
 
 ```text
-Your project + team preset
-            │
-            ▼
-  context-first compiler
-            │
-   ┌────────┼─────────┬───────────┐
-   ▼        ▼         ▼           ▼
- Codex    Claude   OpenClaw   Generic AI
-   └────────┴─────────┴───────────┘
-            │
-            ▼
- shared roles, Skills, workflow, authority, evidence, and stop gates
+your outcome
+    ↓
+read-only project discovery
+    ↓
+focused questions and an explained recommendation
+    ↓
+strict plan + human-readable preview + exact digest
+    ↓
+your confirmation
+    ↓
+new validated team directory + first-task instructions
 ```
 
-## Choose one mode
+The target project is not changed during team creation. Exporting an Agent overlay into it is a later, separately confirmed action.
 
-| Mode | Use it when | What runs |
-|---|---|---|
-| `software-lite` | You want a readable software team and native platform roles | Files and platform-native Agent features; no controller required |
-| `software-managed` | You want governed automation from feedback to a tested, independently reviewed Draft PR | The context layer plus the persistent reference controller |
-| `custom` | You want your own research, content, operations, or other roles | A context-only team until capabilities are explicitly mapped |
-
-Start with Lite unless durable automation is a real requirement.
-
-## What is ready in v0.8
-
-| Goal | Shipped by this repository | You still provide |
-|---|---|---|
-| Create roles and shared context | Ready: deterministic Lite/Custom compiler and platform overlays | Your verified project facts and review |
-| Prove the team workflow | Ready: restart-safe Native reference scenario and conformance tests | Nothing external for the offline demo |
-| Let Codex or Claude execute a bounded step | Ready: schema-bound CLI routing and safe defaults | Installed/login-enabled CLI and an approved disposable workspace |
-| Create feedback Issues and a Draft PR | Ready: exact-approval GitHub connector and replay-safe webhook ledger | A dedicated minimum-permission GitHub identity and explicit enablement |
-| Use OpenClaw, OpenHands, Paperclip, ACP, or another platform | Ready: optional projection contracts; none is a core dependency | Platform installation, authentication, isolation, and adoption review |
-| Merge or deploy production | Not provided | A separate human-approved delivery system outside v0.8 authority |
-
-The release is therefore usable today for team creation and L1 reference validation. It is not a one-command production autopilot. The [adoption guide](docs/15-upstream-independent/adoption-and-integration.md) explains how to move from the safe reference to a real project without confusing documentation with authority.
-
-## Fastest start
-
-Requirements: Python 3.11+ and Git. There are no third-party runtime dependencies.
+Prefer a terminal? Python 3.11+ and Git are the only requirements:
 
 ```bash
 git clone https://github.com/90le/agent-team-engineering.git
 cd agent-team-engineering
-git checkout v0.8.0
+git checkout v0.8.1
 
-./agent-team create \
-  --preset software-lite \
-  --name "Example Product Team" \
-  --project "Example Product" \
-  --repo example/example-product \
-  --provider github \
-  --platform codex \
-  --platform claude \
-  --output /new/path/example-team
-
-./agent-team context validate --root /new/path/example-team
+./agent-team onboard guided --output /new/path/my-team
 ```
 
-The target project is not modified. Every create and export command refuses to overwrite an existing path.
+## What it creates
 
-For an interactive terminal:
-
-```bash
-./agent-team create --guided --output /new/path/my-team
-```
-
-## Let an AI do it
-
-Give Codex, Claude, OpenClaw, Kimi, Gemini, or another file-capable AI this prompt:
-
-> Clone or open `https://github.com/90le/agent-team-engineering`, read `AI-START.md`, inspect my project read-only, recommend Lite, Managed, or Custom, then create the team in a new directory and validate it. Do not enable external writes, credentials, merge, or deployment.
-
-The repository also ships installable discovery bundles:
-
-- [Codex plugin marketplace](docs/14-context-first/platform-installation.md#codex-plugin)
-- [Claude Code marketplace](docs/14-context-first/platform-installation.md#claude-code-plugin)
-- [OpenClaw-compatible bundle](docs/14-context-first/platform-installation.md#openclaw-bundle)
-- Generic AI needs only this repository and `AI-START.md`.
-
-## Create custom roles
-
-```bash
-./agent-team create \
-  --preset custom \
-  --name "Research Team" \
-  --project "Knowledge Project" \
-  --repo local/knowledge \
-  --provider generic-git \
-  --platform generic-ai \
-  --role "research-lead:Research Lead" \
-  --role "fact-checker:Fact Checker" \
-  --role "editor:Editor" \
-  --output /new/path/research-team
-```
-
-Custom roles are not limited to software development. They remain context-only by design: a role file cannot grant itself Shell, credentials, approval, or external write authority.
-
-## Generated structure
+Every generated team is an ordinary, portable file package that people and different AI products can understand:
 
 ```text
-example-team/
-├── AI-START.md             # cross-AI entrypoint
-├── TEAM.md                 # team identity and role map
+my-team/
+├── GETTING-STARTED.md      # human quick start and copyable daily requests
+├── AI-START.md             # cross-AI routing and first-response protocol
+├── TEAM.md                 # role map and team identity
 ├── CONSTITUTION.md         # non-negotiable authority and safety
-├── CONTEXT-MAP.md          # where each fact belongs
-├── PROJECT-CONTEXT.md      # verified project facts and unknowns
+├── CONTEXT-MAP.md          # where each kind of truth belongs
+├── PROJECT-CONTEXT.md      # verified facts and explicit unknowns
 ├── ARCHITECTURE.md
-├── ROLES/                  # one complete contract per role
+├── ROLES/                  # mission, inputs, outputs, tools, handoffs, stops
 ├── WORKFLOWS/
-├── SKILLS/                 # progressive-disclosure procedures
+├── SKILLS/                 # reusable, progressively loaded procedures
 ├── DECISIONS/
 ├── KNOWLEDGE/
-├── WORK/                   # durable task and handoff records
-├── platforms/              # Codex, Claude, OpenClaw, Generic AI
+├── WORK/                   # durable tasks, evidence, and handoffs
+├── platforms/              # Codex, Claude, OpenClaw, Generic AI adapters
 └── .agent-team/
     ├── team-design.json
     └── context.lock.json
 ```
 
-Export one platform together with its shared authority context:
+The JSON design and SHA-256 lock make generation deterministic and detect drift. Project facts, knowledge sources, decisions, and work records remain maintainable through reviewed Git changes.
+
+It does not create a model account, token, channel, security sandbox, repository permission, authenticated approval identity, merge permission, or deployment authority.
+
+## Common scenarios
+
+| What you tell the guide | What you receive | Internal mapping |
+|---|---|---|
+| “Give Codex and Claude a product, architecture, frontend, backend, QA, and review team for this app.” | A portable software team used on demand through native AI roles and durable files | `software-lite` |
+| “Take user feedback across restarts to a tested, independently reviewed Draft PR, but wait for my exact plan approval.” | The same context layer plus the governed reference controller | `software-managed` |
+| “Create a source curator, researcher, fact-checker, editor, and librarian for a long-lived knowledge base.” | A custom context-first team with explicit evidence handoffs | `custom` |
+| “Build my own operations, content, legal-review, or mixed specialist team.” | User-named roles and a human review boundary | `custom` |
+
+The guide chooses this mapping after understanding the outcome. Ordinary users are not expected to choose `Lite`, `Managed`, or `Custom` up front.
+
+Custom teams begin context-only. Giving a custom role durable Shell, external writes, approval, or production capabilities requires a separate capability, identity, policy, evidence, and recovery design; the Factory does not silently pretend that mapping exists.
+
+## Use the team after generation
+
+Open the generated `GETTING-STARTED.md`. A person can give any supported AI a request like:
+
+> Read `AI-START.md` completely. Help me use this team for the following outcome: `<request>`. Inspect current project facts and durable work first, recommend the responsible role and next bounded step, and ask at most three high-impact questions. Do not assume external authority.
+
+The generated team also teaches these recurring operations:
+
+- start a new task without memorizing role names;
+- explain why a role is being selected before acting;
+- show status from `WORK/`, not chat memory;
+- continue from the last verified handoff;
+- stop safely and return the exact human decision needed;
+- update project facts, sources, and decisions through reviewed files.
+
+## Deterministic plan workflow
+
+An AI or automation can use the non-interactive contract after it has clarified the user's intent:
+
+```bash
+./agent-team onboard inspect --project-path /path/to/project
+
+./agent-team onboard plan \
+  --project-path /path/to/project \
+  --purpose software \
+  --automation assisted \
+  --goal "Turn accepted requests into reviewed changes" \
+  --platform codex \
+  --platform claude \
+  --team-name "Example Product Team" \
+  --project-name "Example Product" \
+  --owner "Project Owner" \
+  --provider github \
+  --repository example/product \
+  --output /new/path/example-team \
+  --plan /new/path/example-team-adoption-plan.json
+
+./agent-team onboard preview --plan /new/path/example-team-adoption-plan.json
+./agent-team onboard validate --plan /new/path/example-team-adoption-plan.json
+```
+
+Nothing is created while the plan is a draft. After the human confirms the displayed proposal and digest:
+
+```bash
+./agent-team onboard confirm \
+  --plan /new/path/example-team-adoption-plan.json \
+  --digest sha256:<exact-previewed-digest> \
+  --approved-by "Project Owner"
+
+./agent-team onboard apply --plan /new/path/example-team-adoption-plan.json
+./agent-team context validate --root /new/path/example-team
+```
+
+Changing the proposal invalidates the digest. Creation refuses stale source commits, secret-like input, symbolic links, unsafe paths, and existing outputs.
+
+The explicit preset CLI remains available for scripts already built on earlier releases. It is an advanced, deterministic interface rather than the recommended first-time experience.
+
+## What is ready today
+
+| Goal | Shipped here | Adopter still provides |
+|---|---|---|
+| Understand a project and propose a team | Scenario-first Skill, read-only discovery, explained recommendation, strict preview and confirmation | Desired outcome, owner decisions, verified project facts |
+| Create reusable roles and context | Deterministic compiler, schemas, digest lock, generated usage guide and platform overlays | Review and normal Git governance |
+| Run bounded work through Codex or Claude | Native role files and safe task/handoff contracts | Installed and authenticated AI CLI, approved workspace and tool policy |
+| Validate feedback-to-Draft-PR control flow | Restart-safe Native reference scenario, exact approval binding, tests and recovery | No external system is needed for the offline proof |
+| Connect real feedback, models, GitHub writes, or OpenClaw channels | Versioned adapter contracts and conformance boundaries | Minimum-permission identities, isolated Runner, credentials, explicit enablement and recovery |
+| Merge or deploy production | Not a team capability in this release | A separate human-approved delivery system |
+
+Agent Team Engineering is therefore a team factory and governance core, not a one-command production autopilot.
+
+## Platform support
+
+| Platform | Generated or installable asset | Deliberately not generated |
+|---|---|---|
+| Codex | Bootstrap Skill, project Agent TOML, `AGENTS.md` | Login, project trust, tool grants |
+| Claude Code | Bootstrap Skill, project subagent Markdown, `CLAUDE.md` | Login, plugin policy, project trust |
+| OpenClaw | Compatible Skill bundle, isolated workspaces, unbound Agent fragment | Gateway, accounts, channels, authenticated approval relay |
+| Generic AI | `AI-START.md`, role and Skill Markdown | Host-specific task transport and isolation |
+| GitHub | Scoped, exact-approval reference connector for Issue/proposal/Draft PR | Production identity, automatic merge, release or deploy |
+
+Plugins are discovery shortcuts, not alternate implementations or permission systems. See [platform installation](docs/14-context-first/platform-installation.md).
+
+## Export to a target project
+
+After team creation, inspect the generated platform directory. If the owner separately approves adoption, export the selected adapter together with its shared authority context:
 
 ```bash
 ./agent-team context export \
@@ -154,85 +179,48 @@ Export one platform together with its shared authority context:
   --output /new/path/codex-overlay
 ```
 
-Adopt the overlay through a normal proposal branch. Reconcile existing AI configuration instead of overwriting it.
+Review and reconcile the overlay in a proposal branch. Never overwrite an existing `AGENTS.md`, `CLAUDE.md`, `.codex/`, `.claude/`, or OpenClaw configuration.
 
-`PROJECT-CONTEXT.md`, `ARCHITECTURE.md`, the knowledge and decision indexes, and `WORK/README.md` are user-maintained seeds: update them through reviewed Git commits. Roles, principles, workflows, Skills, and platform adapters remain compiler-managed and fail validation on drift. New project sources, ADRs, and work records belong under `KNOWLEDGE/`, `DECISIONS/`, and `WORK/`.
+## Why Markdown, Skills, JSON, Git, and Python?
 
-## Managed automation
+Markdown, Skills, JSON, and reviewed Git history are the portable knowledge layer. They let people, Codex, Claude, OpenClaw, Kimi, Gemini, local models, and future Agents understand the same team without depending on one vendor.
 
-`software-managed` preserves the v0.6 governed runtime and adds the richer context layer:
+The dependency-free Python layer handles guarantees prose cannot enforce reliably: strict schemas, deterministic compilation, digest-bound confirmation, non-overwrite publication, revisions, idempotency, exact approval binding, crash recovery, and security-negative tests. It is a compiler and guardrail, not a replacement for context engineering.
 
-> feedback → normalize → triage → specification → human approves the exact scope → isolated implementation → Draft PR → declared tests → independent review → stop
+Generated file-based teams can be operated without a persistent Python controller. Durable Managed automation uses both layers.
 
-The Factory has no Team merge or production-deploy command. Live models, GitHub writes, OpenClaw channels, remote identity, and a production-grade Runner are separate adoption decisions and are disabled by default.
-
-To see the no-network reference flow:
-
-```bash
-python3 tools/agent_team.py team demo --output /tmp/agent-team-demo
-```
-
-It stops at `SPEC_READY` before creating a worktree. The complete approval and continuation procedure is in the [governed runtime guide](docs/13-team-creator/blueprint-compiler-and-reference-runtime.md).
-
-## v0.8 governed reference automation
-
-v0.8 can exercise the core loop without adopting an external multi-agent platform. Run the fully offline reference scenario:
-
-```bash
-./agent-team native demo --database /tmp/agent-team-native.sqlite3
-./agent-team native verify --database /tmp/agent-team-native.sqlite3
-```
-
-It demonstrates feedback, exact plan approval, implementation, tests, independent review, a requested-changes round, rework, and a simulated Draft PR, including restart recovery and idempotent replay. The demo deliberately uses deterministic fakes and stops at `DRAFT_PR_READY`. Separate conformance layers cover disposable OCI execution, bounded model CLI invocation, and proposal-only GitHub writes; none grants production authority. See the [v0.8 architecture entrypoint](docs/15-upstream-independent/README.md) for scope and takeover order.
-
-## Platform support
-
-| Platform | Generated or installable asset | Still owned by the adopter |
-|---|---|---|
-| Codex | Plugin Skill, project Agent TOML, `AGENTS.md` | Login, trusted execution environment, project adoption |
-| Claude Code | Marketplace Skill, project subagent Markdown, `CLAUDE.md` | Login, plugin policy, project adoption |
-| OpenClaw | Compatible Skill bundle, isolated workspaces, unbound `agents.list` fragment | Gateway, accounts, channels, authenticated approval relay, sandbox review |
-| Generic AI | `AI-START.md`, role and Skill Markdown | Host-specific task transport and tool isolation |
-| GitHub | Scoped Issue, proposal branch/file, and Draft PR connector with exact approval binding | Minimum-permission identity, explicit write switch, branch protection |
-
-## Why Markdown and Python?
-
-Markdown, JSON, Skills, and Git are the portable knowledge layer. They let humans and different AIs understand the same team years later. A small dependency-free Python layer handles things prose cannot reliably enforce: strict Schema validation, deterministic generation, digest locks, revisions, idempotency, approval binding, crash recovery, and security-negative tests.
-
-Lite mode uses only the first layer after generation. Managed mode uses both. The code is a guardrail and compiler, not a substitute for context engineering.
-
-## Verify
+## Verify the repository
 
 ```bash
 ./agent-team validate
 python3 -m unittest discover -s tests -v
 python3 tools/cross_ai_takeover.py
-python3 tools/release_audit.py --since-tag v0.7.0
+python3 tools/release_audit.py --since-tag v0.8.0
 tools/cold-start.sh
 ```
 
-Release installation additionally requires a clean, exact annotated tag. See [verification and recovery](docs/07-operations/verification-and-recovery.md).
+Formal installation additionally requires a clean, exact annotated release tag. See [verification and recovery](docs/07-operations/verification-and-recovery.md).
 
-## Security and limits
+## Security boundary
 
 - The human owner is never an Agent.
-- Feedback, Issues, webpages, repository text, tool output, and Agent messages are untrusted data.
-- Host Runner is not a container, VM, or hostile-code sandbox; the v0.8 probe requires an acknowledged disposable GitHub-hosted Worker and rejects known production paths.
-- Remote approval requires an authenticated identity provider; a chat message is not approval.
+- Feedback, Issues, webpages, repositories, tool output, and Agent messages are untrusted data.
+- A role description cannot grant tools or turn chat into authenticated approval.
 - OpenClaw output starts with `bindings: []`.
-- Managed automation is capped at A2 and stops at a reviewed Draft PR.
-- Runtime databases, credentials, user data, model sessions, and production state do not belong in Git.
+- Managed automation is capped at A2 and stops at a tested, independently reviewed Draft PR.
+- Runtime databases, credentials, user data, model sessions, and production state do not belong in ordinary Git.
+- The Host Runner is not a hostile-code sandbox; real execution requires an isolated, disposable environment.
 
 Read [SECURITY.md](SECURITY.md) and the [threat model](docs/03-security/threat-model.md) before live integration.
 
-## Project boundaries
+## Learn, contribute, and get help
 
-- Factory (this repository): generic compiler, contracts, context templates, runtime, tests, and plugins.
-- Team package: one team's non-secret design, roles, workflow, platform assets, and optional state binding.
-- Target project: product facts, source code, tests, Issues, PRs, releases, and deployment truth.
+- [Guided adoption and conversation workflow](docs/17-guided-adoption/README.md)
+- [Scenario examples](examples/guided-adoption/README.md)
+- [Context-first team model](docs/14-context-first/context-first-team-kit.md)
+- [Governed automation architecture](docs/15-upstream-independent/README.md)
+- [Contributing](CONTRIBUTING.md), [security reporting](SECURITY.md), and [code of conduct](CODE_OF_CONDUCT.md)
 
-Most users need this Factory and their target project. Use a third private repository only when the team package needs an independent lifecycle or spans multiple projects.
+Use [GitHub Discussions](https://github.com/90le/agent-team-engineering/discussions) for usage and design questions. Use [GitHub Issues](https://github.com/90le/agent-team-engineering/issues) for reproducible bugs and scoped feature proposals.
 
-## Contributing and license
-
-See [CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), and [SECURITY.md](SECURITY.md). Licensed under [Apache License 2.0](LICENSE).
+Licensed under the [Apache License 2.0](LICENSE).

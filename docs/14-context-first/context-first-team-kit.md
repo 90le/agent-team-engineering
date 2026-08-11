@@ -11,7 +11,19 @@ Agent Team Engineering has two cooperating planes:
 
 Using Python for the second plane is not a replacement for context engineering. Lite mode proves that the context plane can stand alone; Managed mode adds the execution plane only when durable automation is needed.
 
-## Choose a preset
+## Start with a guided outcome
+
+Ordinary adopters should describe the outcome and let an AI or the interactive guide separate team purpose, coordination depth, and AI platforms:
+
+```bash
+./agent-team onboard guided --output /new/path/my-team
+```
+
+An AI should follow `AI-START.md`: inspect the project read-only, ask at most three high-impact questions per turn, explain its recommendation and alternative, materialize a strict preview, and wait for exact confirmation. See the [guided adoption guide](../17-guided-adoption/README.md).
+
+## Advanced compiler mappings
+
+The presets below remain deterministic implementation mappings for existing scripts and reviewed designs. New users do not need to choose one before the guided interview.
 
 | Preset | Best for | Persistent controller | Roles |
 |---|---|---:|---|
@@ -66,7 +78,7 @@ Each role records:
 
 These fields make a role portable across products. They do not authenticate the role or grant tools. The AI host, project policy, runtime state, and human approval still decide what can execute.
 
-## Create and validate
+## Create and validate with explicit mappings
 
 List the built-in choices:
 

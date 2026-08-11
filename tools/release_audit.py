@@ -40,6 +40,35 @@ POST_EVIDENCE_ALLOWED_PATHS = frozenset(
         "factory-package.json",
     }
 )
+EXTERNAL_EVIDENCE_BASELINE_TAG = "v0.8.0"
+EXTERNAL_EVIDENCE_PROTECTED_PATHS = frozenset(
+    {
+        "acceptance/github-scm-first-run.json",
+        "acceptance/github-scm-replay.json",
+        "acceptance/v08-native-conformance.json",
+        "adapters/github/adapter.json",
+        "contracts/core-contracts.json",
+        "contracts/native-reference-workflow.json",
+        "core/adapter_ports.py",
+        "core/approval.py",
+        "core/contracts.py",
+        "core/github_scm.py",
+        "core/json_support.py",
+        "core/native_controller.py",
+        "core/reference_adapters.py",
+        "core/schema_validation.py",
+        "core/security.py",
+        "policies/adapter-authority.json",
+        "schemas/adapter-authority-policy.schema.json",
+        "schemas/approval-grant.schema.json",
+        "schemas/evidence-bundle.schema.json",
+        "schemas/github-change-set.schema.json",
+        "schemas/github-scm-conformance-report.schema.json",
+        "schemas/plan-revision.schema.json",
+        "schemas/team-spec.schema.json",
+        "tools/github_scm_conformance.py",
+    }
+)
 COMMIT_ID = re.compile(r"^[a-f0-9]{40}$")
 
 
@@ -255,18 +284,44 @@ def validate_external_scm_evidence() -> dict[str, Any]:
     framework_commit = report["scm_evidence_framework_commit"]
     _git_output(["cat-file", "-e", f"{framework_commit}^{{commit}}"])
     _git_output(["merge-base", "--is-ancestor", framework_commit, "HEAD"])
-    changed = set(
+    if _git_output(["cat-file", "-t", EXTERNAL_EVIDENCE_BASELINE_TAG]) != "tag":
+        raise ReleaseAuditError("external evidence baseline must be an annotated tag")
+    baseline_commit = _git_output(
+        ["rev-list", "-n", "1", EXTERNAL_EVIDENCE_BASELINE_TAG]
+    )
+    _git_output(["merge-base", "--is-ancestor", framework_commit, baseline_commit])
+    changed_before_baseline = set(
         filter(
             None,
-            _git_output(["diff", "--name-only", f"{framework_commit}..HEAD"]).splitlines(),
+            _git_output(
+                ["diff", "--name-only", f"{framework_commit}..{baseline_commit}"]
+            ).splitlines(),
         )
     )
-    unexpected = sorted(changed - POST_EVIDENCE_ALLOWED_PATHS)
+    unexpected = sorted(changed_before_baseline - POST_EVIDENCE_ALLOWED_PATHS)
     if unexpected:
         raise ReleaseAuditError(
-            "implementation changed after live SCM evidence: " + ", ".join(unexpected)
+            "v0.8.0 baseline changed unexpectedly after live SCM evidence: "
+            + ", ".join(unexpected)
         )
-    report["post_evidence_paths"] = len(changed)
+    protected_changes = set(
+        filter(
+            None,
+            _git_output(
+                ["diff", "--name-only", f"{baseline_commit}..HEAD"]
+            ).splitlines(),
+        )
+    ) & EXTERNAL_EVIDENCE_PROTECTED_PATHS
+    if protected_changes:
+        raise ReleaseAuditError(
+            "external SCM implementation changed after the v0.8.0 evidence baseline: "
+            + ", ".join(sorted(protected_changes))
+        )
+    report["post_evidence_paths"] = len(changed_before_baseline)
+    report["external_evidence_baseline"] = EXTERNAL_EVIDENCE_BASELINE_TAG
+    report["protected_paths_verified_unchanged"] = len(
+        EXTERNAL_EVIDENCE_PROTECTED_PATHS
+    )
     return report
 
 

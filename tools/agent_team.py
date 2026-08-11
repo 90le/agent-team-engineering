@@ -44,6 +44,15 @@ from core.instance import (  # noqa: E402
     validate_instance_directory,
 )
 from core.json_support import loads_strict  # noqa: E402
+from core.guided_adoption import (  # noqa: E402
+    apply_plan as apply_guided_adoption_plan,
+    build_plan as build_guided_adoption_plan,
+    confirm_plan as confirm_guided_adoption_plan,
+    inspect_project as inspect_guided_adoption_project,
+    load_plan as load_guided_adoption_plan,
+    preview_plan as preview_guided_adoption_plan,
+    write_plan as write_guided_adoption_plan,
+)
 from core.lifecycle import (  # noqa: E402
     apply_instance_upgrade,
     inspect_recovery_bundle,
@@ -314,9 +323,29 @@ def command_context_create(args: argparse.Namespace) -> int:
         report = create_context_team(Path(args.design), Path(args.output))
         print(json.dumps(report, ensure_ascii=False, indent=2))
         return 0
+    if args.guided and not args.preset:
+        return command_onboard_guided(
+            argparse.Namespace(
+                project_path=args.project_path,
+                purpose=args.purpose,
+                automation=args.automation,
+                goal=args.goal,
+                platform=args.platform,
+                team_name=args.name,
+                project_name=args.project,
+                owner=args.owner,
+                provider=args.provider,
+                repository=args.repo,
+                default_branch=args.default_branch,
+                role=args.role,
+                summary=args.summary,
+                output=args.output,
+                plan=args.plan,
+            )
+        )
     preset = args.preset
     if args.guided:
-        preset = _interactive_value(preset, "Preset", "software-lite")
+        preset = _interactive_value(preset, "Compiler preset", "software-lite")
     if not preset:
         raise ValueError("use --preset, --design, or --guided")
     name = _interactive_value(args.name, "Team name")
@@ -388,6 +417,208 @@ def command_context_design_validate(args: argparse.Namespace) -> int:
 
 def command_presets(_: argparse.Namespace) -> int:
     print(json.dumps({"presets": list_presets()}, ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_onboard_inspect(args: argparse.Namespace) -> int:
+    report = inspect_guided_adoption_project(Path(args.project_path))
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0
+
+
+def _build_onboarding_plan_from_args(args: argparse.Namespace) -> dict:
+    return build_guided_adoption_plan(
+        Path(args.project_path),
+        purpose=args.purpose,
+        goals=args.goal,
+        automation=args.automation,
+        platforms=args.platform,
+        team_name=args.team_name,
+        project_name=args.project_name,
+        owner=args.owner,
+        provider=args.provider,
+        repository=args.repository,
+        default_branch=args.default_branch,
+        output_path=Path(args.output),
+        custom_roles=args.role,
+        summary=args.summary,
+    )
+
+
+def command_onboard_plan(args: argparse.Namespace) -> int:
+    plan = _build_onboarding_plan_from_args(args)
+    write_guided_adoption_plan(plan, Path(args.plan))
+    print(
+        json.dumps(
+            {
+                "status": "PLANNED",
+                "state": plan["state"],
+                "plan": str(Path(args.plan).resolve()),
+                "proposal_digest": plan["proposal_digest"],
+                "recommendation": plan["proposal"]["recommendation"],
+                "target_project_mutated": False,
+                "next": "preview the plan, then confirm its exact digest",
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+    return 0
+
+
+def command_onboard_validate(args: argparse.Namespace) -> int:
+    plan = load_guided_adoption_plan(Path(args.plan))
+    print(
+        json.dumps(
+            {
+                "status": "VALID",
+                "plan": str(Path(args.plan).resolve()),
+                "state": plan["state"],
+                "plan_id": plan["plan_id"],
+                "proposal_digest": plan["proposal_digest"],
+                "target_project_mutated": False,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+    return 0
+
+
+def command_onboard_preview(args: argparse.Namespace) -> int:
+    print(preview_guided_adoption_plan(load_guided_adoption_plan(Path(args.plan))), end="")
+    return 0
+
+
+def command_onboard_confirm(args: argparse.Namespace) -> int:
+    plan = confirm_guided_adoption_plan(
+        Path(args.plan), digest=args.digest, approved_by=args.approved_by
+    )
+    print(
+        json.dumps(
+            {
+                "status": "CONFIRMED",
+                "plan": str(Path(args.plan).resolve()),
+                "proposal_digest": plan["proposal_digest"],
+                "scope": plan["confirmation"]["scope"],
+                "external_writes_authorized": False,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+    return 0
+
+
+def command_onboard_apply(args: argparse.Namespace) -> int:
+    report = apply_guided_adoption_plan(Path(args.plan))
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0
+
+
+def _split_interactive_values(value: str) -> list[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def command_onboard_guided(args: argparse.Namespace) -> int:
+    project_path = _interactive_value(
+        args.project_path,
+        "Target project directory (read-only inspection)",
+        str(Path.cwd()),
+    )
+    source = Path(project_path).resolve()
+    purpose = _interactive_value(
+        args.purpose,
+        "Team purpose: software, research-knowledge, content, operations, or custom",
+        "software",
+    )
+    automation = _interactive_value(
+        args.automation,
+        "Automation: files, assisted, or managed-to-reviewed-Draft-PR",
+        "assisted",
+    )
+    raw_platforms = _interactive_value(
+        ",".join(args.platform) if args.platform else None,
+        "AI platforms (comma-separated: codex, claude, openclaw, generic-ai)",
+        "generic-ai",
+    )
+    goal = args.goal or [
+        _interactive_value(None, "What outcome should this team help produce?")
+    ]
+    project_name = _interactive_value(args.project_name, "Project name", source.name)
+    team_name = _interactive_value(args.team_name, "Team name", f"{project_name} Team")
+    owner = _interactive_value(args.owner, "Human owner display name", "Project Owner")
+    repository = _interactive_value(
+        args.repository,
+        "Repository locator",
+        f"local/{source.name}",
+    )
+    provider = args.provider
+    if provider is None:
+        looks_like_github = (
+            repository.count("/") == 1
+            and "://" not in repository
+            and not repository.startswith(("local/", "file/"))
+        )
+        provider = "github" if looks_like_github else "generic-git"
+    roles = args.role
+    if purpose == "custom" and not roles:
+        roles = _split_interactive_values(
+            _interactive_value(
+                None,
+                "Roles (comma-separated role-id:Display Name)",
+            )
+        )
+    output = Path(args.output).resolve()
+    plan_path = (
+        Path(args.plan).resolve()
+        if args.plan
+        else output.with_name(output.name + "-adoption-plan.json")
+    )
+    plan = build_guided_adoption_plan(
+        source,
+        purpose=purpose,
+        goals=goal,
+        automation=automation,
+        platforms=_split_interactive_values(raw_platforms),
+        team_name=team_name,
+        project_name=project_name,
+        owner=owner,
+        provider=provider,
+        repository=repository,
+        default_branch=args.default_branch,
+        output_path=output,
+        custom_roles=roles,
+        summary=args.summary,
+    )
+    write_guided_adoption_plan(plan, plan_path)
+    print(preview_guided_adoption_plan(plan), end="")
+    if not sys.stdin.isatty():
+        raise ValueError(
+            f"guided confirmation requires an interactive terminal; draft plan saved at {plan_path}"
+        )
+    answer = input("Type yes to create this exact team, or anything else to stop: ").strip()
+    if answer.casefold() != "yes":
+        print(
+            json.dumps(
+                {
+                    "status": "AWAITING_CONFIRMATION",
+                    "plan": str(plan_path),
+                    "proposal_digest": plan["proposal_digest"],
+                    "team_created": False,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 0
+    confirm_guided_adoption_plan(
+        plan_path,
+        digest=plan["proposal_digest"],
+        approved_by=owner,
+    )
+    report = apply_guided_adoption_plan(plan_path)
+    print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0
 
 
@@ -628,6 +859,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--preset", choices=("software-lite", "software-managed", "custom")
     )
     create.add_argument("--design", help="use a complete team-design JSON file")
+    create.add_argument("--project-path", help="target project directory for read-only discovery")
+    create.add_argument(
+        "--purpose",
+        choices=("software", "research-knowledge", "content", "operations", "custom"),
+    )
+    create.add_argument("--automation", choices=("files", "assisted", "managed"))
+    create.add_argument("--goal", action="append")
+    create.add_argument("--plan", help="new guided adoption plan JSON path")
     create.add_argument("--name", help="team display name")
     create.add_argument("--project", help="target project display name")
     create.add_argument("--repo", help="repository locator such as owner/repo or a local label")
@@ -653,6 +892,104 @@ def build_parser() -> argparse.ArgumentParser:
 
     presets = subparsers.add_parser("presets", help="list built-in context-first team presets")
     presets.set_defaults(func=command_presets)
+
+    onboard = subparsers.add_parser(
+        "onboard",
+        help="turn a user outcome into a previewed, confirmed, and validated Agent Team",
+    )
+    onboard_commands = onboard.add_subparsers(dest="onboard_command", required=True)
+    onboard_inspect = onboard_commands.add_parser(
+        "inspect", help="inspect a target project read-only without creating files"
+    )
+    onboard_inspect.add_argument("--project-path", required=True)
+    onboard_inspect.set_defaults(func=command_onboard_inspect)
+
+    onboard_plan = onboard_commands.add_parser(
+        "plan", help="create a strict draft proposal from an already clarified user intent"
+    )
+    onboard_plan.add_argument("--project-path", required=True)
+    onboard_plan.add_argument(
+        "--purpose",
+        choices=("software", "research-knowledge", "content", "operations", "custom"),
+        required=True,
+    )
+    onboard_plan.add_argument(
+        "--automation", choices=("files", "assisted", "managed"), required=True
+    )
+    onboard_plan.add_argument("--goal", action="append", required=True)
+    onboard_plan.add_argument(
+        "--platform",
+        action="append",
+        choices=("openclaw", "codex", "claude", "generic-ai"),
+        required=True,
+    )
+    onboard_plan.add_argument("--team-name", required=True)
+    onboard_plan.add_argument("--project-name")
+    onboard_plan.add_argument("--owner", default="Project Owner")
+    onboard_plan.add_argument(
+        "--provider",
+        choices=("github", "gitlab", "gitea", "generic-git"),
+        default="generic-git",
+    )
+    onboard_plan.add_argument("--repository")
+    onboard_plan.add_argument("--default-branch")
+    onboard_plan.add_argument("--role", action="append")
+    onboard_plan.add_argument("--summary")
+    onboard_plan.add_argument("--output", required=True, help="new team directory to create later")
+    onboard_plan.add_argument("--plan", required=True, help="new plan JSON path")
+    onboard_plan.set_defaults(func=command_onboard_plan)
+
+    onboard_validate = onboard_commands.add_parser(
+        "validate", help="validate plan schema, digest, confirmation, paths, and safety boundary"
+    )
+    onboard_validate.add_argument("--plan", required=True)
+    onboard_validate.set_defaults(func=command_onboard_validate)
+    onboard_preview = onboard_commands.add_parser(
+        "preview", help="show a human-readable proposal without applying it"
+    )
+    onboard_preview.add_argument("--plan", required=True)
+    onboard_preview.set_defaults(func=command_onboard_preview)
+    onboard_confirm = onboard_commands.add_parser(
+        "confirm", help="bind local team-creation approval to the exact proposal digest"
+    )
+    onboard_confirm.add_argument("--plan", required=True)
+    onboard_confirm.add_argument("--digest", required=True)
+    onboard_confirm.add_argument("--approved-by", required=True)
+    onboard_confirm.set_defaults(func=command_onboard_confirm)
+    onboard_apply = onboard_commands.add_parser(
+        "apply", help="create and validate a team from an exact confirmed plan"
+    )
+    onboard_apply.add_argument("--plan", required=True)
+    onboard_apply.set_defaults(func=command_onboard_apply)
+
+    onboard_guided = onboard_commands.add_parser(
+        "guided", help="interactive scenario interview, preview, confirmation, and creation"
+    )
+    onboard_guided.add_argument("--project-path")
+    onboard_guided.add_argument(
+        "--purpose",
+        choices=("software", "research-knowledge", "content", "operations", "custom"),
+    )
+    onboard_guided.add_argument("--automation", choices=("files", "assisted", "managed"))
+    onboard_guided.add_argument("--goal", action="append")
+    onboard_guided.add_argument(
+        "--platform",
+        action="append",
+        choices=("openclaw", "codex", "claude", "generic-ai"),
+    )
+    onboard_guided.add_argument("--team-name")
+    onboard_guided.add_argument("--project-name")
+    onboard_guided.add_argument("--owner")
+    onboard_guided.add_argument(
+        "--provider", choices=("github", "gitlab", "gitea", "generic-git")
+    )
+    onboard_guided.add_argument("--repository")
+    onboard_guided.add_argument("--default-branch")
+    onboard_guided.add_argument("--role", action="append")
+    onboard_guided.add_argument("--summary")
+    onboard_guided.add_argument("--output", required=True)
+    onboard_guided.add_argument("--plan")
+    onboard_guided.set_defaults(func=command_onboard_guided)
 
     context_team = subparsers.add_parser(
         "context", help="validate, inspect, or export a context-first team"
