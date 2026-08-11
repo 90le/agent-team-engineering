@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:team-spec:1.0.0",
+  "title": "Vendor-neutral TeamSpec",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "schema_version", "team_id", "team_version", "name", "mission", "autonomy_level", "stop_after", "role_contract_refs", "workflow_spec_refs", "required_capabilities", "allowed_adapter_ports", "context", "created_at"],
+  "properties": {
+    "$schema": {"const": "urn:agent-team:schema:team-spec:1.0.0"},
+    "schema_version": {"const": "1.0.0"},
+    "team_id": {"type": "string", "pattern": "^team\\.[a-z0-9][a-z0-9.-]*$", "maxLength": 120},
+    "team_version": {"type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"},
+    "name": {"type": "string", "minLength": 1, "maxLength": 200},
+    "mission": {"type": "string", "minLength": 1, "maxLength": 2000},
+    "autonomy_level": {"enum": ["A0", "A1", "A2"]},
+    "stop_after": {"const": "DRAFT_PR_READY"},
+    "role_contract_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^role\\.[a-z0-9][a-z0-9.-]*@[0-9]+\\.[0-9]+\\.[0-9]+$"}},
+    "workflow_spec_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^workflow\\.[a-z0-9][a-z0-9.-]*@[0-9]+\\.[0-9]+\\.[0-9]+$"}},
+    "required_capabilities": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z][a-z0-9.-]*$", "maxLength": 120}},
+    "allowed_adapter_ports": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["ingress", "identity", "scm", "agent-executor", "sandbox", "ci", "state-store", "evidence", "notification", "secret"]}},
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["root_ref", "revision", "digest"],
+      "properties": {
+        "root_ref": {"type": "string", "minLength": 1, "maxLength": 500},
+        "revision": {"type": "string", "minLength": 1, "maxLength": 200},
+        "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+      }
+    },
+    "created_at": {"type": "string", "format": "date-time", "maxLength": 40}
+  }
+}

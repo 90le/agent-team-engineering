@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:work-item:2.0.0",
+  "title": "Vendor-neutral WorkItem",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "schema_version", "work_item_id", "source", "normalized", "state", "revision", "created_event_id"],
+  "properties": {
+    "$schema": {"const": "urn:agent-team:schema:work-item:2.0.0"},
+    "schema_version": {"const": "2.0.0"},
+    "work_item_id": {"type": "string", "pattern": "^work-[a-z0-9][a-z0-9-]*$", "maxLength": 120},
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ingress_port", "event_id", "external_ref", "received_at"],
+      "properties": {
+        "ingress_port": {"type": "string", "pattern": "^[a-z][a-z0-9.-]*$"},
+        "event_id": {"type": "string", "minLength": 1, "maxLength": 200},
+        "external_ref": {"type": ["string", "null"], "maxLength": 500},
+        "received_at": {"type": "string", "format": "date-time", "maxLength": 40}
+      }
+    },
+    "normalized": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "summary", "untrusted_content_level", "target_repository_candidates", "duplicate_fingerprint", "sensitive_data_flags"],
+      "properties": {
+        "title": {"type": "string", "minLength": 1, "maxLength": 300},
+        "summary": {"type": "string", "minLength": 1, "maxLength": 10000},
+        "untrusted_content_level": {"enum": ["LOW", "MEDIUM", "HIGH"]},
+        "target_repository_candidates": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^repo\\.[a-z0-9][a-z0-9.-]*$"}},
+        "duplicate_fingerprint": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "sensitive_data_flags": {"type": "array", "uniqueItems": true, "items": {"enum": ["PERSONAL_DATA", "CREDENTIAL_LIKE", "PRODUCTION_DATA", "PROPRIETARY_DATA"]}}
+      }
+    },
+    "state": {"enum": ["RECEIVED", "NORMALIZED", "TRIAGED", "PLANNED", "AWAITING_APPROVAL", "APPROVED", "EXECUTING", "VERIFYING", "REVIEWING", "CHANGES_REQUESTED", "DRAFT_PR_READY", "COMPLETED", "REJECTED", "DUPLICATE", "NEEDS_HUMAN", "CANCELLED", "EXPIRED", "FAILED", "BLOCKED"]},
+    "revision": {"type": "integer", "minimum": 0},
+    "created_event_id": {"type": "string", "minLength": 1, "maxLength": 200}
+  }
+}

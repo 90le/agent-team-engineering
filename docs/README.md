@@ -16,4 +16,5 @@
 - [团队蓝图编译器与参考运行时](13-team-creator/blueprint-compiler-and-reference-runtime.md)
 - [上下文优先Agent Team Kit](14-context-first/context-first-team-kit.md)
 - [Codex、Claude、OpenClaw与通用AI安装](14-context-first/platform-installation.md)
+- [v0.8自有核心契约与v0.7迁移](15-upstream-independent/core-contracts-and-migration.md)
 - [架构决策](adr/README.md)

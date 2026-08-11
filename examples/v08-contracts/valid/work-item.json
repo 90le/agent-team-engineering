@@ -1,0 +1,17 @@
+{
+  "$schema": "urn:agent-team:schema:work-item:2.0.0",
+  "schema_version": "2.0.0",
+  "work_item_id": "work-example-1",
+  "source": {"ingress_port": "native.file", "event_id": "source-1", "external_ref": null, "received_at": "2026-08-11T05:30:00Z"},
+  "normalized": {
+    "title": "Add an accessible account menu",
+    "summary": "Create the approved account-menu behavior and tests.",
+    "untrusted_content_level": "MEDIUM",
+    "target_repository_candidates": ["repo.example"],
+    "duplicate_fingerprint": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "sensitive_data_flags": []
+  },
+  "state": "AWAITING_APPROVAL",
+  "revision": 3,
+  "created_event_id": "event-created-1"
+}

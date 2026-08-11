@@ -1,0 +1,17 @@
+{
+  "$schema": "urn:agent-team:schema:workflow-spec:1.0.0",
+  "schema_version": "1.0.0",
+  "workflow_id": "workflow.delivery",
+  "workflow_version": "1.0.0",
+  "name": "Minimal governed delivery",
+  "initial_state": "RECEIVED",
+  "states": ["RECEIVED", "AWAITING_APPROVAL", "APPROVED", "DRAFT_PR_READY", "COMPLETED"],
+  "terminal_states": ["COMPLETED"],
+  "transitions": [
+    {"event": "PLAN_READY", "from_state": "RECEIVED", "to_state": "AWAITING_APPROVAL", "required_role": "role.planner", "requires_approval": false, "required_evidence": ["input-snapshot"], "retry": {"maximum_attempts": 1, "timeout_seconds": 300, "on_exhausted": "NEEDS_HUMAN"}},
+    {"event": "PLAN_APPROVED", "from_state": "AWAITING_APPROVAL", "to_state": "APPROVED", "required_role": null, "requires_approval": true, "required_evidence": ["approval"], "retry": {"maximum_attempts": 1, "timeout_seconds": 300, "on_exhausted": "NEEDS_HUMAN"}},
+    {"event": "DRAFT_PR_CREATED", "from_state": "APPROVED", "to_state": "DRAFT_PR_READY", "required_role": "role.implementer", "requires_approval": false, "required_evidence": ["draft-pr", "test-result", "review"], "retry": {"maximum_attempts": 3, "timeout_seconds": 1800, "on_exhausted": "BLOCKED"}},
+    {"event": "OWNER_ACKNOWLEDGED", "from_state": "DRAFT_PR_READY", "to_state": "COMPLETED", "required_role": null, "requires_approval": false, "required_evidence": ["draft-pr"], "retry": {"maximum_attempts": 1, "timeout_seconds": 300, "on_exhausted": "NEEDS_HUMAN"}}
+  ],
+  "default_stop_state": "DRAFT_PR_READY"
+}
