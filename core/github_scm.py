@@ -349,6 +349,19 @@ class GitHubJobClient:
         )
         return self._summary(value, created=True)
 
+    def _branch_head_commit(self, branch: str, *, created: bool) -> dict[str, Any]:
+        encoded = urllib.parse.quote(branch, safe="")
+        value = self._request("GET", f"/repos/{self.repository}/git/ref/heads/{encoded}")
+        try:
+            target = value["object"]
+            commit = str(target["sha"])
+            kind = target["type"]
+        except (KeyError, TypeError):
+            raise GitHubScmError("GitHub branch response lacks a commit identity") from None
+        if kind != "commit" or not OBJECT_ID.fullmatch(commit):
+            raise GitHubScmError("GitHub branch target is not a commit")
+        return self._summary(target, created=created)
+
     def ensure_file(
         self, branch: str, path: str, content: bytes, message: str
     ) -> dict[str, Any]:
@@ -365,7 +378,7 @@ class GitHubJobClient:
                 raise GitHubScmError("GitHub file response is malformed") from None
             if current != content:
                 raise GitHubScmError("proposal path already exists with different content")
-            return self._summary(existing, created=False)
+            return self._branch_head_commit(branch, created=False)
         value = self._request(
             "PUT",
             endpoint,
@@ -377,7 +390,11 @@ class GitHubJobClient:
         )
         if not isinstance(value, dict) or not isinstance(value.get("commit"), dict):
             raise GitHubScmError("GitHub commit response is malformed")
-        return self._summary(value["commit"], created=True)
+        created_commit = value["commit"].get("sha")
+        summary = self._branch_head_commit(branch, created=True)
+        if created_commit != summary["provider_id"]:
+            raise GitHubScmError("GitHub branch head differs from the created commit")
+        return summary
 
     def ensure_draft_pull_request(
         self, marker: str, title: str, body: str, head: str, base: str

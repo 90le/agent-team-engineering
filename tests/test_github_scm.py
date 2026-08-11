@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import copy
 import unittest
 from datetime import datetime, timezone
@@ -327,6 +328,44 @@ class BoundedGitHubChangeTests(unittest.TestCase):
             client._request = lambda *args, value=metadata, **kwargs: value  # type: ignore[method-assign]
             with self.subTest(metadata=metadata), self.assertRaises(GitHubScmError):
                 client.require_private_repository()
+
+    def test_job_client_file_identity_is_stable_across_create_and_replay(self) -> None:
+        client = GitHubJobClient(REPOSITORY, "x" * 20)
+        content = b"# approved\n"
+        commit = "c" * 40
+        file_exists = False
+
+        def request(method: str, path: str, payload=None, *, allow_missing=False):
+            nonlocal file_exists
+            del allow_missing
+            if method == "GET" and "/contents/" in path:
+                if not file_exists:
+                    return None
+                return {"content": base64.b64encode(content).decode("ascii")}
+            if method == "PUT" and "/contents/" in path:
+                self.assertEqual(payload["branch"], "agent-team/conformance-1")
+                file_exists = True
+                return {"commit": {"sha": commit}}
+            if method == "GET" and "/git/ref/heads/" in path:
+                return {
+                    "object": {
+                        "sha": commit,
+                        "type": "commit",
+                        "url": f"https://api.github.com/repos/{REPOSITORY}/git/commits/{commit}",
+                    }
+                }
+            self.fail(f"unexpected request: {method} {path}")
+
+        client._request = request  # type: ignore[method-assign]
+        first = client.ensure_file(
+            "agent-team/conformance-1", "conformance/approved.md", content, "test: approved"
+        )
+        replay = client.ensure_file(
+            "agent-team/conformance-1", "conformance/approved.md", content, "test: approved"
+        )
+        self.assertTrue(first.pop("created"))
+        self.assertFalse(replay.pop("created"))
+        self.assertEqual(first, replay)
 
 
 if __name__ == "__main__":
