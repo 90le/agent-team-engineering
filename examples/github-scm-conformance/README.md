@@ -12,7 +12,7 @@ Use this template only in a new Private repository that contains no product code
 
 ```bash
 python3 tools/github_scm_conformance.py \
-  --repository-id conformance.github.v08 \
+  --repository-id repo.conformance.github.v08 \
   --base-commit <private-repository-main-commit> \
   --framework-commit <agent-team-framework-commit> \
   --repository owner/private-conformance-repository \

@@ -23,7 +23,7 @@ from core.security import CREDENTIAL_PATTERNS  # noqa: E402
 
 ALLOWED_EVALUATION_LICENSES = {"Apache-2.0", "MIT"}
 EXPECTED_SCM_REPOSITORY = "90le/agent-team-v08-conformance-private"
-EXPECTED_SCM_REPOSITORY_ID = "conformance.github.v08"
+EXPECTED_SCM_REPOSITORY_ID = "repo.conformance.github.v08"
 EXPECTED_SCM_ACTOR_ID = "github:68719118"
 SCM_OBJECT_KEYS = ("issue", "branch", "commit", "draft_pull_request")
 SCM_EVIDENCE_PATHS = (

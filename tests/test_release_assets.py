@@ -34,7 +34,7 @@ def _report(*, created: bool, run_id: int, scope_character: str) -> dict:
     report = {
         "schema_version": "1.0.0",
         "repository": REPOSITORY,
-        "repository_id": "conformance.github.v08",
+        "repository_id": "repo.conformance.github.v08",
         "repository_private": True,
         "base_commit": "a" * 40,
         "framework_commit": "f" * 40,

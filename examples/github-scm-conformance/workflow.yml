@@ -53,7 +53,7 @@ jobs:
         run: |
           python3 framework/tools/github_scm_conformance.py \
             --repository "${GITHUB_REPOSITORY}" \
-            --repository-id conformance.github.v08 \
+            --repository-id repo.conformance.github.v08 \
             --base-commit "${{ inputs.base_commit }}" \
             --framework-commit "${{ inputs.framework_commit }}" \
             --expected-actor-id REPLACE_WITH_NUMERIC_OWNER_ID \

@@ -8,7 +8,7 @@
   "properties": {
     "schema_version": {"const": "1.0.0"},
     "repository": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"},
-    "repository_id": {"const": "conformance.github.v08"},
+    "repository_id": {"const": "repo.conformance.github.v08"},
     "repository_private": {"const": true},
     "base_commit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
     "framework_commit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
