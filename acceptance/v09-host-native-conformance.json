@@ -2,7 +2,7 @@
   "$schema": "schemas/host-conformance-report.schema.json",
   "schema_version": "1.0.0",
   "factory_release": "v0.9.0",
-  "status": "PRE_RELEASE",
+  "status": "RELEASED",
   "observed_at": "2026-08-12",
   "hosts": [
     {
