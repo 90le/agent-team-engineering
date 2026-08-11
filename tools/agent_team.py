@@ -33,6 +33,7 @@ from core.context_team import (  # noqa: E402
     validate_context_team,
     validate_design_document,
 )
+from core.contracts import CONTRACT_SCHEMAS, load_contract_file  # noqa: E402
 from core.control_plane import ControlPlane  # noqa: E402
 from core.doctor import build_doctor_report, doctor_exit_code  # noqa: E402
 from core.installation import install_factory, verify_factory_installation  # noqa: E402
@@ -51,6 +52,11 @@ from core.lifecycle import (  # noqa: E402
     write_instance_upgrade_plan,
 )
 from core.models import Actor, FeedbackEvent  # noqa: E402
+from core.native_controller import NativeController  # noqa: E402
+from core.native_scenario import (  # noqa: E402
+    load_reference_workflow,
+    run_native_reference_scenario,
+)
 from core.simulation import run_feedback_to_release  # noqa: E402
 from core.team_creator import (  # noqa: E402
     create_team,
@@ -550,6 +556,61 @@ def command_adapter_catalog(_: argparse.Namespace) -> int:
     return 0
 
 
+def command_native_contract_validate(args: argparse.Namespace) -> int:
+    document = load_contract_file(args.contract, Path(args.file).resolve())
+    print(
+        json.dumps(
+            {
+                "status": "VALID",
+                "contract": args.contract,
+                "schema": document.get("$schema"),
+                "file": str(Path(args.file).resolve()),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+    return 0
+
+
+def command_native_demo(args: argparse.Namespace) -> int:
+    result = run_native_reference_scenario(Path(args.database))
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_native_status(args: argparse.Namespace) -> int:
+    with NativeController(
+        Path(args.database), load_reference_workflow(), create=False
+    ) as controller:
+        print(json.dumps(controller.status(), ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_native_verify(args: argparse.Namespace) -> int:
+    with NativeController(
+        Path(args.database), load_reference_workflow(), create=False
+    ) as controller:
+        print(json.dumps(controller.verify_invariants(), ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_native_recover(args: argparse.Namespace) -> int:
+    with NativeController(
+        Path(args.database), load_reference_workflow(), create=False
+    ) as controller:
+        print(json.dumps(controller.recover_orphans(), ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_native_backup(args: argparse.Namespace) -> int:
+    with NativeController(
+        Path(args.database), load_reference_workflow(), create=False
+    ) as controller:
+        print(json.dumps(controller.backup(Path(args.output)), ensure_ascii=False, indent=2))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="agent-team", description=__doc__)
     parser.add_argument(
@@ -904,6 +965,43 @@ def build_parser() -> argparse.ArgumentParser:
     runtime_restore.add_argument("--instance", required=True)
     runtime_restore.add_argument("--backup", required=True)
     runtime_restore.set_defaults(func=command_runtime_restore)
+
+    native = subparsers.add_parser(
+        "native", help="validate or run the no-network v0.8 Native reference path"
+    )
+    native_commands = native.add_subparsers(dest="native_command", required=True)
+    native_contract = native_commands.add_parser(
+        "contract-validate", help="validate one strict v0.8 portable contract"
+    )
+    native_contract.add_argument("--contract", choices=tuple(sorted(CONTRACT_SCHEMAS)), required=True)
+    native_contract.add_argument("--file", required=True)
+    native_contract.set_defaults(func=command_native_contract_validate)
+    native_demo = native_commands.add_parser(
+        "demo", help="run deterministic fakes to an independently reviewed Draft PR"
+    )
+    native_demo.add_argument("--database", required=True)
+    native_demo.set_defaults(func=command_native_demo)
+    native_status = native_commands.add_parser(
+        "status", help="show secret-safe Native controller state"
+    )
+    native_status.add_argument("--database", required=True)
+    native_status.set_defaults(func=command_native_status)
+    native_verify = native_commands.add_parser(
+        "verify", help="verify Native contracts, state columns, and event hash chain"
+    )
+    native_verify.add_argument("--database", required=True)
+    native_verify.set_defaults(func=command_native_verify)
+    native_recover = native_commands.add_parser(
+        "recover", help="recover expired leases and effect claims"
+    )
+    native_recover.add_argument("--database", required=True)
+    native_recover.set_defaults(func=command_native_recover)
+    native_backup = native_commands.add_parser(
+        "backup", help="create a new SQLite backup and report its digest"
+    )
+    native_backup.add_argument("--database", required=True)
+    native_backup.add_argument("--output", required=True)
+    native_backup.set_defaults(func=command_native_backup)
 
     adapter = subparsers.add_parser(
         "adapter", help="inspect versioned adapter contracts without loading plugins"

@@ -18,4 +18,5 @@
 - [Codex、Claude、OpenClaw与通用AI安装](14-context-first/platform-installation.md)
 - [v0.8自有核心契约与v0.7迁移](15-upstream-independent/core-contracts-and-migration.md)
 - [v0.8可替换Adapter Port SDK](15-upstream-independent/adapter-port-sdk.md)
+- [v0.8 Native Controller、恢复与一致性验收](15-upstream-independent/native-controller-and-conformance.md)
 - [架构决策](adr/README.md)

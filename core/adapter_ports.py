@@ -510,6 +510,7 @@ class DeterministicFakePort:
         self.clock = clock
         self.health_status = HealthStatus.HEALTHY
         self.calls: list[PortCall] = []
+        self.executions: list[PortCall] = []
         self._scripted: list[PortResult] = []
         self._stable: dict[str, tuple[str, PortResult]] = {}
         self._cancelled: set[str] = set()
@@ -544,6 +545,7 @@ class DeterministicFakePort:
                     "the idempotency key was reused with a different operation or payload"
                 )
             return result
+        self.executions.append(call)
         if call.request_id in self._cancelled:
             result = PortResult.failed(Outcome.CANCELLED, "REQUEST_CANCELLED")
         elif call.deadline_epoch <= float(self.clock()):

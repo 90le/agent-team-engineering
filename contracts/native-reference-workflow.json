@@ -1,0 +1,25 @@
+{
+  "$schema": "urn:agent-team:schema:workflow-spec:1.0.0",
+  "schema_version": "1.0.0",
+  "workflow_id": "workflow.native-reference-delivery",
+  "workflow_version": "1.0.0",
+  "name": "Native feedback to reviewed Draft PR",
+  "initial_state": "RECEIVED",
+  "states": ["RECEIVED", "NORMALIZED", "TRIAGED", "PLANNED", "AWAITING_APPROVAL", "APPROVED", "EXECUTING", "VERIFYING", "REVIEWING", "CHANGES_REQUESTED", "DRAFT_PR_READY", "COMPLETED", "REJECTED", "CANCELLED", "FAILED", "BLOCKED"],
+  "terminal_states": ["COMPLETED", "REJECTED", "CANCELLED", "FAILED"],
+  "transitions": [
+    {"event": "NORMALIZE", "from_state": "RECEIVED", "to_state": "NORMALIZED", "required_role": "role.intake", "requires_approval": false, "required_evidence": ["input-snapshot"], "retry": {"maximum_attempts": 3, "timeout_seconds": 300, "on_exhausted": "NEEDS_HUMAN"}},
+    {"event": "TRIAGE_ACCEPT", "from_state": "NORMALIZED", "to_state": "TRIAGED", "required_role": "role.triage", "requires_approval": false, "required_evidence": ["context-manifest"], "retry": {"maximum_attempts": 3, "timeout_seconds": 300, "on_exhausted": "NEEDS_HUMAN"}},
+    {"event": "PLAN_READY", "from_state": "TRIAGED", "to_state": "PLANNED", "required_role": "role.planner", "requires_approval": false, "required_evidence": ["context-manifest"], "retry": {"maximum_attempts": 2, "timeout_seconds": 600, "on_exhausted": "NEEDS_HUMAN"}},
+    {"event": "REQUEST_APPROVAL", "from_state": "PLANNED", "to_state": "AWAITING_APPROVAL", "required_role": null, "requires_approval": false, "required_evidence": ["plan-revision"], "retry": {"maximum_attempts": 1, "timeout_seconds": 300, "on_exhausted": "NEEDS_HUMAN"}},
+    {"event": "APPROVE_PLAN", "from_state": "AWAITING_APPROVAL", "to_state": "APPROVED", "required_role": null, "requires_approval": true, "required_evidence": ["approval"], "retry": {"maximum_attempts": 1, "timeout_seconds": 300, "on_exhausted": "NEEDS_HUMAN"}},
+    {"event": "START_EXECUTION", "from_state": "APPROVED", "to_state": "EXECUTING", "required_role": null, "requires_approval": false, "required_evidence": ["approval"], "retry": {"maximum_attempts": 1, "timeout_seconds": 300, "on_exhausted": "BLOCKED"}},
+    {"event": "IMPLEMENTATION_READY", "from_state": "EXECUTING", "to_state": "VERIFYING", "required_role": "role.implementer", "requires_approval": false, "required_evidence": ["change-commit"], "retry": {"maximum_attempts": 3, "timeout_seconds": 1800, "on_exhausted": "BLOCKED"}},
+    {"event": "TESTS_PASSED", "from_state": "VERIFYING", "to_state": "REVIEWING", "required_role": "role.tester", "requires_approval": false, "required_evidence": ["test-result"], "retry": {"maximum_attempts": 3, "timeout_seconds": 1800, "on_exhausted": "FAILED"}},
+    {"event": "CHANGES_REQUESTED", "from_state": "REVIEWING", "to_state": "CHANGES_REQUESTED", "required_role": "role.reviewer", "requires_approval": false, "required_evidence": ["review"], "retry": {"maximum_attempts": 3, "timeout_seconds": 900, "on_exhausted": "BLOCKED"}},
+    {"event": "START_REWORK", "from_state": "CHANGES_REQUESTED", "to_state": "EXECUTING", "required_role": null, "requires_approval": false, "required_evidence": ["review"], "retry": {"maximum_attempts": 1, "timeout_seconds": 300, "on_exhausted": "BLOCKED"}},
+    {"event": "DRAFT_PR_CREATED", "from_state": "REVIEWING", "to_state": "DRAFT_PR_READY", "required_role": null, "requires_approval": false, "required_evidence": ["review", "test-result", "draft-pr"], "retry": {"maximum_attempts": 3, "timeout_seconds": 600, "on_exhausted": "BLOCKED"}},
+    {"event": "COMPLETE", "from_state": "DRAFT_PR_READY", "to_state": "COMPLETED", "required_role": null, "requires_approval": false, "required_evidence": ["draft-pr"], "retry": {"maximum_attempts": 1, "timeout_seconds": 300, "on_exhausted": "NEEDS_HUMAN"}}
+  ],
+  "default_stop_state": "DRAFT_PR_READY"
+}

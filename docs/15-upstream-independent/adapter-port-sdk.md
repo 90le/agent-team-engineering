@@ -58,3 +58,5 @@ python3 -m unittest tests.test_v08_adapter_ports -v
 ```
 
 Passing these tests proves interface behavior only. It does not prove a real provider, identity, SCM write, or sandbox is safe; those remain behind Gate B/C and platform-specific threat/exit tests.
+
+The SDK is exercised end to end by the [Native controller and conformance path](native-controller-and-conformance.md).
