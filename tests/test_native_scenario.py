@@ -20,7 +20,7 @@ class FixedClock:
 
 
 class NativeScenarioTests(unittest.TestCase):
-    def test_machine_conformance_profile_is_strict_and_keeps_external_gates_closed(self) -> None:
+    def test_machine_conformance_profile_is_strict_and_keeps_production_closed(self) -> None:
         schema = loads_strict(
             (ROOT / "schemas/native-conformance-profile.schema.json").read_text(
                 encoding="utf-8"
@@ -32,9 +32,21 @@ class NativeScenarioTests(unittest.TestCase):
         self.assertEqual(validate_schema(profile, schema), [])
         self.assertEqual(profile["scenario"]["final_state"], "DRAFT_PR_READY")
         self.assertFalse(profile["authority_boundaries"]["production_integrations"])
-        self.assertEqual(profile["authority_boundaries"]["gate_b_runner"], "NOT_GRANTED")
-        self.assertEqual(profile["authority_boundaries"]["gate_c_external_write"], "NOT_GRANTED")
-        self.assertEqual(profile["authority_boundaries"]["gate_d_release"], "NOT_GRANTED")
+        self.assertEqual(
+            profile["authority_boundaries"]["gate_b_runner"],
+            "GRANTED_DISPOSABLE_ONLY",
+        )
+        self.assertIn(
+            profile["authority_boundaries"]["gate_c_external_write"],
+            {"AUTHORIZED_EVIDENCE_PENDING", "GRANTED_DEDICATED_TEST_ONLY"},
+        )
+        self.assertEqual(
+            profile["authority_boundaries"]["gate_d_release"],
+            "GRANTED_V080_ONLY",
+        )
+        self.assertFalse(profile["scenario"]["real_scm_write"])
+        self.assertFalse(profile["scenario"]["merge"])
+        self.assertFalse(profile["scenario"]["deploy"])
 
     def test_no_network_reference_loop_stops_at_reviewed_draft_pr(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
