@@ -1,8 +1,8 @@
 {
   "name": "agent-team",
   "displayName": "Agent Team Engineering",
-  "version": "0.8.1",
-  "description": "Guide a goal into a previewed, confirmed, portable AI team.",
+  "version": "0.9.0",
+  "description": "Build and safely install portable teams in the AI hosts you already use.",
   "author": {
     "name": "90le",
     "url": "https://github.com/90le"
@@ -10,6 +10,6 @@
   "homepage": "https://github.com/90le/agent-team-engineering",
   "repository": "https://github.com/90le/agent-team-engineering",
   "license": "Apache-2.0",
-  "keywords": ["agent-team", "multi-agent", "context-engineering", "claude-code"],
+  "keywords": ["agent-team", "multi-agent", "context-engineering", "claude-code", "openclaw", "hermes-agent"],
   "skills": "./skills/"
 }

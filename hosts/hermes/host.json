@@ -1,0 +1,20 @@
+{
+  "$schema": "urn:agent-team:schema:host-capability:1.0.0",
+  "schema_version": "1.0.0",
+  "host_id": "hermes",
+  "display_name": "Hermes Agent",
+  "description": "Projects roles into Hermes profiles and profile distributions, reusable Skills and bundles, projects, and durable Kanban swarm plans.",
+  "support_tier": "native-install-verified",
+  "integration_mode": "native-cli-plan",
+  "probe": {"mode": "version-command", "command": ["hermes", "--version"], "timeout_seconds": 3},
+  "capabilities": ["agent-profiles", "kanban-swarm", "profile-distributions", "projects", "skill-bundles"],
+  "native_surfaces": ["distribution.yaml", "profiles/SOUL.md", "profiles/skills", "bundles", "projects", "kanban"],
+  "tested_versions": [
+    {"version": "0.20.0", "observed_output": "Hermes Agent v0.20.0 (2026.8.3)", "observed_at": "2026-08-11", "scope": "local-version-probe"},
+    {"version": "0.20.0", "observed_output": "Generated profile distribution installed, listed, described, and deleted in an isolated credential-free HERMES_HOME.", "observed_at": "2026-08-12", "scope": "isolated-load-test"}
+  ],
+  "upstream": {"repository": "https://github.com/NousResearch/Hermes-Agent"},
+  "license": {"classification": "permissive-open-source", "identifier": "MIT", "source": "https://github.com/NousResearch/Hermes-Agent/blob/main/LICENSE"},
+  "limitations": ["Generated Profile installation, discovery, description, and deletion were verified in an isolated credential-free home. No model-backed delegation, Kanban worker, Gateway, production configuration, or live account was tested."],
+  "safety": {"probe_reads_configuration": false, "probe_reads_credentials": false, "probe_uses_network": false, "probe_mutates_state": false}
+}

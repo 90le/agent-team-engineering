@@ -79,8 +79,8 @@ Read the generated human and AI entrypoints. Return a concise handoff containing
 
 The first-task request should tell the AI to read `AI-START.md`, inspect durable state, recommend the role and bounded step, ask no more than three questions, and avoid assuming external authority.
 
-## Phase 8: project adoption or integration
+## Phase 8: host package or live integration
 
-Only begin overlay export after the user separately requests or confirms it. Inspect existing AI configuration, preview reconciliation conflicts, export to a new review path, and adopt through the target project's normal proposal branch.
+Only create a host-install plan after the user separately requests a native package. Preview the source Team Design and lock digests, host descriptor digest and evidence tier, exact destination, every managed file, limitations, verification and uninstall scope. A second exact confirmation authorizes only creation of those absent files. Do not merge existing `AGENTS.md`, `CLAUDE.md`, `.codex/`, `.claude/`, OpenClaw, Hermes, or Multica state under that confirmation.
 
-Live integrations require separate scoped authorization, minimum-permission identity, isolated execution, evidence, rollback and reconciliation. They are not a continuation implicit in team creation.
+Native registration or activation and all live integrations require another scoped authorization, minimum-permission identity, isolated execution, evidence, rollback and reconciliation. They are not a continuation implicit in team creation or host-package installation.

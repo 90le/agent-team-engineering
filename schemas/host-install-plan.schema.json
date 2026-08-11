@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:host-install-plan:1.0.0",
+  "title": "Host-native team installation plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "state", "proposal", "proposal_digest", "confirmation"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "state": {"enum": ["DRAFT", "CONFIRMED"]},
+    "proposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["team", "host", "destination", "files", "effects", "limitations"],
+      "properties": {
+        "team": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["root", "team_id", "design_digest", "lock_digest"],
+          "properties": {
+            "root": {"type": "string", "minLength": 1},
+            "team_id": {"type": "string", "pattern": "^team\\.[a-z0-9][a-z0-9.-]*$"},
+            "design_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+            "lock_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+          }
+        },
+        "host": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "support_tier", "descriptor_version", "descriptor_digest", "external_apply"],
+          "properties": {
+            "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "support_tier": {"enum": ["native-verified", "native-install-verified", "verified-export", "experimental-plan", "portable", "research-unknown"]},
+            "descriptor_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+            "descriptor_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+            "external_apply": {"const": false}
+          }
+        },
+        "destination": {"type": "string", "minLength": 1},
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["source", "path", "sha256", "management"],
+            "properties": {
+              "source": {"type": "string", "minLength": 1},
+              "path": {"type": "string", "minLength": 1},
+              "sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+              "management": {"const": "factory-created"}
+            }
+          }
+        },
+        "effects": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["filesystem_writes", "external_writes", "bindings_created", "tasks_started", "credentials_read"],
+          "properties": {
+            "filesystem_writes": {"const": true},
+            "external_writes": {"const": false},
+            "bindings_created": {"const": false},
+            "tasks_started": {"const": false},
+            "credentials_read": {"const": false}
+          }
+        },
+        "limitations": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1, "maxLength": 1000}
+        }
+      }
+    },
+    "proposal_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "confirmation": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["proposal_digest", "approved_by", "scope", "statement"],
+      "properties": {
+        "proposal_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "approved_by": {"type": "string", "minLength": 1, "maxLength": 160},
+        "scope": {"const": "create-factory-managed-host-files-only"},
+        "statement": {"const": "I approve this exact host installation proposal."}
+      }
+    }
+  }
+}

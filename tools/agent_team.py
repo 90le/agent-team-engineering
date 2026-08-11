@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import sys
 import tempfile
 from pathlib import Path
@@ -25,6 +26,7 @@ from core.adoption import (  # noqa: E402
 from core.approval import HMACApprovalVerifier  # noqa: E402
 from core.context import write_context_bundle  # noqa: E402
 from core.context_team import (  # noqa: E402
+    PLATFORMS,
     build_design,
     create_context_team,
     export_context_target,
@@ -52,6 +54,21 @@ from core.guided_adoption import (  # noqa: E402
     load_plan as load_guided_adoption_plan,
     preview_plan as preview_guided_adoption_plan,
     write_plan as write_guided_adoption_plan,
+)
+from core.host_catalog import (  # noqa: E402
+    list_host_ids,
+    load_host_catalog,
+    probe_host,
+)
+from core.host_lifecycle import (  # noqa: E402
+    apply_install_plan as apply_host_install_plan,
+    build_install_plan as build_host_install_plan,
+    confirm_install_plan as confirm_host_install_plan,
+    load_install_plan as load_host_install_plan,
+    preview_install_plan as preview_host_install_plan,
+    uninstall_installation as uninstall_host_installation,
+    verify_installation as verify_host_installation,
+    write_install_plan as write_host_install_plan,
 )
 from core.lifecycle import (  # noqa: E402
     apply_instance_upgrade,
@@ -486,7 +503,18 @@ def command_onboard_validate(args: argparse.Namespace) -> int:
 
 
 def command_onboard_preview(args: argparse.Namespace) -> int:
-    print(preview_guided_adoption_plan(load_guided_adoption_plan(Path(args.plan))), end="")
+    plan_path = Path(args.plan).resolve()
+    plan = load_guided_adoption_plan(plan_path)
+    quoted_plan = shlex.quote(str(plan_path))
+    quoted_output = shlex.quote(plan["proposal"]["team"]["output_path"])
+    print(preview_guided_adoption_plan(plan), end="")
+    print(
+        "\nNext only after the human owner approves this exact digest:\n\n"
+        f"./agent-team onboard confirm --plan {quoted_plan} "
+        f"--digest {plan['proposal_digest']} --approved-by \"<Human Owner>\"\n"
+        f"./agent-team onboard apply --plan {quoted_plan}\n"
+        f"./agent-team context validate --root {quoted_output}\n"
+    )
     return 0
 
 
@@ -539,7 +567,7 @@ def command_onboard_guided(args: argparse.Namespace) -> int:
     )
     raw_platforms = _interactive_value(
         ",".join(args.platform) if args.platform else None,
-        "AI platforms (comma-separated: codex, claude, openclaw, generic-ai)",
+        "AI hosts (comma-separated: codex, claude, openclaw, hermes, multica, generic-ai)",
         "generic-ai",
     )
     goal = args.goal or [
@@ -787,6 +815,139 @@ def command_adapter_catalog(_: argparse.Namespace) -> int:
     return 0
 
 
+def command_host_list(_: argparse.Namespace) -> int:
+    catalog = load_host_catalog()
+    hosts = []
+    for host_id in sorted(catalog):
+        descriptor = catalog[host_id]
+        hosts.append(
+            {
+                "id": host_id,
+                "display_name": descriptor["display_name"],
+                "support_tier": descriptor["support_tier"],
+                "integration_mode": descriptor["integration_mode"],
+                "capabilities": descriptor["capabilities"],
+                "limitations": descriptor["limitations"],
+            }
+        )
+    print(
+        json.dumps(
+            {
+                "schema_version": "1.0.0",
+                "hosts": hosts,
+                "live_configuration_read": False,
+                "external_integrations_enabled": False,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+    return 0
+
+
+def command_host_probe(args: argparse.Namespace) -> int:
+    print(json.dumps(probe_host(args.target), ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_host_plan(args: argparse.Namespace) -> int:
+    plan = build_host_install_plan(
+        Path(args.team),
+        args.target,
+        Path(args.destination),
+    )
+    write_host_install_plan(plan, Path(args.output))
+    print(
+        json.dumps(
+            {
+                "status": "PLANNED",
+                "state": plan["state"],
+                "plan": str(Path(args.output).resolve()),
+                "proposal_digest": plan["proposal_digest"],
+                "host": plan["proposal"]["host"],
+                "destination": plan["proposal"]["destination"],
+                "managed_files": len(plan["proposal"]["files"]),
+                "external_writes": False,
+                "next": "preview the plan, then confirm its exact digest",
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+    return 0
+
+
+def command_host_preview(args: argparse.Namespace) -> int:
+    plan_path = Path(args.plan).resolve()
+    plan = load_host_install_plan(plan_path)
+    quoted_plan = shlex.quote(str(plan_path))
+    quoted_destination = shlex.quote(plan["proposal"]["destination"])
+    print(preview_host_install_plan(plan), end="")
+    print(
+        "Next only after the human owner approves this exact digest:\n\n"
+        f"./agent-team host confirm --plan {quoted_plan} "
+        f"--digest {plan['proposal_digest']} --approved-by \"<Human Owner>\"\n"
+        f"./agent-team host apply --plan {quoted_plan}\n"
+        f"./agent-team host verify --root {quoted_destination}\n"
+    )
+    return 0
+
+
+def command_host_confirm(args: argparse.Namespace) -> int:
+    plan = confirm_host_install_plan(
+        Path(args.plan),
+        digest=args.digest,
+        approved_by=args.approved_by,
+    )
+    print(
+        json.dumps(
+            {
+                "status": "CONFIRMED",
+                "plan": str(Path(args.plan).resolve()),
+                "proposal_digest": plan["proposal_digest"],
+                "scope": plan["confirmation"]["scope"],
+                "external_writes_authorized": False,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+    return 0
+
+
+def command_host_apply(args: argparse.Namespace) -> int:
+    print(
+        json.dumps(
+            apply_host_install_plan(Path(args.plan)),
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+    return 0
+
+
+def command_host_verify(args: argparse.Namespace) -> int:
+    print(
+        json.dumps(
+            verify_host_installation(Path(args.root)),
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+    return 0
+
+
+def command_host_uninstall(args: argparse.Namespace) -> int:
+    print(
+        json.dumps(
+            uninstall_host_installation(Path(args.root), digest=args.digest),
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+    return 0
+
+
 def command_native_contract_validate(args: argparse.Namespace) -> int:
     document = load_contract_file(args.contract, Path(args.file).resolve())
     print(
@@ -879,7 +1040,7 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument(
         "--platform",
         action="append",
-        choices=("openclaw", "codex", "claude", "generic-ai"),
+        choices=PLATFORMS,
         help="repeat to generate more than one platform adapter",
     )
     create.add_argument(
@@ -920,7 +1081,7 @@ def build_parser() -> argparse.ArgumentParser:
     onboard_plan.add_argument(
         "--platform",
         action="append",
-        choices=("openclaw", "codex", "claude", "generic-ai"),
+        choices=PLATFORMS,
         required=True,
     )
     onboard_plan.add_argument("--team-name", required=True)
@@ -975,7 +1136,7 @@ def build_parser() -> argparse.ArgumentParser:
     onboard_guided.add_argument(
         "--platform",
         action="append",
-        choices=("openclaw", "codex", "claude", "generic-ai"),
+        choices=PLATFORMS,
     )
     onboard_guided.add_argument("--team-name")
     onboard_guided.add_argument("--project-name")
@@ -990,6 +1151,57 @@ def build_parser() -> argparse.ArgumentParser:
     onboard_guided.add_argument("--output", required=True)
     onboard_guided.add_argument("--plan")
     onboard_guided.set_defaults(func=command_onboard_guided)
+
+    host = subparsers.add_parser(
+        "host", help="discover and safely install a team projection for an AI host"
+    )
+    host_commands = host.add_subparsers(dest="host_command", required=True)
+    host_choices = list_host_ids()
+    host_list = host_commands.add_parser(
+        "list", help="list versioned host capabilities and evidence tiers without probing"
+    )
+    host_list.set_defaults(func=command_host_list)
+    host_probe = host_commands.add_parser(
+        "probe", help="run only the selected host's isolated local version command"
+    )
+    host_probe.add_argument("--target", choices=host_choices, required=True)
+    host_probe.set_defaults(func=command_host_probe)
+    host_plan = host_commands.add_parser(
+        "plan", help="create a zero-external-write plan for factory-managed host files"
+    )
+    host_plan.add_argument("--team", required=True, help="validated context-first team root")
+    host_plan.add_argument("--target", choices=host_choices, required=True)
+    host_plan.add_argument("--destination", required=True)
+    host_plan.add_argument("--output", required=True, help="new host plan JSON path")
+    host_plan.set_defaults(func=command_host_plan)
+    host_preview = host_commands.add_parser(
+        "preview", help="show the exact host installation proposal without applying it"
+    )
+    host_preview.add_argument("--plan", required=True)
+    host_preview.set_defaults(func=command_host_preview)
+    host_confirm = host_commands.add_parser(
+        "confirm", help="bind approval to one exact host installation proposal digest"
+    )
+    host_confirm.add_argument("--plan", required=True)
+    host_confirm.add_argument("--digest", required=True)
+    host_confirm.add_argument("--approved-by", required=True)
+    host_confirm.set_defaults(func=command_host_confirm)
+    host_apply = host_commands.add_parser(
+        "apply", help="create only absent factory-managed files from a confirmed plan"
+    )
+    host_apply.add_argument("--plan", required=True)
+    host_apply.set_defaults(func=command_host_apply)
+    host_verify = host_commands.add_parser(
+        "verify", help="verify every managed host file against its installation lock"
+    )
+    host_verify.add_argument("--root", required=True)
+    host_verify.set_defaults(func=command_host_verify)
+    host_uninstall = host_commands.add_parser(
+        "uninstall", help="remove only unchanged managed files using the exact lock digest"
+    )
+    host_uninstall.add_argument("--root", required=True)
+    host_uninstall.add_argument("--digest", required=True)
+    host_uninstall.set_defaults(func=command_host_uninstall)
 
     context_team = subparsers.add_parser(
         "context", help="validate, inspect, or export a context-first team"
@@ -1009,7 +1221,7 @@ def build_parser() -> argparse.ArgumentParser:
         "export", help="export one platform adapter with its authoritative shared context"
     )
     context_export.add_argument(
-        "--target", choices=("openclaw", "codex", "claude", "generic-ai"), required=True
+        "--target", choices=PLATFORMS, required=True
     )
     context_export.add_argument("--root", required=True)
     context_export.add_argument("--output", required=True)

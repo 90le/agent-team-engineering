@@ -2,18 +2,20 @@
   "$schema": "schemas/capability-package.schema.json",
   "schema_version": "1.0.0",
   "id": "capability.orchestrate-software-delivery",
-  "name": "可移植多智能体软件交付编排",
-  "version": "0.8.1",
+  "name": "宿主原生可移植智能体团队工厂",
+  "version": "0.9.0",
   "status": "ACTIVE",
   "owner": "丘彬彬",
   "entrypoint": "skills/orchestrate-software-delivery/SKILL.md",
   "sensitivity": "L0-PUBLIC",
   "triggers": [
     "从用户反馈创建受治理的软件工作项",
+    "根据项目和目标为现有AI宿主生成角色、Skills与上下文",
+    "把锁定团队安全投影到OpenClaw或Hermes Agent",
     "编排产品、开发、审核、测试、发布与回滚角色",
     "把现有代码仓库接入多智能体软件团队",
     "跨设备或跨AI迁移软件团队工程"
   ],
-  "adapters": ["codex", "claude", "generic-ai", "openclaw", "github", "cli-model-router", "file-inbox", "manual-agent", "local-dry-run", "native-oci", "swe-rex", "container-use", "openhands-agent-server", "acp-bridge", "paperclip-projection", "recording"],
-  "updated_at": "2026-08-11"
+  "adapters": ["codex", "claude", "generic-ai", "openclaw", "hermes", "multica", "github", "cli-model-router", "file-inbox", "manual-agent", "local-dry-run", "native-oci", "swe-rex", "container-use", "openhands-agent-server", "acp-bridge", "paperclip-projection", "recording"],
+  "updated_at": "2026-08-12"
 }

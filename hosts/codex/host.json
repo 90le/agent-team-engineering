@@ -1,0 +1,17 @@
+{
+  "$schema": "urn:agent-team:schema:host-capability:1.0.0",
+  "schema_version": "1.0.0",
+  "host_id": "codex",
+  "display_name": "OpenAI Codex CLI",
+  "description": "Projects roles, instructions, and reusable Skills into Codex-native project files without making Codex a dependency of the portable team authority.",
+  "support_tier": "verified-export",
+  "integration_mode": "native-files",
+  "probe": {"mode": "version-command", "command": ["codex", "--version"], "timeout_seconds": 3},
+  "capabilities": ["agent-definitions", "project-instructions", "project-skills", "subagent-delegation"],
+  "native_surfaces": ["AGENTS.md", ".codex/agents", ".agents/skills"],
+  "tested_versions": [],
+  "upstream": {"repository": "https://github.com/openai/codex"},
+  "license": {"classification": "permissive-open-source", "identifier": "Apache-2.0", "source": "https://github.com/openai/codex/blob/main/LICENSE"},
+  "limitations": ["Generated Codex-native files and Skills are structurally validated, but no isolated native load or model-backed task was run; this release must not claim native-verified support."],
+  "safety": {"probe_reads_configuration": false, "probe_reads_credentials": false, "probe_uses_network": false, "probe_mutates_state": false}
+}

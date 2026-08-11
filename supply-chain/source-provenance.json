@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0.0",
   "project": "90le/agent-team-engineering",
-  "release": "v0.8.1",
+  "release": "v0.9.0",
   "release_commit_binding": "annotated-tag-object",
   "license": "Apache-2.0",
   "python_runtime_dependencies": [],
@@ -12,7 +12,9 @@
     {"id": "adapter.openhands-agent-server", "repository": "https://github.com/All-Hands-AI/OpenHands", "revision": "21f0967c8f7b728f5840730fe36a33d5833640cb", "license": "MIT", "runtime_dependency": false},
     {"id": "adapter.paperclip-projection", "repository": "https://github.com/paperclipai/paperclip", "revision": "66575fe519db7320147aece94fa66e15eba375c1", "license": "MIT", "runtime_dependency": false},
     {"id": "adapter.openclaw", "repository": "https://github.com/openclaw/openclaw", "revision": "c8571daa2fc883b80b46508bc2ebca14d28b01f3", "license": "MIT", "runtime_dependency": false},
-    {"id": "adapter.acp-bridge", "repository": "https://github.com/agentclientprotocol/agent-client-protocol", "revision": "0b1b1260419760501b9f399a44674ad1b270e0d2", "license": "Apache-2.0", "runtime_dependency": false}
+    {"id": "adapter.acp-bridge", "repository": "https://github.com/agentclientprotocol/agent-client-protocol", "revision": "0b1b1260419760501b9f399a44674ad1b270e0d2", "license": "Apache-2.0", "runtime_dependency": false},
+    {"id": "host.hermes", "repository": "https://github.com/NousResearch/Hermes-Agent", "revision": "9829746dfe3d5077f4f076e257505ec7f8feaa65", "license": "MIT", "runtime_dependency": false},
+    {"id": "host.multica", "repository": "https://github.com/multica-ai/multica", "revision": "e0d0b3815342a80460f8a1c66c56ddfc662c7d46", "license": "Multica-License", "runtime_dependency": false}
   ],
   "github_actions": [
     {"repository": "actions/checkout", "revision": "3d3c42e5aac5ba805825da76410c181273ba90b1", "tag_observed": "v7.0.1"},
@@ -21,6 +23,8 @@
   ],
   "claims": {
     "external_products_are_optional": true,
+    "host_projections_are_data_only": true,
+    "custom_licensed_upstreams_are_not_embedded": true,
     "external_databases_are_not_core_authority": true,
     "production_credentials_in_repository": false,
     "automatic_merge_or_deploy": false

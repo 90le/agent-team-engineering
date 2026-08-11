@@ -1,224 +1,174 @@
 # Agent Team Engineering
 
-为任意项目创建一套可迁移的 AI 团队“操作系统”：共享上下文、专业角色、Skill、交接、人工审批门，以及 Codex、Claude、OpenClaw 或任意文件型 AI 的原生入口。
+[![CI](https://github.com/90le/agent-team-engineering/actions/workflows/validate.yml/badge.svg)](https://github.com/90le/agent-team-engineering/actions/workflows/validate.yml)
+[![Release](https://img.shields.io/github/v/release/90le/agent-team-engineering)](https://github.com/90le/agent-team-engineering/releases)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-[English](README.md) · [直接交给AI](AI-START.md) · [引导式采用指南](docs/17-guided-adoption/README.md) · [场景示例](examples/guided-adoption/README.md)
+**面向 OpenClaw、Hermes Agent、Codex、Claude Code 等 AI 宿主的原生 Agent 团队工厂。** 把一个项目、目标和人类权责边界，编译成可迁移的团队权威源，以及目标宿主真正认识的原生文件。
 
-当前稳定版本：`v0.8.1`。
+[English](README.md) · [直接交给 AI](AI-START.md) · [原生宿主指南](docs/18-native-hosts/README.md) · [场景示例](examples/guided-adoption/README.md)
 
-## 从你想得到什么开始，不用先选模式
+## 这个项目做什么
 
-第一次使用不需要理解 Lite、Managed、Custom、控制器或适配器。直接把下面的话发给 Codex、Claude、OpenClaw、Kimi、Gemini 或其它能读文件、执行命令的 AI：
-
-> 打开 `https://github.com/90le/agent-team-engineering` 的 `v0.8.1` 版本，完整阅读 `AI-START.md`，帮我为现有项目创建一支 AI 团队。先只读检查项目，每轮最多问我三个高影响问题；用普通语言推荐团队，展示准确方案并等待我确认，然后再创建和验证。不要启用凭据、外部写入、合并或部署。
-
-完整引导链路是：
+提供一个现有项目或新想法。Factory 会引导一轮简短访谈，推荐适合的专家和工作流，等待人类准确确认，再编译出可评审的团队：
 
 ```text
-你描述目标
-    ↓
-AI只读发现项目事实
-    ↓
-少量关键问题 + 有理由的推荐
-    ↓
-严格方案 + 人类可读预览 + 准确摘要
-    ↓
-你确认
-    ↓
-创建全新团队目录 + 自动验证 + 首次使用提示
+项目事实 + 想要的结果 + 人类权责边界
+                     │
+                     ▼
+       可迁移团队权威源：上下文、角色、Skill、
+       工作流、决策、工作记录、摘要锁
+                     │
+        ┌────────────┼──────────────┐
+        ▼            ▼              ▼
+ OpenClaw 团队   Hermes Profiles   Codex / Claude
+ 与工作区        与 Kanban 方案     项目原生文件
 ```
 
-创建团队不会修改目标项目。把 Codex、Claude 或 OpenClaw 文件接入项目，是后续第二次单独确认的操作。
+Factory **不会取代** OpenClaw、Hermes Agent、Codex、Claude Code 或 Multica。它把同一份受治理的团队意图投影为宿主原生包与安全安装方案。优先使用你已经在用的 AI 宿主，不需要为了本项目更换运行时。
 
-也可以在交互式终端使用：
+如果需要让“用户反馈 → 分析 → 审批 → 开发 → 独立复核 → 测试后的 Draft PR”跨重启持续推进，仓库还提供可选的 **Managed** 控制器。它是受治理的自动化层，不是默认模式，也不会获得 merge 或生产部署权限。v0.9 有意只保留一个源码写入身份 `builder`；如果必须由独立前端、后端写入 Agent 分工，应选择按需调用的原生团队。
+
+## 直接交给 AI
+
+把下面这段话发给能读取仓库和运行本地命令的 AI：
+
+> 打开 `https://github.com/90le/agent-team-engineering`，使用最新稳定版本并完整阅读 `AI-START.md`。帮我为项目构建一支宿主原生 AI 团队。先只读检查项目并探测我已经安装的 AI 宿主；每轮最多问三个高影响问题，用普通语言推荐团队和目标宿主，说明证据等级与限制，展示准确方案，等我确认后才能创建或安装。不要启用凭据、外部写入、频道绑定、merge 或部署。
+
+AI 应按下面的顺序引导，而不是让用户先研究内部模式：
+
+1. 团队需要反复产出什么结果？
+2. 哪些项目事实和已安装 AI 宿主能被只读核验？
+3. 哪些决定必须由人做，谁是人类 owner？
+4. 哪些角色、Skill、上下文和宿主原生形态最合适？
+5. 将创建哪些准确文件和路径，哪些能力仍然禁用？
+6. owner 是否确认这份摘要绑定的准确方案？
+
+普通用户不需要一开始选择 Lite、Managed、Custom、适配器或控制器。这些只是引导 AI 在理解目标后解释的内部映射。
+
+## 终端快速开始
+
+Factory 只需要 Python 3.11+ 与 Git：
 
 ```bash
 git clone https://github.com/90le/agent-team-engineering.git
 cd agent-team-engineering
-git checkout v0.8.1
+git fetch --tags
+git checkout "$(git tag --list 'v*' --sort=-version:refname | head -n 1)"
 
 ./agent-team onboard guided --output /new/path/my-team
 ```
 
-只要求 Python 3.11+ 与 Git；没有第三方 Python 运行依赖。
+默认流程不会直接改变系统：
 
-## 最终会得到什么
+```text
+只读发现 → 推荐 → 方案 → 预览 → 人类确认 → 全新团队目录 → 验证
+```
 
-每支团队都是普通、可读、可迁移的文件包：
+创建团队不会修改目标项目。安装生成的原生包是第二个、需要单独预览和确认的生命周期：
+
+```bash
+./agent-team host list
+./agent-team host probe --target openclaw
+./agent-team host plan \
+  --team /path/to/my-team \
+  --target openclaw \
+  --destination /new/path/openclaw-team \
+  --output /new/path/openclaw-install-plan.json
+./agent-team host preview --plan /new/path/openclaw-install-plan.json
+```
+
+检查路径、限制、摘要和回滚信息后，再执行预览所显示的 `confirm`、`apply` 和 `verify` 指令。`apply` 只创建方案准确声明且当前不存在的文件；它会保留目标目录里的无关内容，并在任何计划路径冲突时安全停止。它不会自动登录、创建凭据、绑定频道、写入 Multica 工作区、合并代码或部署生产。
+
+## 输入与输出
+
+| 你提供 | Factory 生成 | 仍由你控制 |
+|---|---|---|
+| 项目路径或想法 | 已核验事实与明确未知项 | 哪些事实和目标正确 |
+| 希望反复得到的结果 | 推荐角色和交接工作流 | 团队范围与人类 owner |
+| 已在使用的 AI 宿主 | 宿主原生包与安装方案 | 登录、信任、模型和工具策略 |
+| 权责边界 | 宪法、审批门与停止条件 | 凭据和敏感批准 |
+| 可选自动化需求 | 上限为已复核 Draft PR 的 Managed 工作流 | 外部身份、merge 和部署 |
+
+每支团队仍是普通、可读、可迁移的文件包：
 
 ```text
 my-team/
-├── GETTING-STARTED.md      # 人类快速开始和日常对话示例
-├── AI-START.md             # 任意AI的路由与首轮响应协议
+├── GETTING-STARTED.md      # 可复制的首次和日常请求
+├── AI-START.md             # 跨 AI 发现与路由
 ├── TEAM.md                 # 团队身份和角色地图
-├── CONSTITUTION.md         # 不可突破的权责与安全规则
+├── CONSTITUTION.md         # 权责与安全边界
 ├── CONTEXT-MAP.md          # 各类事实的权威位置
-├── PROJECT-CONTEXT.md      # 已核验事实和明确未知项
-├── ARCHITECTURE.md
-├── ROLES/                  # 职责、输入、输出、工具、交接、停止条件
+├── PROJECT-CONTEXT.md      # 已核验事实与明确未知项
+├── ROLES/                  # 任务、输入、输出、交接、停止条件
 ├── WORKFLOWS/
 ├── SKILLS/                 # 按需加载的可复用流程
 ├── DECISIONS/
 ├── KNOWLEDGE/
 ├── WORK/                   # 持久任务、证据与交接
-├── platforms/              # Codex、Claude、OpenClaw、通用AI入口
+├── platforms/              # 宿主原生投影
 └── .agent-team/
     ├── team-design.json
     └── context.lock.json
 ```
 
-严格 JSON 设计和 SHA-256 锁保证确定性生成并检测漂移。项目事实、知识来源、架构决策和工作记录则可通过 Git 评审长期维护。
+Markdown、Skill、JSON 和 Git 是可迁移的权威层；无第三方依赖的 Python 负责文字无法可靠强制的保证：严格 Schema、确定性编译、摘要绑定确认、禁止覆盖发布、漂移检查、幂等、恢复和安全负例测试。文件型团队生成后不要求常驻 Python 控制器。
 
-它不会替你创建模型账号、Token、频道、安全沙箱、仓库权限、认证审批身份、合并权限或生产部署权限。
+## 宿主支持必须有证据
 
-## 常见使用场景
+“生成了一个目录”不等于“宿主已加载”，更不等于“真实频道或生产流程已运行”。本项目用明确证据等级报告支持情况：
 
-| 你告诉引导AI的需求 | 得到的结果 | 内部实现映射 |
+- **native-verified**：准确版本已通过隔离原生安装/加载/卸载与最小任务烟测；
+- **native-install-verified**：隔离原生安装/加载/卸载通过，但缺少可靠的无账号任务烟测；
+- **verified-export**：宿主原生形态和导入方案通过结构/契约验证，但没有改变真实宿主状态；
+- **experimental-plan**：已跟踪上游契约并能生成可评审方案，但端到端宿主导入未经验证；
+- **portable**：只有宿主中立 Markdown/JSON；
+- **research-unknown**：没有明确上游身份或可复现契约。
+
+OpenClaw `2026.7.1-2` 与 Hermes Agent `0.20.0` 当前是 `native-install-verified`：它们的包已在一次性隔离 home 完成安装、列出/描述和卸载，期间没有使用模型或凭据。因为没有运行最小任务，所以不是 `native-verified`。Codex 与 Claude Code 是 `verified-export`。Multica `v0.4.23` 只属于 **`experimental-plan`**，不写真实工作区；其上游许可证包含附加条款，采用者必须独立审阅。“Leda” 在给出准确仓库、版本和集成契约前属于 **`research-unknown`**。
+
+准确产物、证据、限制和版本锚点见[支持矩阵](docs/18-native-hosts/support-matrix.md)。
+
+## 三种使用形态
+
+| 用户目标 | 推荐形态 | 边界 |
 |---|---|---|
-| “给这个应用创建产品、架构、前端、后端、QA和独立审核团队，让Codex/Claude协作。” | 通过原生角色和持久文档按需协作的软件团队 | `software-lite` |
-| “用户反馈需要跨重启自动推进到测试、独立审核后的Draft PR，但准确计划必须等我批准。” | 同一套上下文层，加受治理的参考控制器 | `software-managed` |
-| “给长期知识库创建来源管理员、研究员、事实核验、编辑和资料管理员。” | 有明确证据交接的自定义团队 | `custom` |
-| “创建运营、内容、法务复核或任意混合角色团队。” | 用户命名的角色、工作流与人工决策边界 | `custom` |
+| “在我已经使用的 AI 里，为这个项目创建可调用的专家。” | 宿主原生团队 | 上下文、角色、Skill、交接；运行时仍是原宿主 |
+| “创建研究、知识、内容、运维或自定义专家团。” | 自定义上下文优先团队 | 每项外部能力完成工程化前保持 context-only |
+| “把已批准反馈跨重启推进到测试与独立复核后的 Draft PR。” | 原生团队 + 可选 Managed 控制器 | 单一源码写入 builder；准确人工批准；不自动 merge 或部署 |
 
-AI 会在理解场景后推荐内部映射，普通用户不需要一开始就选择三种模式。
+## 使用生成的团队
 
-自定义团队默认属于上下文层。若要让自定义角色长期运行 Shell、写外部系统、批准或操作生产，必须另行设计能力、身份、策略、证据和恢复；本项目不会用一份 Markdown 假装这些能力已经实现。
+先打开生成目录里的 `GETTING-STARTED.md`，或直接告诉目标 AI：
 
-## 创建后怎么使用
+> 完整阅读 `AI-START.md`。帮我用这支团队处理：`<具体需求>`。先检查已核验项目事实和持久工作状态，解释负责角色与下一个有边界的步骤，每轮最多问三个高影响问题；不要假设任何外部权限。
 
-先打开生成目录里的 `GETTING-STARTED.md`，然后把类似下面的话发给目标 AI：
+团队把状态写入 `WORK/` 与经评审 Git 文件，而不是依赖聊天记忆。因此不同的人、模型、设备或兼容宿主可以依据同一份证据继续。
 
-> 完整阅读 `AI-START.md`。帮我用这支团队处理：`<具体需求>`。先检查项目事实和持久工作状态，推荐负责角色与下一个有边界的步骤，每轮最多问三个高影响问题；不要假设任何外部权限。
-
-生成团队会继续教人和 AI 如何：
-
-- 不记角色名也能创建新任务；
-- 行动前解释为何由某个角色负责；
-- 从 `WORK/` 而不是聊天记忆查看状态；
-- 从最后一次已核验交接继续；
-- 安全停止并返回准确的人工决策需求；
-- 通过评审文件更新项目事实、来源和架构决策。
-
-## AI和自动化使用的确定性方案流程
-
-AI 完成场景访谈后，通过严格 CLI 固化方案：
-
-```bash
-./agent-team onboard inspect --project-path /path/to/project
-
-./agent-team onboard plan \
-  --project-path /path/to/project \
-  --purpose software \
-  --automation assisted \
-  --goal "把已接受需求变成经过复核的代码变更" \
-  --platform codex \
-  --platform claude \
-  --team-name "示例产品团队" \
-  --project-name "示例产品" \
-  --owner "项目负责人" \
-  --provider github \
-  --repository example/product \
-  --output /new/path/example-team \
-  --plan /new/path/example-team-adoption-plan.json
-
-./agent-team onboard preview --plan /new/path/example-team-adoption-plan.json
-./agent-team onboard validate --plan /new/path/example-team-adoption-plan.json
-```
-
-方案处于草案时不会创建团队。人类确认展示的准确方案和摘要后：
-
-```bash
-./agent-team onboard confirm \
-  --plan /new/path/example-team-adoption-plan.json \
-  --digest sha256:<刚才展示的准确摘要> \
-  --approved-by "项目负责人"
-
-./agent-team onboard apply --plan /new/path/example-team-adoption-plan.json
-./agent-team context validate --root /new/path/example-team
-```
-
-任何方案修改都会使原摘要失效；源码基线变化、秘密样内容、符号链接、越界路径和已有输出都会安全拒绝。
-
-旧版本的显式 preset CLI 仍为既有脚本保留，但它属于高级确定性接口，不再是普通用户的首页入口。
-
-## 目前真实做到了什么
-
-| 目标 | 本仓库已经提供 | 采用者仍需提供 |
-|---|---|---|
-| 理解项目并提出团队方案 | 场景化Skill、只读发现、推荐解释、严格预览与确认 | 业务目标、负责人决定、经核验项目事实 |
-| 创建可复用角色和共享上下文 | 确定性编译器、Schema、摘要锁、生成后使用指南、平台overlay | 人工评审和正常Git治理 |
-| 让Codex/Claude执行受限步骤 | 原生角色文件、安全任务与交接契约 | 已安装登录的AI CLI、受控工作区与工具策略 |
-| 验证“反馈到Draft PR”闭环 | 可重启Native参考场景、准确审批绑定、测试和恢复 | 离线证明不需要外部系统 |
-| 连接真实反馈、模型、GitHub写入或OpenClaw频道 | 版本化适配契约和一致性边界 | 最小权限身份、隔离Runner、凭据、显式开启和恢复方案 |
-| 自动merge或生产部署 | 本版本不把它作为团队能力 | 单独由人批准的交付系统 |
-
-所以它是“团队工厂 + 治理内核”，不是安装后一条命令就拥有生产权限的无人驾驶系统。
-
-## 平台支持
-
-| 平台 | 已生成或可安装 | 刻意不生成 |
-|---|---|---|
-| Codex | 引导Skill、Agent TOML、`AGENTS.md` | 登录、项目信任、工具授权 |
-| Claude Code | 引导Skill、Subagent Markdown、`CLAUDE.md` | 登录、插件策略、项目信任 |
-| OpenClaw | 兼容Skill、隔离工作区、未绑定Agent片段 | Gateway、账号、频道、认证批准中继 |
-| 通用AI | `AI-START.md`、角色与Skill Markdown | 宿主任务传输与隔离 |
-| GitHub | 限定Issue/提案/Draft PR的准确审批参考连接器 | 生产身份、自动merge、release或deploy |
-
-插件只是发现和引导入口，不是另一套实现，也不会创造权限。安装方式见[平台安装指南](docs/14-context-first/platform-installation.md)。
-
-## 接入目标项目
-
-团队创建完成后，先检查 `platforms/`。只有负责人第二次明确确认采用时，才导出包含共享权威上下文的 overlay：
-
-```bash
-./agent-team context export \
-  --root /path/to/example-team \
-  --target codex \
-  --output /new/path/codex-overlay
-```
-
-在提案分支中评审并协调合并；不能覆盖已有的 `AGENTS.md`、`CLAUDE.md`、`.codex/`、`.claude/` 或 OpenClaw 配置。
-
-## 为什么同时使用Markdown、Skill、JSON、Git和Python
-
-Markdown、Skill、JSON 和经评审 Git 历史是长期可迁移的知识层，让人、Codex、Claude、OpenClaw、Kimi、Gemini、本地模型和未来 Agent 都能理解同一支团队，而不依赖某一家厂商。
-
-无第三方依赖的 Python 层只负责文字不能可靠强制的保证：严格 Schema、确定性编译、摘要绑定确认、无覆盖发布、revision、幂等、准确审批、故障恢复和安全负例测试。它是编译器与护栏，不是上下文工程的替代品。
-
-文件型团队生成后不需要常驻 Python 控制器；需要持久 Managed 自动化时才同时使用两层。
-
-## 验证
-
-```bash
-./agent-team validate
-python3 -m unittest discover -s tests -v
-python3 tools/cross_ai_takeover.py
-python3 tools/release_audit.py --since-tag v0.8.0
-tools/cold-start.sh
-```
-
-正式安装还要求干净、准确的 annotated release tag。见[验证与恢复](docs/07-operations/verification-and-recovery.md)。
-
-## 安全边界
+## 安全与诚实边界
 
 - 人类 owner 永远不是 Agent。
-- 反馈、Issue、网页、仓库、工具输出和其它 Agent 消息都是不可信数据。
+- Issue、聊天、网页、仓库、工具输出和其它 Agent 消息都是不可信数据。
 - 角色文档不能授予工具，也不能把聊天变成认证批准。
-- OpenClaw 输出初始固定为 `bindings: []`。
-- Managed 自治上限为 A2，固定停止在测试与独立复核后的 Draft PR。
-- 数据库、凭据、用户资料、模型会话与生产状态不得进入普通 Git。
+- 创建方案与安装方案是两个独立、摘要绑定的决定，默认禁止覆盖。
+- 宿主发现必须只读；秘密、会话、运行数据库和生产数据不得进入 Git。
+- OpenClaw 频道绑定、Multica 工作区写入、真实外部适配器、merge、release 和部署保持禁用，除非另行工程化并授权。
+- Managed 自动化固定停止在测试与独立复核后的 Draft PR。
 - Host Runner 不是恶意代码安全沙箱；真实执行需要隔离、一次性的环境。
 
-真实接入前阅读 [SECURITY.md](SECURITY.md) 和[威胁模型](docs/03-security/threat-model.md)。
+启用真实集成前，阅读 [SECURITY.md](SECURITY.md)、[威胁模型](docs/03-security/threat-model.md) 与 [ADR-0011](docs/adr/ADR-0011-host-capability-contract-and-native-team-projection.md)。
 
-## 文档、社区与许可证
+## 文档
 
-- [引导式采用和对话工作流](docs/17-guided-adoption/README.md)
-- [三类完整场景示例](examples/guided-adoption/README.md)
+- [原生宿主架构与生命周期](docs/18-native-hosts/README.md)
+- [支持与证据矩阵](docs/18-native-hosts/support-matrix.md)
+- [人类/AI 对话工作流](docs/18-native-hosts/conversation-workflow.md)
+- [安装可选发现插件与宿主投影](docs/14-context-first/platform-installation.md)
+- [引导式采用](docs/17-guided-adoption/README.md)
 - [上下文优先团队模型](docs/14-context-first/context-first-team-kit.md)
-- [受治理自动化架构](docs/15-upstream-independent/README.md)
+- [可选受治理自动化](docs/15-upstream-independent/README.md)
 - [贡献指南](CONTRIBUTING.md)、[安全报告](SECURITY.md)、[社区行为规范](CODE_OF_CONDUCT.md)
 
-使用 [GitHub Discussions](https://github.com/90le/agent-team-engineering/discussions) 提问使用与设计问题；使用 [GitHub Issues](https://github.com/90le/agent-team-engineering/issues) 报告可复现缺陷或提出有边界的功能需求。
+使用 [GitHub Discussions](https://github.com/90le/agent-team-engineering/discussions) 讨论使用与设计；使用 [GitHub Issues](https://github.com/90le/agent-team-engineering/issues) 报告可复现缺陷或提出有边界的功能需求。
 
 项目采用 [Apache License 2.0](LICENSE)。

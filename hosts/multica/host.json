@@ -1,0 +1,17 @@
+{
+  "$schema": "urn:agent-team:schema:host-capability:1.0.0",
+  "schema_version": "1.0.0",
+  "host_id": "multica",
+  "display_name": "Multica",
+  "description": "Produces an experimental, data-only overlay plan for Multica agents, squads, instructions, and workspace Skill bindings without copying or depending on Multica source code.",
+  "support_tier": "experimental-plan",
+  "integration_mode": "overlay",
+  "probe": {"mode": "version-command", "command": ["multica", "--version"], "timeout_seconds": 3},
+  "capabilities": ["agent-instructions", "agent-runtime-selection", "review-gates", "squads", "workspace-skills"],
+  "native_surfaces": ["agent-create-plan", "agent-skill-bindings", "squad-create-plan", "task-runtime-overlay"],
+  "tested_versions": [{"version": "v0.4.23", "observed_output": "Official upstream contract reviewed at v0.4.23/e0d0b3815342a80460f8a1c66c56ddfc662c7d46", "observed_at": "2026-08-11", "scope": "upstream-contract-review"}],
+  "upstream": {"repository": "https://github.com/multica-ai/multica", "pinned_version": "v0.4.23", "pinned_commit": "e0d0b3815342a80460f8a1c66c56ddfc662c7d46"},
+  "license": {"classification": "custom-source-available", "identifier": "Multica-License", "source": "https://github.com/multica-ai/multica/blob/v0.4.23/LICENSE"},
+  "limitations": ["No local authenticated Multica workspace or disposable import test has been verified; this host remains an experimental overlay plan.", "The Multica License contains additional hosted-service, branding, attribution, and redistribution conditions and must not be represented as plain Apache-2.0."],
+  "safety": {"probe_reads_configuration": false, "probe_reads_credentials": false, "probe_uses_network": false, "probe_mutates_state": false}
+}

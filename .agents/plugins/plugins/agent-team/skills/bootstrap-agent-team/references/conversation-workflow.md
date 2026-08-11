@@ -1,58 +1,52 @@
-# Adoption conversation workflow
+# Host-native adoption conversation
 
-## The conversation contract
+## Conversation contract
 
-The user supplies outcomes and decisions; the AI translates them into a reviewable team proposal. Internal presets are implementation details, not the opening question.
+The user provides outcomes and decisions. The AI verifies project/host facts, recommends a team, and translates the decision into two separately confirmed plans.
 
-Use this sequence:
-
-1. Restate the desired outcome in one sentence.
-2. Inspect the target project read-only and distinguish verified facts from unknowns.
-3. Ask no more than three high-impact questions in one turn.
-4. Recommend one team shape with reasons, one alternative, and limitations.
-5. Materialize and show a strict plan preview with its digest.
-6. Stop for exact confirmation.
-7. Confirm, create, validate, and teach the first task.
-8. Treat project export or live integration as a separate decision.
+1. Restate the desired recurring outcome.
+2. Inspect the target project and installed host candidates read-only.
+3. Ask at most three high-impact questions.
+4. Recommend roles, handoffs, one primary existing host, evidence tier, and human gates.
+5. Preview the portable-team plan and stop for its exact digest confirmation.
+6. Create and validate the team.
+7. Preview a separate host-install plan and stop for a second exact confirmation.
+8. Apply only declared managed files, verify honestly, and teach the first task.
 
 ## High-impact questions
 
-Ask only what changes the recommendation or authority boundary. Typical questions are:
+- What result should the team repeatedly produce?
+- Should people invoke it on demand, or must it progress durably across restarts?
+- Which installed AI host should run the roles?
+- Who is the human owner, and which decisions remain human?
+- Which named roles or independent review separation are mandatory?
 
-- What outcome should the team repeatedly produce?
-- Should people invoke it when needed, or must feedback progress durably across restarts to a reviewed Draft PR?
-- Which AI products need native files: Codex, Claude, OpenClaw, or a generic file-capable AI?
-- Who is the human owner for scope and sensitive decisions?
-- For a non-software team, which responsibilities must remain distinct?
-
-Do not ask the user to repeat a project name, branch, technology, test layout, or existing AI entrypoint already verified from the repository. Do not ask for tokens, passwords, production data, or model credentials.
+Do not ask the user to repeat a project name, branch, technology, test layout, existing AI entrypoint, or host version already verified. Never ask for tokens or passwords.
 
 ## Recommendation format
 
-Use a compact response like this before running the planner:
-
 ```text
 Understood outcome: ...
-Verified from the project: ...
-Recommended team: ...
+Verified project/host facts: ...
+Recommended team and host: ...
+Roles and handoff: ...
 Why: ...
+Evidence tier: ...
 Alternative: ...
-Not enabled: ...
-Unknowns that remain: ...
+Human gates: ...
+Disabled or unknown: ...
 ```
 
-After planning, show the CLI preview without hiding its digest. Say: “This is a proposal only. It will create one new team directory; it will not change your project or connect external systems. Shall I apply this exact proposal?”
+Do not call a generated package “natively loaded”, an isolated CLI check “live”, or an `experimental-plan` “supported”. Prefer the compatible host the user already operates.
 
-## After creation
+## Two confirmation statements
 
-Do not end with only file paths. Give the user this pattern, adapted to their outcome:
+Before team creation:
 
-> Read `<team>/AI-START.md` completely. Help me use this team for: `<first outcome>`. Inspect durable state, recommend the responsible role and next bounded step, and ask at most three high-impact questions. Do not assume external authority.
+> This proposal only creates a new portable team directory. It does not modify your project, install into an AI host, create an account, bind a channel, or enable external writes.
 
-Also explain these daily requests:
+Before host apply:
 
-- start a new task;
-- show status from durable work records;
-- continue from the last verified handoff;
-- explain role routing without acting;
-- stop safely and return the owner decision needed.
+> This separate proposal manages only the displayed destination/files. It does not grant the roles tools, credentials, account authority, merge, or deployment.
+
+After verification, return exact checks and skipped checks, evidence tier, owned paths, uninstall boundary, and a copyable first request.

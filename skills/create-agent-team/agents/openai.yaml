@@ -1,4 +1,4 @@
 interface:
   display_name: "Create Agent Team"
-  short_description: "Guide a goal into a confirmed portable AI team"
-  default_prompt: "Use $create-agent-team to inspect this project read-only, ask only high-impact questions, recommend a team in plain language, preview the exact plan, wait for confirmation, then create and validate it without enabling external integrations."
+  short_description: "Build a confirmed team for your existing AI host"
+  default_prompt: "Use $create-agent-team to inspect my project and installed AI hosts read-only, recommend a host-native expert team, preview the exact plan, and wait for confirmation before creating anything."

@@ -1,4 +1,4 @@
 interface:
   display_name: "Bootstrap Agent Team"
-  short_description: "Guide me from my goal to a confirmed AI team"
-  default_prompt: "Use $bootstrap-agent-team to inspect my project read-only, ask only high-impact questions, recommend a team in plain language, show me the exact plan, wait for confirmation, then create and validate it without enabling external integrations."
+  short_description: "Build a native team for an AI host you already use"
+  default_prompt: "Use $bootstrap-agent-team to inspect my project and installed AI hosts read-only, recommend a native expert team, show the exact plan, and wait for confirmation before creating anything."

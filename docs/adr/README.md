@@ -10,3 +10,4 @@
 - [ADR-0008：上下文优先团队包、双模式执行与发现插件](ADR-0008-context-first-team-kits-and-discovery-bundles.md)
 - [ADR-0009：供应商中立内核与可替换端口](ADR-0009-vendor-neutral-core-and-replaceable-ports.md)
 - [ADR-0010：场景优先引导与摘要绑定采用方案](ADR-0010-scenario-first-guided-adoption.md)
+- [ADR-0011：宿主能力契约与原生团队投影](ADR-0011-host-capability-contract-and-native-team-projection.md)

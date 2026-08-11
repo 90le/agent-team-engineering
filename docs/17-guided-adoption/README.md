@@ -1,6 +1,6 @@
 # Guided adoption: from a goal to a working Agent Team
 
-This guide defines the ordinary-user path introduced in v0.8.1. It is written for adopters, AI assistants, plugin authors, and maintainers who need the same behavior across Codex, Claude, OpenClaw, and generic file-capable AI products.
+This guide defines the ordinary-user path introduced in v0.8.1 and extended in v0.9.0 with host discovery and a separately confirmed native-host projection. It is written for adopters, AI assistants, plugin authors, and maintainers who need the same behavior across Codex, Claude, OpenClaw, Hermes Agent, Multica plans, and generic file-capable AI products.
 
 ## Product promise
 
@@ -21,7 +21,7 @@ Do not collapse these into one opening “mode” question:
 
 1. **Purpose**: software, research/knowledge, content, operations, or custom.
 2. **Coordination depth**: file-based, AI-assisted on demand, or durable governed progression to a reviewed Draft PR.
-3. **AI platforms**: Codex, Claude, OpenClaw, Generic AI, or a combination.
+3. **AI platforms**: Codex, Claude, OpenClaw, Hermes Agent, an experimental Multica plan, Generic AI, or a combination.
 
 The internal mapping follows only after those dimensions are understood:
 
@@ -44,7 +44,7 @@ The detailed protocol is in [conversation-protocol.md](conversation-protocol.md)
 - recommend in user language and explain why;
 - show one meaningful alternative and all material limitations;
 - show the exact plan and digest before asking for confirmation;
-- never combine team creation with project export or live integration;
+- never combine team creation with host-package installation or live integration;
 - after creation, teach a copyable first request and daily operations.
 
 ## Interactive human path
@@ -88,12 +88,12 @@ See [plan-contract.md](plan-contract.md) for the strict state and digest semanti
 
 ## Two confirmations, not one
 
-Team creation and target-project adoption have different effects:
+Team creation and host-package installation have different effects:
 
 1. **Create team**: writes one absent directory outside the Factory and target project. It does not alter the target or contact an external provider.
-2. **Adopt platform overlay**: exports and then reconciles `AGENTS.md`, `CLAUDE.md`, `.codex/`, `.claude/`, or OpenClaw files into a target proposal branch. This requires a second review and confirmation.
+2. **Install a host-native package**: creates only the absent files named in a separate host plan at a separately named destination. This requires a second preview, digest and confirmation. It does not merge existing host configuration or activate a live account.
 
-Live channels, models, authenticated approval, repository writes, an isolated Runner, merge, and deployment are further integration gates. A team-creation confirmation cannot authorize them.
+Native registration or activation in a real host is a third, host-specific authorization. Live channels, models, authenticated approval, repository writes, an isolated Runner, merge, and deployment are further integration gates. Neither of the first two confirmations can authorize them.
 
 ## Generated usage experience
 

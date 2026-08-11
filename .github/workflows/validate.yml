@@ -24,7 +24,7 @@ jobs:
       - name: Run unit and security tests
         run: python3 -m unittest discover -s tests -v
       - name: Audit release metadata, provenance, and changed history
-        run: python3 tools/release_audit.py --since-tag v0.8.0
+        run: python3 tools/release_audit.py --since-tag v0.8.1
       - name: Run complete simulation
         run: python3 tools/agent_team.py simulate --approve-production
       - name: Generate and validate an instance

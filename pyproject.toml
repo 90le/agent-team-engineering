@@ -1,7 +1,7 @@
 [project]
 name = "agent-team-engineering"
-version = "0.8.1"
-description = "Context-first, vendor-neutral factory for portable AI teams and governed software delivery"
+version = "0.9.0"
+description = "Host-native factory for portable AI teams, Skills, context, and governed software delivery"
 requires-python = ">=3.11"
 
 [tool.ruff]

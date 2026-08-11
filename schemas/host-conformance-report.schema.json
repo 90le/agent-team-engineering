@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:host-conformance-report:1.0.0",
+  "title": "Host-native release conformance report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "factory_release",
+    "status",
+    "observed_at",
+    "hosts",
+    "unknown_hosts",
+    "gates",
+    "authority_boundaries"
+  ],
+  "properties": {
+    "$schema": {"type": "string"},
+    "schema_version": {"const": "1.0.0"},
+    "factory_release": {"type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "status": {"enum": ["PRE_RELEASE", "RELEASED"]},
+    "observed_at": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+    "hosts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["host_id", "support_tier", "evidence_scope", "version_or_release", "production_execution"],
+        "properties": {
+          "host_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+          "support_tier": {"enum": ["native-verified", "native-install-verified", "verified-export", "experimental-plan", "portable", "research-unknown"]},
+          "evidence_scope": {"type": "string", "minLength": 1},
+          "version_or_release": {"type": ["string", "null"]},
+          "production_execution": {"const": false}
+        }
+      }
+    },
+    "unknown_hosts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "support_tier", "reason"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "support_tier": {"const": "research-unknown"},
+          "reason": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["unit_tests", "repository_errors", "repository_findings", "skill_validations", "plugin_validations", "isolated_load_tests"],
+      "properties": {
+        "unit_tests": {"type": "integer", "minimum": 1},
+        "repository_errors": {"const": 0},
+        "repository_findings": {"const": 0},
+        "skill_validations": {"type": "integer", "minimum": 1},
+        "plugin_validations": {"type": "integer", "minimum": 1},
+        "isolated_load_tests": {"type": "integer", "minimum": 0}
+      }
+    },
+    "authority_boundaries": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["credentials_read", "live_accounts_used", "channels_bound", "models_invoked", "tasks_started", "automatic_merge", "automatic_deploy"],
+      "properties": {
+        "credentials_read": {"const": false},
+        "live_accounts_used": {"const": false},
+        "channels_bound": {"const": false},
+        "models_invoked": {"const": false},
+        "tasks_started": {"const": false},
+        "automatic_merge": {"const": false},
+        "automatic_deploy": {"const": false}
+      }
+    }
+  }
+}

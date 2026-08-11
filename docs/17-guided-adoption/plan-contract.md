@@ -19,10 +19,13 @@ The digest covers the complete `proposal` object:
 - user purpose, goals, coordination level, platforms and custom roles;
 - recommended internal mapping, plain-language explanation, reasons, alternative and limitations;
 - team/project identity, owner, branch, summary and exact output path;
-- fixed false external effects and separate-export requirement;
+- the complete compiled Team Design, its digest, the exact preset digest, Factory version and Factory contract digest;
+- fixed false external effects and the separate host-install requirement;
 - known unknowns.
 
 `plan_id` is derived from the same canonical proposal digest. Editing any proposal field invalidates both identity and confirmation.
+
+The current plan schema is `1.1.0`. It embeds the exact Team Design that will be written; `apply` never rebuilds an approved plan from a mutable preset name. Draft or confirmed `1.0.0` plans from v0.8.1 must be recreated and confirmed under v0.9.0. This intentional fail-closed migration prevents an old approval from compiling different roles after a Factory or preset change.
 
 ## Confirmation semantics
 
@@ -42,13 +45,14 @@ Before generation, `onboard apply` verifies:
 - strict schema and duplicate-key-safe JSON parsing;
 - absence of inline credential-like material;
 - proposal digest, plan identity and confirmation binding;
+- unchanged embedded Team Design, preset digest, Factory version and Factory contract digest;
 - supported purpose/automation mapping;
 - absolute paths outside the Factory and target project;
 - safe Git branch syntax;
 - unchanged source commit when a Git commit was discovered;
 - absent, non-symbolic output.
 
-The compiler then generates into a staging directory, validates design and every lock, and publishes atomically to the absent output path. A second apply refuses overwrite.
+The compiler writes the exact embedded design into a staging directory, validates the design and every lock, and publishes atomically to the absent output path. A second apply refuses overwrite.
 
 ## Portability and resume
 
