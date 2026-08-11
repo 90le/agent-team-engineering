@@ -6,7 +6,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from core.adapters import AdapterContext, AdapterContractError, DenySecretResolver
+from core.adapters import (
+    AdapterContext,
+    AdapterContractError,
+    AdapterPermanentError,
+    DenySecretResolver,
+)
 from core.agent_drivers import CliModelRouterAdapter, DeterministicModelRouterAdapter
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -98,7 +103,7 @@ class CliModelRouterTests(unittest.TestCase):
             self.assertIn("--output-schema", arguments)
             self.assertIn("--ignore-rules", arguments)
             self.assertEqual(arguments[arguments.index("--sandbox") + 1], "read-only")
-            self.assertNotIn("--approve-for-me", arguments)
+            self.assertEqual(arguments[arguments.index("--ask-for-approval") + 1], "never")
             self.assertNotIn("--dangerously-bypass-approvals-and-sandbox", arguments)
             self.assertNotIn("OPENAI_API_KEY", environments[0])
             self.assertNotIn("ANTHROPIC_API_KEY", environments[0])
@@ -131,7 +136,7 @@ class CliModelRouterTests(unittest.TestCase):
             adapter.execute(request(work), CONTEXT)
             arguments = calls[0]
             self.assertEqual(arguments[arguments.index("--sandbox") + 1], "workspace-write")
-            self.assertIn("--approve-for-me", arguments)
+            self.assertEqual(arguments[arguments.index("--ask-for-approval") + 1], "never")
             self.assertNotIn("--dangerously-bypass-approvals-and-sandbox", arguments)
 
     def test_claude_read_only_role_uses_plan_mode_without_bypass(self) -> None:
@@ -191,6 +196,69 @@ class CliModelRouterTests(unittest.TestCase):
             )
             with self.assertRaises(AdapterContractError):
                 adapter.execute(request(work), CONTEXT)
+
+    def test_generic_cli_uses_static_argv_stdin_protocol_and_read_only_role(self) -> None:
+        calls: list[tuple[list[str], dict[str, object]]] = []
+
+        def fake_runner(arguments: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+            calls.append((arguments, kwargs))
+            return subprocess.CompletedProcess(
+                arguments,
+                0,
+                json.dumps(result_for(work, evidence={"assessment": "bounded"})),
+                "",
+            )
+
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            project = base / "project"
+            project.mkdir()
+            work = task("operations", "verify_operation", revision=9)
+            adapter = CliModelRouterAdapter(
+                blueprint(),
+                {"project.example-product": project},
+                base / "artifacts",
+                command_runner=fake_runner,
+                binary_resolver=lambda name: f"/opt/bin/{name}",
+                generic_cli_commands={"operations": ("portable-agent", "--json-stdio")},
+            )
+            envelope = adapter.execute(request(work), CONTEXT)
+            self.assertEqual(envelope["status"], "SUCCEEDED")
+            arguments, kwargs = calls[0]
+            self.assertEqual(arguments, ["/opt/bin/portable-agent", "--json-stdio"])
+            self.assertFalse(kwargs["shell"])
+            supplied = json.loads(str(kwargs["input"]))
+            self.assertEqual(supplied["protocol"], "agent-team.generic-cli/1.0.0")
+            self.assertEqual(supplied["task"]["task_id"], work["task_id"])
+            environment = dict(kwargs["env"])
+            self.assertNotIn("OPENAI_API_KEY", environment)
+            self.assertNotIn("ANTHROPIC_API_KEY", environment)
+
+    def test_generic_cli_requires_explicit_binding_and_rejects_workspace_write(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            project = base / "project"
+            project.mkdir()
+            work = task("operations", "verify_operation", revision=9)
+            adapter = CliModelRouterAdapter(
+                blueprint(),
+                {"project.example-product": project},
+                base / "artifacts",
+            )
+            with self.assertRaises(AdapterPermanentError):
+                adapter.execute(request(work), CONTEXT)
+
+            unsafe_blueprint = blueprint()
+            for binding in unsafe_blueprint["role_bindings"]:
+                if binding["role"] == "operations":
+                    binding["sandbox_mode"] = "workspace-write"
+            with self.assertRaises(AdapterPermanentError):
+                CliModelRouterAdapter(
+                    unsafe_blueprint,
+                    {"project.example-product": project},
+                    base / "other-artifacts",
+                    generic_cli_commands={"operations": ("portable-agent",)},
+                )
 
 
 class DeterministicRouterTests(unittest.TestCase):
