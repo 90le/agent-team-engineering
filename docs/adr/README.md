@@ -8,3 +8,4 @@
 - [ADR-0006：可验证安装与事务化实例生命周期](ADR-0006-verified-install-and-transactional-instance-lifecycle.md)
 - [ADR-0007：团队蓝图编译器与受治理参考运行时](ADR-0007-team-blueprint-compiler-and-governed-reference-runtime.md)
 - [ADR-0008：上下文优先团队包、双模式执行与发现插件](ADR-0008-context-first-team-kits-and-discovery-bundles.md)
+- [ADR-0009：供应商中立内核与可替换端口](ADR-0009-vendor-neutral-core-and-replaceable-ports.md)

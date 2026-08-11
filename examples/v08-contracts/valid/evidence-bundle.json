@@ -1,0 +1,23 @@
+{
+  "$schema": "urn:agent-team:schema:evidence-bundle:1.0.0",
+  "schema_version": "1.0.0",
+  "bundle_id": "evidence-example-1",
+  "run_id": "run-example-1",
+  "work_item_id": "work-example-1",
+  "items": [
+    {
+      "evidence_id": "item-approval-1",
+      "type": "approval",
+      "content_ref": "evidence://approval/example-1",
+      "content_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "producer": "native-controller",
+      "created_at": "2026-08-11T05:33:00Z",
+      "classification": "INTERNAL",
+      "redacted": true
+    }
+  ],
+  "created_at": "2026-08-11T05:33:00Z",
+  "created_by": "native-controller",
+  "retention": {"policy": "project", "expires_at": null},
+  "bundle_digest": "sha256:987b33a127b0d8b52c4851fec9212c9d04854509aa064310d7570733cd365203"
+}

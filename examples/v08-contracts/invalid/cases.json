@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0.0",
+  "description": "Each case applies one deterministic mutation to a valid contract and must fail closed.",
+  "cases": [
+    {"id": "unknown-vendor-field", "contract": "team_spec", "base": "../valid/team-spec.json", "operation": "set", "path": "/vendor_project_id", "value": "external-42", "expected_path": "$.vendor_project_id"},
+    {"id": "unsupported-schema-version", "contract": "team_spec", "base": "../valid/team-spec.json", "operation": "set", "path": "/schema_version", "value": "9.0.0", "expected_path": "$.schema_version"},
+    {"id": "role-authority-conflict", "contract": "role_contract", "base": "../valid/role-contract.json", "operation": "set", "path": "/forbidden_actions/0", "value": "repository.read", "expected_path": "$.allowed_actions"},
+    {"id": "approval-bypass", "contract": "workflow_spec", "base": "../valid/workflow-spec.json", "operation": "set", "path": "/transitions/1/requires_approval", "value": false, "expected_path": "$.transitions[1].requires_approval"},
+    {"id": "plan-content-tamper", "contract": "plan_revision", "base": "../valid/plan-revision.json", "operation": "set", "path": "/objective", "value": "Changed after approval", "expected_path": "$.plan_digest"},
+    {"id": "approval-scope-tamper", "contract": "approval_grant", "base": "../valid/approval-grant.json", "operation": "set", "path": "/base_commit", "value": "cccccccccccccccccccccccccccccccccccccccc", "expected_path": "$.scope_digest"},
+    {"id": "merge-authority", "contract": "approval_grant", "base": "../valid/approval-grant.json", "operation": "set", "path": "/merge_allowed", "value": true, "expected_path": "$.merge_allowed"},
+    {"id": "reversed-lease", "contract": "run", "base": "../valid/run.json", "operation": "set", "path": "/lease", "value": {"lease_id": "lease-example-1", "worker_id": "worker-1", "acquired_at": "2026-08-11T06:00:00Z", "expires_at": "2026-08-11T05:59:00Z"}, "expected_path": "$.lease.expires_at"},
+    {"id": "evidence-index-tamper", "contract": "evidence_bundle", "base": "../valid/evidence-bundle.json", "operation": "set", "path": "/items/0/content_ref", "value": "evidence://tampered", "expected_path": "$.bundle_digest"},
+    {"id": "undeclared-adapter-port", "contract": "adapter_descriptor", "base": "../valid/adapter-descriptor.json", "operation": "set", "path": "/idempotency/0/port", "value": "secret", "expected_path": "$.idempotency[0].port"},
+    {"id": "negative-command-revision", "contract": "command_envelope", "base": "../valid/command-envelope.json", "operation": "set", "path": "/expected_revision", "value": -1, "expected_path": "$.expected_revision"},
+    {"id": "unknown-work-item-field", "contract": "work_item", "base": "../valid/work-item.json", "operation": "set", "path": "/github_issue_number", "value": 42, "expected_path": "$.github_issue_number"}
+  ]
+}

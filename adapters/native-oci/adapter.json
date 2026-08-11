@@ -1,0 +1,32 @@
+{
+  "schema_version": "2.0.0",
+  "id": "adapter.native-oci",
+  "version": "0.8.0",
+  "kind": "runner",
+  "status": "REFERENCE",
+  "authority": "replaceable-interface",
+  "slots": ["runner"],
+  "config_schema": "schemas/sandbox-profile.schema.json",
+  "operations": [
+    {
+      "name": "runner.execute",
+      "slots": ["runner"],
+      "direction": "outbound",
+      "external_effect": "compute",
+      "delivery": "at-most-once",
+      "capability": "sandbox.execute",
+      "input_schema": "schemas/execution-request.schema.json",
+      "output_schema": "schemas/execution-result.schema.json",
+      "timeout_seconds": 3600,
+      "project_scope": {"match_by": "id", "payload_field": "project_id", "provider": null, "allowed_modes": ["proposal-only"], "default_branch_field": null, "source_ref_field": "source_ref"}
+    }
+  ],
+  "trust_boundaries": ["control-worker", "isolated-executor"],
+  "credentials": [],
+  "implementation": {"mode": "contract-only", "entrypoint": null},
+  "security_notes": [
+    "The reference command builder starts no process and requires trusted worker composition.",
+    "Live conformance is allowed only on a disposable worker with no production mounts or long-lived credentials.",
+    "The worker-side container engine is never mounted into the sandbox."
+  ]
+}

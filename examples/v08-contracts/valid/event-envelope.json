@@ -1,0 +1,14 @@
+{
+  "$schema": "urn:agent-team:schema:event-envelope:1.0.0",
+  "schema_version": "1.0.0",
+  "event_id": "event-example-1",
+  "event_type": "PLAN_SUBMITTED",
+  "causation_command_id": "command-example-1",
+  "idempotency_key": "submit-plan-example-1",
+  "work_item_id": "work-example-1",
+  "run_id": null,
+  "revision": 3,
+  "occurred_at": "2026-08-11T05:31:00Z",
+  "payload": {"plan_id": "plan-example-1"},
+  "evidence_refs": ["evidence://plan/example-1"]
+}

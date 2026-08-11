@@ -1,0 +1,16 @@
+{
+  "$schema": "urn:agent-team:schema:adapter-descriptor:1.0.0",
+  "schema_version": "1.0.0",
+  "adapter_id": "adapter.native-oci",
+  "adapter_version": "0.8.0",
+  "status": "REFERENCE",
+  "ports": ["sandbox"],
+  "core_contract_versions": {"minimum": "1.0.0", "maximum_exclusive": "2.0.0"},
+  "external_product": null,
+  "capabilities": ["sandbox.execute", "sandbox.network-none", "sandbox.resource-limits", "sandbox.cancel", "sandbox.cleanup"],
+  "permissions": ["worker:container-engine"],
+  "limitations": ["Requires an entire disposable worker; OCI isolation alone is not claimed as a universal hostile-code boundary."],
+  "timeouts": {"connect_seconds": 10, "operation_seconds": 3600, "cancel_seconds": 10},
+  "idempotency": [{"port": "sandbox", "mode": "at-most-once"}],
+  "health_check": {"mode": "local", "timeout_seconds": 10}
+}

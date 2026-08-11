@@ -9,7 +9,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Mapping, Sequence
 
 from core.adapters import (
     AdapterContext,
@@ -130,6 +130,7 @@ class CliModelRouterAdapter:
         *,
         command_runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
         binary_resolver: Callable[[str], str | None] = shutil.which,
+        generic_cli_commands: Mapping[str, Sequence[str]] | None = None,
     ) -> None:
         findings = validate_blueprint_document(blueprint)
         errors = [finding for finding in findings if finding.severity == "ERROR"]
@@ -154,6 +155,16 @@ class CliModelRouterAdapter:
         os.chmod(self.artifact_root, 0o700)
         self.command_runner = command_runner
         self.binary_resolver = binary_resolver
+        self.generic_cli_commands: dict[str, tuple[str, ...]] = {}
+        for role, supplied in (generic_cli_commands or {}).items():
+            arguments = tuple(str(value) for value in supplied)
+            if (
+                not arguments
+                or len(arguments) > 32
+                or any(not value or len(value) > 1000 or "\x00" in value for value in arguments)
+            ):
+                raise AdapterPermanentError("generic CLI command registry is invalid")
+            self.generic_cli_commands[str(role)] = arguments
 
     def _prompt(self, task: dict[str, Any], binding: dict[str, Any]) -> str:
         return (
@@ -180,8 +191,11 @@ class CliModelRouterAdapter:
             output = Path(temp) / "result.json"
             arguments = [
                 binary,
+                "--ask-for-approval",
+                "never",
                 "exec",
                 "--ephemeral",
+                "--ignore-user-config",
                 "--ignore-rules",
                 "--color",
                 "never",
@@ -194,8 +208,6 @@ class CliModelRouterAdapter:
                 "-C",
                 str(project_root),
             ]
-            if binding["sandbox_mode"] == "workspace-write":
-                arguments.append("--approve-for-me")
             if binding["model"] is not None:
                 arguments.extend(["--model", str(binding["model"])])
             if binding["reasoning_effort"] != "inherit":
@@ -297,6 +309,55 @@ class CliModelRouterAdapter:
                 raise AdapterContractError("Claude result field is not strict JSON") from exc
         return _strict_result(value, task)
 
+    def _run_generic_cli(
+        self,
+        task: dict[str, Any],
+        binding: dict[str, Any],
+        project_root: Path,
+        prompt: str,
+    ) -> dict[str, Any]:
+        if binding["sandbox_mode"] != "read-only":
+            raise AdapterPermanentError(
+                "the portable generic CLI protocol is read-only in the v0.8 reference"
+            )
+        configured = self.generic_cli_commands.get(str(task["role"]))
+        if configured is None:
+            raise AdapterPermanentError("generic AI role has no explicit CLI command binding")
+        binary = self.binary_resolver(configured[0])
+        if not binary:
+            raise AdapterPermanentError("generic AI CLI is unavailable")
+        arguments = [binary, *configured[1:]]
+        envelope = {
+            "protocol": "agent-team.generic-cli/1.0.0",
+            "task": task,
+            "prompt": prompt,
+            "output_schema": _load_object(RESULT_SCHEMA_PATH),
+        }
+        try:
+            completed = self.command_runner(
+                arguments,
+                cwd=project_root,
+                input=_canonical_json(envelope),
+                text=True,
+                capture_output=True,
+                timeout=int(task["budget"]["max_seconds"]),
+                check=False,
+                env=_cli_environment(),
+                shell=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise AdapterPermanentError("generic AI task exceeded its bound timeout") from exc
+        if completed.returncode != 0:
+            raise AdapterPermanentError("generic AI CLI failed without a valid bound result")
+        encoded = completed.stdout.encode("utf-8")
+        if len(encoded) > MAX_DRIVER_OUTPUT_BYTES:
+            raise AdapterContractError("generic AI result exceeds 1 MiB")
+        try:
+            value = loads_strict(completed.stdout)
+        except ValueError as exc:
+            raise AdapterContractError("generic AI result is not strict JSON") from exc
+        return _strict_result(value, task)
+
     def execute(self, request: dict[str, Any], context: AdapterContext) -> dict[str, Any]:
         del context
         task = request["payload"]
@@ -313,9 +374,11 @@ class CliModelRouterAdapter:
             result = self._run_codex(task, binding, project_root, prompt)
         elif engine == "claude":
             result = self._run_claude(task, binding, project_root, prompt)
+        elif engine == "generic-ai":
+            result = self._run_generic_cli(task, binding, project_root, prompt)
         else:
             raise AdapterPermanentError(
-                "OpenClaw and generic AI roles require their native runtime or a manual result adapter"
+                "OpenClaw roles require their ingress runtime or a manual result adapter"
             )
         return _result_envelope(result, request, engine)
 

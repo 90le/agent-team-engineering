@@ -1,0 +1,14 @@
+{
+  "accepted": true,
+  "adapter_id": "adapter.native-mock",
+  "adapter_version": "1.0.0",
+  "port": "scm",
+  "requested_core_version": "1.0.0",
+  "minimum_core_version": "1.0.0",
+  "maximum_core_version_exclusive": "2.0.0",
+  "required_capabilities": ["draft-pr.create"],
+  "provided_capabilities": ["draft-pr.create"],
+  "missing_capabilities": [],
+  "limitations": ["Test double only; it performs no external or untrusted execution."],
+  "errors": []
+}

@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0.0",
+  "migration_id": "agent-team-v07-to-v08",
+  "direction": "one-way-import",
+  "source_release": "v0.7.0",
+  "source_commit": "5fdf33c593247f671f72de4d21a03907671a2855",
+  "source_mutation": "forbidden",
+  "rollback": "Retain the v0.7 tag, source documents, database export, and evidence; discard or revert newly imported v0.8 records.",
+  "mappings": [
+    {"source": "team-blueprint.schema.json", "target": ["TeamSpec", "RoleContract", "WorkflowSpec"], "mode": "reviewed-recompile", "reason": "A blueprint does not contain every v0.8 responsibility, authority, evidence, retry, and stop contract."},
+    {"source": "work-item.schema.json", "target": ["WorkItem"], "mode": "safe-automatic-subset", "implementation": "core.contract_migration:migrate_work_item_v1", "reason": "Portable intake facts and pre-Draft-PR state have an explicit mapping."},
+    {"source": "approval-assertion.schema.json", "target": ["ApprovalGrant"], "mode": "never-migrate", "reason": "The v0.7 assertion does not bind every v0.8 repository, path, action, runner, capability, budget, time, merge, and deploy field; issue a new grant."},
+    {"source": "adapter.schema.json", "target": ["AdapterDescriptor"], "mode": "reviewed-recompile", "reason": "Port capability ranges, limitations, health, cancellation, and uncertainty must be declared explicitly."},
+    {"source": "control-plane SQLite", "target": ["Run", "command-envelope", "event-envelope", "EvidenceBundle"], "mode": "export-review-import", "reason": "No in-place database migration may invent v0.8 events, grants, leases, or evidence."}
+  ],
+  "hard_stops": [
+    "Any v0.7 state after DRAFT_PR_READY is rejected.",
+    "No legacy approval carries authority into v0.8.",
+    "Unknown state, permission, external side effect, or schema version fails closed.",
+    "No migration writes to an external service or source repository."
+  ]
+}

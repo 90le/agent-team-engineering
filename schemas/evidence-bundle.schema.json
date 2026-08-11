@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:evidence-bundle:1.0.0",
+  "title": "Content-addressed EvidenceBundle index",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "schema_version", "bundle_id", "run_id", "work_item_id", "items", "created_at", "created_by", "retention", "bundle_digest"],
+  "properties": {
+    "$schema": {"const": "urn:agent-team:schema:evidence-bundle:1.0.0"},
+    "schema_version": {"const": "1.0.0"},
+    "bundle_id": {"type": "string", "pattern": "^evidence-[a-z0-9][a-z0-9-]*$", "maxLength": 120},
+    "run_id": {"type": "string", "pattern": "^run-[a-z0-9][a-z0-9-]*$"},
+    "work_item_id": {"type": "string", "pattern": "^work-[a-z0-9][a-z0-9-]*$"},
+    "items": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["evidence_id", "type", "content_ref", "content_digest", "producer", "created_at", "classification", "redacted"],
+        "properties": {
+          "evidence_id": {"type": "string", "pattern": "^item-[a-z0-9][a-z0-9-]*$"},
+          "type": {"enum": ["input-snapshot", "context-manifest", "approval", "command-summary", "change-commit", "test-result", "ci-result", "review", "fault-event", "recovery-event", "resource-summary", "draft-pr"]},
+          "content_ref": {"type": "string", "minLength": 1, "maxLength": 1000},
+          "content_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+          "producer": {"type": "string", "minLength": 1, "maxLength": 200},
+          "created_at": {"type": "string", "format": "date-time", "maxLength": 40},
+          "classification": {"enum": ["PUBLIC", "INTERNAL", "CONFIDENTIAL"]},
+          "redacted": {"type": "boolean"}
+        }
+      }
+    },
+    "created_at": {"type": "string", "format": "date-time", "maxLength": 40},
+    "created_by": {"type": "string", "minLength": 1, "maxLength": 200},
+    "retention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy", "expires_at"],
+      "properties": {
+        "policy": {"enum": ["project", "release", "temporary"]},
+        "expires_at": {"type": ["string", "null"], "format": "date-time", "maxLength": 40}
+      }
+    },
+    "bundle_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+  }
+}

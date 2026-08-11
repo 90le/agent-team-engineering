@@ -3,9 +3,12 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from core.webhooks import (
+    GitHubWebhookLedger,
     WebhookVerificationError,
     parse_signed_feedback,
     verify_hmac_sha256,
@@ -82,6 +85,92 @@ class SignedWebhookTests(unittest.TestCase):
                 signature_header=signature,
                 secret=secret,
             )
+
+    def test_github_delivery_is_repository_bound_and_durably_deduplicated(self) -> None:
+        secret = b"github-webhook-test-secret"
+        document = {
+            "action": "opened",
+            "repository": {"full_name": "owner/bound-repository"},
+            "sender": {"id": 12345, "login": "human-owner"},
+            "issue": {"number": 1, "body": "Untrusted issue content"},
+        }
+        payload = json.dumps(document, separators=(",", ":")).encode("utf-8")
+        signature = "sha256=" + hmac.new(secret, payload, hashlib.sha256).hexdigest()
+        with tempfile.TemporaryDirectory() as temporary:
+            database = Path(temporary) / "deliveries.sqlite3"
+            with GitHubWebhookLedger(database) as ledger:
+                first = ledger.accept(
+                    payload,
+                    delivery_id="delivery-github-1",
+                    event_name="issues",
+                    signature_header=signature,
+                    secret=secret,
+                    expected_repository="owner/bound-repository",
+                    allowed_events=frozenset({"issues"}),
+                )
+                replay = ledger.accept(
+                    payload,
+                    delivery_id="delivery-github-1",
+                    event_name="issues",
+                    signature_header=signature,
+                    secret=secret,
+                    expected_repository="owner/bound-repository",
+                    allowed_events=frozenset({"issues"}),
+                )
+                self.assertFalse(first["replayed"])
+                self.assertTrue(replay["replayed"])
+                self.assertEqual(first["sender_id"], "12345")
+            for database_file in Path(temporary).glob("deliveries.sqlite3*"):
+                self.assertNotIn(payload, database_file.read_bytes())
+
+    def test_github_delivery_rejects_wrong_repo_event_signature_and_conflicting_replay(self) -> None:
+        secret = b"github-webhook-test-secret"
+        document = {
+            "action": "opened",
+            "repository": {"full_name": "owner/bound-repository"},
+        }
+        payload = json.dumps(document, separators=(",", ":")).encode("utf-8")
+        signature = "sha256=" + hmac.new(secret, payload, hashlib.sha256).hexdigest()
+        with tempfile.TemporaryDirectory() as temporary:
+            with GitHubWebhookLedger(Path(temporary) / "deliveries.sqlite3") as ledger:
+                for label, repository, event, supplied_signature in (
+                    ("repo", "owner/other", "issues", signature),
+                    ("event", "owner/bound-repository", "push", signature),
+                    ("signature", "owner/bound-repository", "issues", "sha256=" + "0" * 64),
+                ):
+                    with self.subTest(label=label), self.assertRaises(WebhookVerificationError):
+                        ledger.accept(
+                            payload,
+                            delivery_id=f"delivery-{label}",
+                            event_name=event,
+                            signature_header=supplied_signature,
+                            secret=secret,
+                            expected_repository=repository,
+                            allowed_events=frozenset({"issues"}),
+                        )
+                ledger.accept(
+                    payload,
+                    delivery_id="delivery-conflict",
+                    event_name="issues",
+                    signature_header=signature,
+                    secret=secret,
+                    expected_repository="owner/bound-repository",
+                    allowed_events=frozenset({"issues"}),
+                )
+                changed = payload.replace(b'"opened"', b'"closed"')
+                changed_signature = (
+                    "sha256=" + hmac.new(secret, changed, hashlib.sha256).hexdigest()
+                )
+                with self.assertRaises(WebhookVerificationError):
+                    ledger.accept(
+                        changed,
+                        delivery_id="delivery-conflict",
+                        event_name="issues",
+                        signature_header=changed_signature,
+                        secret=secret,
+                        expected_repository="owner/bound-repository",
+                        allowed_events=frozenset({"issues"}),
+                    )
 
 
 if __name__ == "__main__":

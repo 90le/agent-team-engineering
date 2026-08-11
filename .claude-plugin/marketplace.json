@@ -11,7 +11,7 @@
       "name": "agent-team",
       "source": "./.agents/plugins/plugins/agent-team",
       "description": "Create portable context-first AI teams for Codex, Claude, OpenClaw, and Generic AI.",
-      "version": "0.7.0",
+      "version": "0.8.0",
       "author": {
         "name": "90le"
       },

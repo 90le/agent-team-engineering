@@ -147,6 +147,63 @@ class FactoryCliTests(unittest.TestCase):
         self.assertEqual(issue["delivery"], "reconcile-before-retry")
         self.assertTrue(issue["project_scoped"])
 
+    def test_native_cli_runs_no_network_demo_and_verifies_recovery_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            database = base / "native.sqlite3"
+            backup = base / "native.backup.sqlite3"
+            valid = run_root_cli(
+                "native",
+                "contract-validate",
+                "--contract",
+                "team_spec",
+                "--file",
+                str(ROOT / "examples/v08-contracts/valid/team-spec.json"),
+            )
+            self.assertEqual(valid.returncode, 0, valid.stderr)
+            self.assertEqual(json.loads(valid.stdout)["status"], "VALID")
+
+            demo = run_root_cli("native", "demo", "--database", str(database))
+            self.assertEqual(demo.returncode, 0, demo.stderr)
+            report = json.loads(demo.stdout)
+            self.assertEqual(report["work_item"]["state"], "DRAFT_PR_READY")
+            self.assertFalse(report["safety"]["external_network_used"])
+            self.assertFalse(report["safety"]["real_scm_write_used"])
+
+            replayed = run_root_cli("native", "demo", "--database", str(database))
+            self.assertEqual(replayed.returncode, 0, replayed.stderr)
+            replay_report = json.loads(replayed.stdout)
+            self.assertEqual(replay_report["work_item"], report["work_item"])
+            self.assertEqual(replay_report["run"], report["run"])
+            self.assertEqual(
+                replay_report["invariants"]["audit"]["events"],
+                report["invariants"]["audit"]["events"],
+            )
+            self.assertEqual(
+                replay_report["invariants"]["effects"],
+                report["invariants"]["effects"],
+            )
+
+            verified = run_root_cli("native", "verify", "--database", str(database))
+            self.assertEqual(verified.returncode, 0, verified.stderr)
+            self.assertEqual(json.loads(verified.stdout)["status"], "VALID")
+            status = run_root_cli("native", "status", "--database", str(database))
+            self.assertEqual(status.returncode, 0, status.stderr)
+            self.assertFalse(json.loads(status.stdout)["merge_enabled"])
+            recovered = run_root_cli("native", "recover", "--database", str(database))
+            self.assertEqual(recovered.returncode, 0, recovered.stderr)
+            self.assertEqual(json.loads(recovered.stdout)["recovered_effects"], 0)
+            backed_up = run_root_cli(
+                "native",
+                "backup",
+                "--database",
+                str(database),
+                "--output",
+                str(backup),
+            )
+            self.assertEqual(backed_up.returncode, 0, backed_up.stderr)
+            self.assertTrue(backup.is_file())
+
     def test_instance_cli_round_trip(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "instance"

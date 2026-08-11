@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:sandbox-profile:1.0.0",
+  "title": "Disposable isolated worker profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "profile_id", "environment", "image", "resources", "network", "mounts", "process", "cleanup"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "profile_id": {"type": "string", "pattern": "^runner-profile\\.[a-z0-9][a-z0-9.-]*$"},
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "disposable", "production_data_present", "long_lived_credentials_present"],
+      "properties": {
+        "kind": {"enum": ["github-hosted-ephemeral", "dedicated-worker-vm"]},
+        "disposable": {"const": true},
+        "production_data_present": {"const": false},
+        "long_lived_credentials_present": {"const": false}
+      }
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reference", "resolve_to_digest_before_run", "record_resolved_digest"],
+      "properties": {
+        "reference": {"type": "string", "pattern": "^[A-Za-z0-9./_-]+:[A-Za-z0-9._-]+$", "maxLength": 300},
+        "resolve_to_digest_before_run": {"const": true},
+        "record_resolved_digest": {"const": true}
+      }
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cpus", "memory_mib", "pids", "workspace_mib", "timeout_seconds", "output_bytes"],
+      "properties": {
+        "cpus": {"type": "number", "minimum": 0.1, "maximum": 4},
+        "memory_mib": {"type": "integer", "minimum": 32, "maximum": 8192},
+        "pids": {"type": "integer", "minimum": 8, "maximum": 512},
+        "workspace_mib": {"type": "integer", "minimum": 8, "maximum": 4096},
+        "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 3600},
+        "output_bytes": {"type": "integer", "minimum": 1024, "maximum": 1000000}
+      }
+    },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "allowlist"],
+      "properties": {
+        "mode": {"const": "none"},
+        "allowlist": {"type": "array", "maxItems": 0}
+      }
+    },
+    "mounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_read_only", "workspace_ephemeral", "production_mounts", "docker_socket_in_sandbox", "host_home", "denied_host_paths"],
+      "properties": {
+        "source_read_only": {"const": true},
+        "workspace_ephemeral": {"const": true},
+        "production_mounts": {"const": false},
+        "docker_socket_in_sandbox": {"const": false},
+        "host_home": {"const": false},
+        "denied_host_paths": {
+          "type": "array",
+          "minItems": 5,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^/", "maxLength": 300}
+        }
+      }
+    },
+    "process": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["user", "privileged", "cap_add", "cap_drop", "no_new_privileges", "root_filesystem_read_only"],
+      "properties": {
+        "user": {"const": "65534:65534"},
+        "privileged": {"const": false},
+        "cap_add": {"type": "array", "maxItems": 0},
+        "cap_drop": {"const": ["ALL"]},
+        "no_new_privileges": {"const": true},
+        "root_filesystem_read_only": {"const": true}
+      }
+    },
+    "cleanup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["remove_container", "remove_workspace", "verify_no_residue", "preserve_sanitized_evidence_only"],
+      "properties": {
+        "remove_container": {"const": true},
+        "remove_workspace": {"const": true},
+        "verify_no_residue": {"const": true},
+        "preserve_sanitized_evidence_only": {"const": true}
+      }
+    }
+  }
+}

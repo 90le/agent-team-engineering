@@ -1,0 +1,24 @@
+{
+  "$schema": "urn:agent-team:schema:adapter-descriptor:1.0.0",
+  "schema_version": "1.0.0",
+  "adapter_id": "adapter.native-mock",
+  "adapter_version": "1.0.0",
+  "status": "REFERENCE",
+  "ports": ["ingress", "scm", "agent-executor", "sandbox", "ci", "evidence", "notification"],
+  "core_contract_versions": {"minimum": "1.0.0", "maximum_exclusive": "2.0.0"},
+  "external_product": null,
+  "capabilities": ["feedback.receive", "draft-pr.create", "agent.execute", "sandbox.mock", "ci.mock", "evidence.store", "notification.record"],
+  "permissions": [],
+  "limitations": ["Test double only; it performs no external or untrusted execution."],
+  "timeouts": {"connect_seconds": 1, "operation_seconds": 30, "cancel_seconds": 5},
+  "idempotency": [
+    {"port": "ingress", "mode": "provider-key"},
+    {"port": "scm", "mode": "provider-key"},
+    {"port": "agent-executor", "mode": "provider-key"},
+    {"port": "sandbox", "mode": "provider-key"},
+    {"port": "ci", "mode": "read-only"},
+    {"port": "evidence", "mode": "provider-key"},
+    {"port": "notification", "mode": "provider-key"}
+  ],
+  "health_check": {"mode": "local", "timeout_seconds": 1}
+}

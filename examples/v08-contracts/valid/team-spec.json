@@ -1,0 +1,20 @@
+{
+  "$schema": "urn:agent-team:schema:team-spec:1.0.0",
+  "schema_version": "1.0.0",
+  "team_id": "team.example",
+  "team_version": "1.0.0",
+  "name": "Example governed delivery team",
+  "mission": "Turn approved feedback into independently reviewed draft pull requests.",
+  "autonomy_level": "A2",
+  "stop_after": "DRAFT_PR_READY",
+  "role_contract_refs": ["role.implementer@1.0.0", "role.reviewer@1.0.0"],
+  "workflow_spec_refs": ["workflow.delivery@1.0.0"],
+  "required_capabilities": ["code.change", "review.independent", "test.run"],
+  "allowed_adapter_ports": ["ingress", "identity", "scm", "agent-executor", "sandbox", "ci", "evidence", "notification"],
+  "context": {
+    "root_ref": "git:team-package",
+    "revision": "0123456789abcdef0123456789abcdef01234567",
+    "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "created_at": "2026-08-11T05:30:00Z"
+}

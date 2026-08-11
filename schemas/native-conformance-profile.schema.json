@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:native-conformance-profile:1.0.0",
+  "title": "Native reference conformance profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "profile_id", "status", "workflow", "backend", "required_ports", "scenario", "fault_points", "required_tests", "authority_boundaries"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "profile_id": {"const": "acceptance.v08-native-reference"},
+    "status": {"const": "RELEASED_V08_L1_REFERENCE"},
+    "workflow": {"const": "contracts/native-reference-workflow.json"},
+    "backend": {"const": "native-deterministic-fakes"},
+    "required_ports": {"type": "array", "minItems": 10, "maxItems": 10, "uniqueItems": true, "items": {"enum": ["ingress", "identity", "scm", "agent-executor", "sandbox", "ci", "state-store", "evidence", "notification", "secret"]}},
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["final_state", "minimum_changes_requested_rounds", "independent_review", "stable_replay", "external_network", "untrusted_code", "real_scm_write", "merge", "deploy"],
+      "properties": {
+        "final_state": {"const": "DRAFT_PR_READY"},
+        "minimum_changes_requested_rounds": {"type": "integer", "minimum": 1},
+        "independent_review": {"const": true},
+        "stable_replay": {"const": true},
+        "external_network": {"const": false},
+        "untrusted_code": {"const": false},
+        "real_scm_write": {"const": false},
+        "merge": {"const": false},
+        "deploy": {"const": false}
+      }
+    },
+    "fault_points": {"type": "array", "minItems": 6, "uniqueItems": true, "items": {"enum": ["before_commit", "after_commit", "after_claim", "before_invoke", "after_invoke", "before_finalize", "expired_lease", "expired_effect_claim", "unknown_side_effect"]}},
+    "required_tests": {"type": "array", "minItems": 3, "uniqueItems": true, "items": {"type": "string", "pattern": "^tests\\.test_[a-z0-9_.]+$"}},
+    "authority_boundaries": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gate_b_runner", "gate_c_external_write", "gate_d_release", "production_integrations"],
+      "properties": {
+        "gate_b_runner": {"const": "GRANTED_DISPOSABLE_ONLY"},
+        "gate_c_external_write": {"enum": ["GRANTED_DEDICATED_TEST_ONLY", "AUTHORIZED_EVIDENCE_PENDING"]},
+        "gate_d_release": {"const": "GRANTED_V080_ONLY"},
+        "production_integrations": {"const": false}
+      }
+    }
+  }
+}

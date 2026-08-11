@@ -1,0 +1,19 @@
+{
+  "$schema": "urn:agent-team:schema:role-contract:1.0.0",
+  "schema_version": "1.0.0",
+  "role_id": "role.implementer",
+  "role_version": "1.0.0",
+  "name": "Bounded implementer",
+  "responsibilities": ["Implement the approved plan and produce test evidence."],
+  "non_responsibilities": ["Approve its own plan, merge, or deploy."],
+  "minimum_context_refs": ["AI-BOOTSTRAP.md", "project/AGENTS.md"],
+  "input_contracts": ["urn:agent-team:schema:plan-revision:1.0.0"],
+  "output_contracts": ["urn:agent-team:schema:evidence-bundle:1.0.0"],
+  "required_capabilities": ["code.change", "test.run"],
+  "allowed_actions": ["repository.read", "workspace.write", "test.run", "commit.create"],
+  "forbidden_actions": ["approval.issue", "merge.execute", "deploy.execute"],
+  "resource_limits": {"max_sessions": 2, "max_duration_seconds": 1800, "max_cost_units": 100},
+  "handoff": {"to_roles": ["role.reviewer"], "required_evidence_types": ["change-commit", "test-result"]},
+  "completion_evidence": ["change-commit", "test-result"],
+  "stop_conditions": ["The approved scope is insufficient.", "A requested action is forbidden."]
+}

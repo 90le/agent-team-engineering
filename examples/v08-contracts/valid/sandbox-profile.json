@@ -1,0 +1,53 @@
+{
+  "schema_version": "1.0.0",
+  "profile_id": "runner-profile.github-ephemeral-native-oci",
+  "environment": {
+    "kind": "github-hosted-ephemeral",
+    "disposable": true,
+    "production_data_present": false,
+    "long_lived_credentials_present": false
+  },
+  "image": {
+    "reference": "alpine:3.22",
+    "resolve_to_digest_before_run": true,
+    "record_resolved_digest": true
+  },
+  "resources": {
+    "cpus": 0.5,
+    "memory_mib": 64,
+    "pids": 32,
+    "workspace_mib": 16,
+    "timeout_seconds": 10,
+    "output_bytes": 100000
+  },
+  "network": {"mode": "none", "allowlist": []},
+  "mounts": {
+    "source_read_only": true,
+    "workspace_ephemeral": true,
+    "production_mounts": false,
+    "docker_socket_in_sandbox": false,
+    "host_home": false,
+    "denied_host_paths": [
+      "/srv/appdata",
+      "/mnt/synology",
+      "/etc/pve",
+      "/root",
+      "/home",
+      "/var/run/docker.sock"
+    ]
+  },
+  "process": {
+    "user": "65534:65534",
+    "privileged": false,
+    "cap_add": [],
+    "cap_drop": ["ALL"],
+    "no_new_privileges": true,
+    "root_filesystem_read_only": true
+  },
+  "cleanup": {
+    "remove_container": true,
+    "remove_workspace": true,
+    "verify_no_residue": true,
+    "preserve_sanitized_evidence_only": true
+  }
+}

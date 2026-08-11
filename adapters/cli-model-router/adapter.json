@@ -1,7 +1,7 @@
 {
   "schema_version": "2.0.0",
   "id": "adapter.cli-model-router",
-  "version": "0.6.0",
+  "version": "0.8.0",
   "kind": "agent-provider",
   "status": "REFERENCE",
   "authority": "replaceable-interface",

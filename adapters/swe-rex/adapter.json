@@ -1,0 +1,32 @@
+{
+  "schema_version": "2.0.0",
+  "id": "adapter.swe-rex",
+  "version": "0.8.0",
+  "kind": "runner",
+  "status": "EXPERIMENTAL",
+  "authority": "replaceable-interface",
+  "slots": ["runner"],
+  "config_schema": "schemas/sandbox-profile.schema.json",
+  "operations": [
+    {
+      "name": "runner.execute",
+      "slots": ["runner"],
+      "direction": "outbound",
+      "external_effect": "compute",
+      "delivery": "at-most-once",
+      "capability": "sandbox.execute",
+      "input_schema": "schemas/execution-request.schema.json",
+      "output_schema": "schemas/execution-result.schema.json",
+      "timeout_seconds": 3600,
+      "project_scope": {"match_by": "id", "payload_field": "project_id", "provider": null, "allowed_modes": ["proposal-only"], "default_branch_field": null, "source_ref_field": "source_ref"}
+    }
+  ],
+  "trust_boundaries": ["control-worker", "isolated-executor", "provider-api"],
+  "credentials": [],
+  "implementation": {"mode": "contract-only", "entrypoint": null},
+  "security_notes": [
+    "Pinned research revision: 5c995c365dfb1fd5bc56fda688be5d8538f9931f; no upstream file is copied.",
+    "LocalDeployment is forbidden for untrusted work; only a dedicated disposable backend may be considered.",
+    "This descriptor remains NO-GO until the same hard-gate probe passes three times."
+  ]
+}

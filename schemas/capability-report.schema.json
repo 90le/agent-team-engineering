@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:capability-report:1.0.0",
+  "title": "Adapter capability negotiation report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["accepted", "adapter_id", "adapter_version", "port", "requested_core_version", "minimum_core_version", "maximum_core_version_exclusive", "required_capabilities", "provided_capabilities", "missing_capabilities", "limitations", "errors"],
+  "properties": {
+    "accepted": {"type": "boolean"},
+    "adapter_id": {"type": "string", "pattern": "^adapter\\.[a-z0-9][a-z0-9.-]*$"},
+    "adapter_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "port": {"enum": ["ingress", "identity", "scm", "agent-executor", "sandbox", "ci", "state-store", "evidence", "notification", "secret"]},
+    "requested_core_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "minimum_core_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "maximum_core_version_exclusive": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "required_capabilities": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z][a-z0-9.-]*$"}},
+    "provided_capabilities": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z][a-z0-9.-]*$"}},
+    "missing_capabilities": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z][a-z0-9.-]*$"}},
+    "limitations": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 1000}},
+    "errors": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 1000}}
+  }
+}

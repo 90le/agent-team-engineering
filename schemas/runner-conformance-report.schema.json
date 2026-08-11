@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:runner-conformance-report:1.0.0",
+  "title": "Sanitized disposable runner conformance report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "candidate_id", "profile_id", "environment_kind", "resolved_image_digest", "runs", "required_probe_ids", "score", "hard_gate_passed", "decision", "cleanup_verified"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "candidate_id": {"type": "string", "pattern": "^runner\\.[a-z0-9][a-z0-9.-]*$"},
+    "profile_id": {"type": "string", "pattern": "^runner-profile\\.[a-z0-9][a-z0-9.-]*$"},
+    "environment_kind": {"enum": ["github-hosted-ephemeral", "dedicated-worker-vm"]},
+    "resolved_image_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "required_probe_ids": {
+      "type": "array",
+      "minItems": 8,
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^[a-z][a-z0-9.-]+$"}
+    },
+    "runs": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["run_id", "status", "probe_results", "container_residue", "duration_milliseconds"],
+        "properties": {
+          "run_id": {"type": "string", "pattern": "^run-[a-z0-9-]+$"},
+          "status": {"enum": ["PASS", "FAIL"]},
+          "probe_results": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "non-root-user": {"enum": ["PASS", "FAIL"]},
+              "read-only-source": {"enum": ["PASS", "FAIL"]},
+              "ephemeral-workspace": {"enum": ["PASS", "FAIL"]},
+              "read-only-root": {"enum": ["PASS", "FAIL"]},
+              "no-production-mounts": {"enum": ["PASS", "FAIL"]},
+              "no-docker-socket": {"enum": ["PASS", "FAIL"]},
+              "no-inherited-secrets": {"enum": ["PASS", "FAIL"]},
+              "network-denied": {"enum": ["PASS", "FAIL"]},
+              "timeout-termination": {"enum": ["PASS", "FAIL"]},
+              "resource-limit": {"enum": ["PASS", "FAIL"]},
+              "residue-cleanup": {"enum": ["PASS", "FAIL"]}
+            }
+          },
+          "container_residue": {"type": "integer", "minimum": 0},
+          "duration_milliseconds": {"type": "integer", "minimum": 0, "maximum": 600000}
+        }
+      }
+    },
+    "score": {"type": "integer", "minimum": 0, "maximum": 100},
+    "hard_gate_passed": {"type": "boolean"},
+    "decision": {"enum": ["REFERENCE_ELIGIBLE", "EXPERIMENTAL_ONLY", "NO_GO"]},
+    "cleanup_verified": {"type": "boolean"}
+  }
+}

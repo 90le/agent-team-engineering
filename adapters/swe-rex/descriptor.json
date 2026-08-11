@@ -1,0 +1,16 @@
+{
+  "$schema": "urn:agent-team:schema:adapter-descriptor:1.0.0",
+  "schema_version": "1.0.0",
+  "adapter_id": "adapter.swe-rex",
+  "adapter_version": "0.8.0",
+  "status": "EXPERIMENTAL",
+  "ports": ["sandbox"],
+  "core_contract_versions": {"minimum": "1.0.0", "maximum_exclusive": "2.0.0"},
+  "external_product": {"name": "SWE-ReX", "version": "5c995c365dfb1fd5bc56fda688be5d8538f9931f", "api_version": null},
+  "capabilities": ["sandbox.execute", "sandbox.cancel"],
+  "permissions": ["worker:external-runtime"],
+  "limitations": ["Not eligible: network, resource, production-mount and cleanup hard gates have not all been proven through this adapter."],
+  "timeouts": {"connect_seconds": 60, "operation_seconds": 3600, "cancel_seconds": 30},
+  "idempotency": [{"port": "sandbox", "mode": "at-most-once"}],
+  "health_check": {"mode": "composite", "timeout_seconds": 60}
+}

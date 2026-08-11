@@ -15,6 +15,12 @@ Given a project, a team preset, and one or more target platforms, it creates a n
 
 It does not create credentials, authenticate approvals, connect channels, merge code, or deploy production.
 
+## Release selection
+
+For ordinary team creation, use the latest stable tag (`v0.8.0`) and the Lite, Managed, or Custom instructions below. Do not silently switch a user to a development branch.
+
+v0.8 includes the released vendor-neutral contracts, Adapter Ports, Native Controller, isolated-runner policy, bounded SCM/identity reference and optional external projections. Read `docs/15-upstream-independent/README.md` when evaluating Managed automation. The released L1 reference uses deterministic fakes for its default scenario and stops at `DRAFT_PR_READY`; it does not grant authority for live model accounts, business-repository writes, merge, or deployment.
+
 ## If an AI is reading this for a user
 
 1. Inspect the target project read-only. Do not modify it yet.

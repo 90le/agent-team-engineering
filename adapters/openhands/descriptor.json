@@ -1,0 +1,16 @@
+{
+  "$schema": "urn:agent-team:schema:adapter-descriptor:1.0.0",
+  "schema_version": "1.0.0",
+  "adapter_id": "adapter.openhands-agent-server",
+  "adapter_version": "0.8.0",
+  "status": "EXPERIMENTAL",
+  "ports": ["agent-executor"],
+  "core_contract_versions": {"minimum": "1.0.0", "maximum_exclusive": "2.0.0"},
+  "external_product": {"name": "OpenHands", "version": "21f0967c8f7b728f5840730fe36a33d5833640cb", "api_version": "Agent Server"},
+  "capabilities": ["agent.execute", "agent.cancel", "agent.schema-result"],
+  "permissions": ["provider:agent-session"],
+  "limitations": ["No live install is included; a dedicated sandbox must be proven before executing untrusted repositories."],
+  "timeouts": {"connect_seconds": 60, "operation_seconds": 3600, "cancel_seconds": 30},
+  "idempotency": [{"port": "agent-executor", "mode": "at-most-once"}],
+  "health_check": {"mode": "composite", "timeout_seconds": 60}
+}

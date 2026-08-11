@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:command-envelope:1.0.0",
+  "title": "Optimistic-concurrency command envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "schema_version", "command_id", "command_type", "idempotency_key", "work_item_id", "run_id", "expected_revision", "actor", "payload", "issued_at"],
+  "properties": {
+    "$schema": {"const": "urn:agent-team:schema:command-envelope:1.0.0"},
+    "schema_version": {"const": "1.0.0"},
+    "command_id": {"type": "string", "pattern": "^command-[a-z0-9][a-z0-9-]*$", "maxLength": 120},
+    "command_type": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"},
+    "idempotency_key": {"type": "string", "minLength": 8, "maxLength": 200},
+    "work_item_id": {"type": "string", "pattern": "^work-[a-z0-9][a-z0-9-]*$"},
+    "run_id": {"type": ["string", "null"], "pattern": "^run-[a-z0-9][a-z0-9-]*$"},
+    "expected_revision": {"type": "integer", "minimum": 0},
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actor_id", "actor_kind", "role_id"],
+      "properties": {
+        "actor_id": {"type": "string", "minLength": 1, "maxLength": 200},
+        "actor_kind": {"enum": ["human", "controller", "worker", "adapter"]},
+        "role_id": {"type": ["string", "null"], "pattern": "^role\\.[a-z0-9][a-z0-9.-]*$"}
+      }
+    },
+    "payload": {"type": "object"},
+    "issued_at": {"type": "string", "format": "date-time", "maxLength": 40}
+  }
+}

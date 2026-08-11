@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:event-envelope:1.0.0",
+  "title": "Immutable controller event envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "schema_version", "event_id", "event_type", "causation_command_id", "idempotency_key", "work_item_id", "run_id", "revision", "occurred_at", "payload", "evidence_refs"],
+  "properties": {
+    "$schema": {"const": "urn:agent-team:schema:event-envelope:1.0.0"},
+    "schema_version": {"const": "1.0.0"},
+    "event_id": {"type": "string", "pattern": "^event-[a-z0-9][a-z0-9-]*$", "maxLength": 120},
+    "event_type": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"},
+    "causation_command_id": {"type": "string", "pattern": "^command-[a-z0-9][a-z0-9-]*$"},
+    "idempotency_key": {"type": "string", "minLength": 8, "maxLength": 200},
+    "work_item_id": {"type": "string", "pattern": "^work-[a-z0-9][a-z0-9-]*$"},
+    "run_id": {"type": ["string", "null"], "pattern": "^run-[a-z0-9][a-z0-9-]*$"},
+    "revision": {"type": "integer", "minimum": 1},
+    "occurred_at": {"type": "string", "format": "date-time", "maxLength": 40},
+    "payload": {"type": "object"},
+    "evidence_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 500}}
+  }
+}

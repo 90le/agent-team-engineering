@@ -14,6 +14,28 @@
 
 无历史聊天的跨设备或跨AI交接，还应读取 `docs/12-acceptance/cross-ai-takeover.md` 并运行 `python3 tools/cross_ai_takeover.py`。自动通过只证明可发现性和安全冷启动路径，不替代不同模型的人工独立重放。
 
+## v0.8 供应商中立核心接管路线
+
+任务涉及 Native Controller、Adapter Port、隔离 Runner、SCM/身份、外部投影或 ADR-0009 时，使用以下路线：
+
+1. 普通使用检出 annotated tag `v0.8.0`；开发修改使用提案分支。确认 `VERSION=0.8.0` 且 `factory-package.status=STABLE`。
+2. 按顺序完整读取 `docs/15-upstream-independent/README.md`、`docs/adr/ADR-0009-vendor-neutral-core-and-replaceable-ports.md`、该章引用的设计文档、`contracts/core-contracts.json`、`contracts/native-reference-workflow.json`、`contracts/runner-candidates.json`、`contracts/external-adapter-candidates.json` 与 `acceptance/v08-native-conformance.json`。
+3. 将机器契约、SQLite事务状态和Git证据作为权威，不以历史聊天或供应商对象覆盖它们。
+4. 先运行准确命令：
+
+```bash
+./agent-team native contract-validate \
+  --contract team_spec \
+  --file examples/v08-contracts/valid/team-spec.json
+./agent-team native demo --database /tmp/agent-team-native.sqlite3
+./agent-team native verify --database /tmp/agent-team-native.sqlite3
+```
+
+5. 修改后执行仓库校验、全量测试、release audit、跨AI接手、冷启动和release smoke。
+6. v0.8 授权只覆盖 L1 参考发布。Gate E/F 未获批准时不把测试身份、Runner、模型或外部平台接到真实业务仓库和生产环境，也不允许团队自动 merge/deploy。
+
+普通创建团队、安装插件或采用 v0.8 的任务继续使用 `AI-START.md`；不能因为有适配器描述符就自动安装外部平台或迁移现有实例。
+
 ## 权威分工
 
 - 原则和权限：项目宪法、威胁模型、团队包策略。
