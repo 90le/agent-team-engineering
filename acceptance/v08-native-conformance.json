@@ -20,7 +20,7 @@
   "required_tests": ["tests.test_v08_contracts", "tests.test_v08_adapter_ports", "tests.test_native_controller", "tests.test_native_scenario"],
   "authority_boundaries": {
     "gate_b_runner": "GRANTED_DISPOSABLE_ONLY",
-    "gate_c_external_write": "AUTHORIZED_EVIDENCE_PENDING",
+    "gate_c_external_write": "GRANTED_DEDICATED_TEST_ONLY",
     "gate_d_release": "GRANTED_V080_ONLY",
     "production_integrations": false
   }
