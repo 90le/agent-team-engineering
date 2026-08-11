@@ -8,6 +8,8 @@ Markdown, JSON, Skills, and Git remain the durable team-context authority. The v
 
 The machine registry is [`contracts/core-contracts.json`](../../contracts/core-contracts.json). `core/contracts.py` is a dependency-free validator and digest implementation for that registry; the JSON documents remain portable authority.
 
+The replaceable implementation boundary is specified separately in [the v0.8 adapter port SDK](adapter-port-sdk.md).
+
 ## Entity authority
 
 | Contract | Owns | Must not contain as a required core field |
