@@ -24,6 +24,8 @@ python3 tools/github_scm_conformance.py \
 
 Never merge the Draft PR. Download both sanitized reports before deleting the test repository. A report is evidence, not permission to connect a business repository.
 
+The framework's final release audit accepts the two reports only when they name this exact Private repository, the immutable owner actor ID, one reviewed framework commit, one plan digest, and identical provider object IDs. The first report must say all four objects were created; the second must say all four were reconciled with zero new objects. Until those reports are committed and Gate C is changed to `GRANTED_DEDICATED_TEST_ONLY`, the tag workflow fails closed.
+
 ## What the workflow cannot do
 
 Its job token is scoped to the repository and declares only `contents`, `issues`, and `pull-requests` write access. The framework client has no merge, release, settings, environment, secret, or deployment method. The checked-out public framework uses `persist-credentials: false`, so its directory does not receive the private repository token through Git credentials.

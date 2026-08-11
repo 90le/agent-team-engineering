@@ -242,6 +242,10 @@ class BoundedGitHubChangeTests(unittest.TestCase):
         self.assertFalse(second["draft_pull_request"]["created"])
         self.assertFalse(first["merge_performed"])
         self.assertFalse(first["deployment_performed"])
+        self.assertEqual(first["repository_id"], REPOSITORY_ID)
+        self.assertEqual(first["base_commit"], BASE)
+        self.assertEqual(first["identity_provider"], "github.actions")
+        self.assertEqual(first["identity_ref"], identity()["signature_ref"])
 
     def test_wrong_digest_repository_actor_path_and_expiry_make_no_provider_call(self) -> None:
         base_plan = plan()
@@ -305,6 +309,24 @@ class BoundedGitHubChangeTests(unittest.TestCase):
     def test_job_client_exposes_no_merge_release_settings_or_deploy_method(self) -> None:
         for method in ("merge", "release", "settings", "deploy", "delete_repository"):
             self.assertFalse(hasattr(GitHubJobClient, method))
+
+    def test_job_client_requires_a_private_nonfork_evidence_repository(self) -> None:
+        client = GitHubJobClient(REPOSITORY, "x" * 20)
+        client._request = lambda *args, **kwargs: {  # type: ignore[method-assign]
+            "private": True,
+            "fork": False,
+            "archived": False,
+        }
+        client.require_private_repository()
+
+        for metadata in (
+            {"private": False, "fork": False, "archived": False},
+            {"private": True, "fork": True, "archived": False},
+            {"private": True, "fork": False, "archived": True},
+        ):
+            client._request = lambda *args, value=metadata, **kwargs: value  # type: ignore[method-assign]
+            with self.subTest(metadata=metadata), self.assertRaises(GitHubScmError):
+                client.require_private_repository()
 
 
 if __name__ == "__main__":

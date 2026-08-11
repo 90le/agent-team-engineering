@@ -217,9 +217,13 @@ def execute_bound_change(
     return {
         "schema_version": "1.0.0",
         "repository": expected_repository,
+        "repository_id": expected_repository_id,
+        "base_commit": plan["base_commit"],
         "plan_digest": plan["plan_digest"],
         "approval_scope_digest": approval["scope_digest"],
         "actor_id": verified_identity["actor_id"],
+        "identity_provider": verified_identity["identity_provider"],
+        "identity_ref": verified_identity["signature_ref"],
         "issue": issue,
         "branch": branch,
         "commit": committed,
@@ -249,8 +253,8 @@ class GitHubJobClient:
         *,
         allow_missing: bool = False,
     ) -> Any:
-        prefix = f"/repos/{self.repository}/"
-        if not path.startswith(prefix):
+        repository_root = f"/repos/{self.repository}"
+        if path != repository_root and not path.startswith(repository_root + "/"):
             raise GitHubScmError("provider path escapes the repository scope")
         body = None
         if payload is not None:
@@ -306,6 +310,15 @@ class GitHubJobClient:
         if not OBJECT_ID.fullmatch(commit):
             raise GitHubScmError("GitHub branch commit is malformed")
         return commit
+
+    def require_private_repository(self) -> None:
+        value = self._request("GET", f"/repos/{self.repository}")
+        if not isinstance(value, dict):
+            raise GitHubScmError("GitHub repository metadata is malformed")
+        if value.get("private") is not True:
+            raise GitHubScmError("SCM conformance repository must be Private")
+        if value.get("fork") is True or value.get("archived") is True:
+            raise GitHubScmError("SCM conformance repository cannot be a fork or archive")
 
     def _all(self, path: str) -> list[dict[str, Any]]:
         value = self._request("GET", path)

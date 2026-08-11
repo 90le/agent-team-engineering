@@ -203,6 +203,7 @@ def main() -> int:
         )
         token = os.environ.get("GITHUB_TOKEN", "")
         client = GitHubJobClient(arguments.repository, token)
+        client.require_private_repository()
         report = execute_bound_change(
             client,
             plan,
@@ -212,6 +213,7 @@ def main() -> int:
             expected_repository_id=arguments.repository_id,
             verified_identity=verified,
         )
+        report["repository_private"] = True
         report["framework_commit"] = arguments.framework_commit
         _write_report(arguments.output.resolve(), report)
     except (GitHubScmError, OSError, ValueError) as error:
