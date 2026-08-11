@@ -1,0 +1,47 @@
+{
+  "schema_version": "1.0.0",
+  "policy": {
+    "runtime_dependency_required": false,
+    "external_state_is_authoritative": false,
+    "installation_is_automatic": false,
+    "credentials_are_bundled": false
+  },
+  "candidates": [
+    {
+      "id": "adapter.paperclip-projection",
+      "repository": "https://github.com/paperclipai/paperclip",
+      "revision": "66575fe519db7320147aece94fa66e15eba375c1",
+      "license": "MIT",
+      "status": "EXPERIMENTAL_PROJECTION_ONLY",
+      "adopted_idea": "one-way work/status projection and atomic external checkout semantics",
+      "not_adopted": "Paperclip database, company hierarchy, budget or task state as core authority"
+    },
+    {
+      "id": "adapter.openhands-agent-server",
+      "repository": "https://github.com/All-Hands-AI/OpenHands",
+      "revision": "21f0967c8f7b728f5840730fe36a33d5833640cb",
+      "license": "MIT",
+      "status": "EXPERIMENTAL_NO_LIVE_INSTALL",
+      "adopted_idea": "bounded remote agent-executor request/response boundary",
+      "not_adopted": "no-sandbox host execution or OpenHands internal state as Factory authority"
+    },
+    {
+      "id": "adapter.acp-bridge",
+      "repository": "https://github.com/agentclientprotocol/agent-client-protocol",
+      "revision": "0b1b1260419760501b9f399a44674ad1b270e0d2",
+      "license": "Apache-2.0",
+      "status": "EXPERIMENTAL_CONTRACT_BRIDGE",
+      "adopted_idea": "replaceable agent session transport",
+      "not_adopted": "protocol session identity as human approval or workflow state"
+    },
+    {
+      "id": "adapter.openclaw",
+      "repository": "https://github.com/openclaw/openclaw",
+      "revision": "c8571daa2fc883b80b46508bc2ebca14d28b01f3",
+      "license": "MIT",
+      "status": "REFERENCE_CONTRACT_NO_LIVE_INSTALL",
+      "adopted_idea": "feedback ingress and status notification through separate trust boundaries",
+      "not_adopted": "chat messages as approval, hostile multi-tenant isolation or core state"
+    }
+  ]
+}

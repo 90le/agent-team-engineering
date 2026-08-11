@@ -1,0 +1,16 @@
+{
+  "$schema": "urn:agent-team:schema:adapter-descriptor:1.0.0",
+  "schema_version": "1.0.0",
+  "adapter_id": "adapter.openclaw",
+  "adapter_version": "0.8.0",
+  "status": "REFERENCE",
+  "ports": ["ingress", "notification"],
+  "core_contract_versions": {"minimum": "1.0.0", "maximum_exclusive": "2.0.0"},
+  "external_product": {"name": "OpenClaw", "version": "c8571daa2fc883b80b46508bc2ebca14d28b01f3", "api_version": null},
+  "capabilities": ["ingress.feedback", "ingress.delivery-id", "notification.status"],
+  "permissions": ["provider:messages:read", "provider:messages:write"],
+  "limitations": ["Chat content never proves owner identity or approval; public intake and authenticated owner control require separate trust boundaries."],
+  "timeouts": {"connect_seconds": 30, "operation_seconds": 30, "cancel_seconds": 10},
+  "idempotency": [{"port": "ingress", "mode": "provider-key"}, {"port": "notification", "mode": "reconcile-before-retry"}],
+  "health_check": {"mode": "remote", "timeout_seconds": 30}
+}

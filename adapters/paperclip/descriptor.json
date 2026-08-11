@@ -1,0 +1,16 @@
+{
+  "$schema": "urn:agent-team:schema:adapter-descriptor:1.0.0",
+  "schema_version": "1.0.0",
+  "adapter_id": "adapter.paperclip-projection",
+  "adapter_version": "0.8.0",
+  "status": "EXPERIMENTAL",
+  "ports": ["notification"],
+  "core_contract_versions": {"minimum": "1.0.0", "maximum_exclusive": "2.0.0"},
+  "external_product": {"name": "Paperclip", "version": "66575fe519db7320147aece94fa66e15eba375c1", "api_version": "REST"},
+  "capabilities": ["projection.work-item", "projection.status", "projection.one-way"],
+  "permissions": ["provider:work-items:write"],
+  "limitations": ["Projection only: Paperclip state, approvals, budgets and hierarchy never become core authority."],
+  "timeouts": {"connect_seconds": 30, "operation_seconds": 30, "cancel_seconds": 10},
+  "idempotency": [{"port": "notification", "mode": "provider-key"}],
+  "health_check": {"mode": "remote", "timeout_seconds": 30}
+}

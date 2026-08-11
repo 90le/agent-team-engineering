@@ -1,0 +1,16 @@
+{
+  "$schema": "urn:agent-team:schema:adapter-descriptor:1.0.0",
+  "schema_version": "1.0.0",
+  "adapter_id": "adapter.acp-bridge",
+  "adapter_version": "0.8.0",
+  "status": "EXPERIMENTAL",
+  "ports": ["agent-executor"],
+  "core_contract_versions": {"minimum": "1.0.0", "maximum_exclusive": "2.0.0"},
+  "external_product": {"name": "Agent Client Protocol", "version": "0b1b1260419760501b9f399a44674ad1b270e0d2", "api_version": "ACP"},
+  "capabilities": ["agent.execute", "agent.cancel", "agent.session-transport"],
+  "permissions": ["worker:acp-process"],
+  "limitations": ["This is a contract projection, not a complete ACP client implementation or a source of human identity."],
+  "timeouts": {"connect_seconds": 30, "operation_seconds": 3600, "cancel_seconds": 30},
+  "idempotency": [{"port": "agent-executor", "mode": "at-most-once"}],
+  "health_check": {"mode": "local", "timeout_seconds": 30}
+}
