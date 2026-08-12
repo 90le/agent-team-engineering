@@ -8,9 +8,12 @@ import hashlib
 import json
 import os
 import re
+import resource
+import signal
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -18,7 +21,7 @@ COMMIT = re.compile(r"^[a-f0-9]{40}$")
 DIGEST = re.compile(r"^sha256:[a-f0-9]{64}$")
 SOURCE_URL = "https://github.com/90le/agent-team-engineering.git"
 ANONYMOUS_COMMANDS = (
-    "setpriv random unregistered UID; no groups/capabilities; no-new-privileges; verify credential-parent /proc isolation",
+    "systemd transient cgroup with memory/CPU/PID/file/tmpfs limits; setpriv random unregistered UID; no groups/capabilities; no-new-privileges; verify credential-parent /proc isolation",
     "git clone --no-local --no-checkout https://github.com/90le/agent-team-engineering.git <temporary>",
     "git verify annotated tag object and peeled commit",
     "git checkout --detach <peeled-tag-commit>; verify clean exact HEAD",
@@ -27,6 +30,15 @@ ANONYMOUS_COMMANDS = (
     "host plan; preview; confirm; apply; verify; uninstall-preview; uninstall; replay",
     "native writer-authority-validate",
 )
+COMMAND_TIMEOUT_SECONDS = 300
+MAX_COMMAND_OUTPUT_BYTES = 16 * 1024 * 1024
+EXPECTED_MEMORY_MAX_BYTES = 1024 * 1024 * 1024
+EXPECTED_MEMORY_SWAP_MAX_BYTES = 0
+EXPECTED_TASKS_MAX = 128
+EXPECTED_CPU_QUOTA_US = 200_000
+EXPECTED_CPU_PERIOD_US = 100_000
+EXPECTED_FILE_SIZE_LIMIT_BYTES = 16 * 1024 * 1024
+EXPECTED_TMPFS_BYTES = 512 * 1024 * 1024
 
 
 class AnonymousWorkerError(RuntimeError):
@@ -85,25 +97,130 @@ def _anonymous_environment(home: Path) -> dict[str, str]:
 
 
 def _run(arguments: list[str], cwd: Path, environment: dict[str, str]) -> str:
+    label = " ".join(arguments[:4])
+    with tempfile.TemporaryFile(mode="w+b") as stdout_file, tempfile.TemporaryFile(
+        mode="w+b"
+    ) as stderr_file:
+        try:
+            process = subprocess.Popen(
+                arguments,
+                cwd=cwd,
+                env=environment,
+                stdin=subprocess.DEVNULL,
+                stdout=stdout_file,
+                stderr=stderr_file,
+                start_new_session=True,
+                shell=False,
+            )
+            try:
+                return_code = process.wait(timeout=COMMAND_TIMEOUT_SECONDS)
+            except subprocess.TimeoutExpired:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                process.wait()
+                raise AnonymousWorkerError(
+                    f"anonymous verification command timed out: {label}"
+                ) from None
+        except OSError:
+            raise AnonymousWorkerError(
+                f"anonymous verification command failed: {label}"
+            ) from None
+        for stream in (stdout_file, stderr_file):
+            if os.fstat(stream.fileno()).st_size > MAX_COMMAND_OUTPUT_BYTES:
+                raise AnonymousWorkerError(
+                    "anonymous verification command output is too large"
+                )
+        if return_code != 0:
+            raise AnonymousWorkerError(
+                f"anonymous verification command failed: {label}"
+            )
+        stdout_file.seek(0)
+        try:
+            return stdout_file.read().decode("utf-8", errors="strict").strip()
+        except UnicodeDecodeError:
+            raise AnonymousWorkerError(
+                "anonymous verification command output is not UTF-8"
+            ) from None
+
+
+def _read_exact_integer(path: Path, label: str) -> int:
     try:
-        completed = subprocess.run(
-            arguments,
-            cwd=cwd,
-            env=environment,
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=300,
-            shell=False,
+        value = path.read_text(encoding="ascii").strip()
+        if not value.isdigit():
+            raise ValueError
+        return int(value)
+    except (OSError, ValueError):
+        raise AnonymousWorkerError(f"{label} is unavailable") from None
+
+
+def _resource_boundary() -> dict[str, Any]:
+    try:
+        cgroup_entry = next(
+            line.split("::", 1)[1]
+            for line in Path("/proc/self/cgroup").read_text(encoding="ascii").splitlines()
+            if line.startswith("0::")
         )
-    except (OSError, subprocess.SubprocessError):
-        label = " ".join(arguments[:4])
-        raise AnonymousWorkerError(
-            f"anonymous verification command failed: {label}"
-        ) from None
-    if len(completed.stdout.encode("utf-8")) > 16 * 1024 * 1024:
-        raise AnonymousWorkerError("anonymous verification command output is too large")
-    return completed.stdout.strip()
+    except (OSError, StopIteration):
+        raise AnonymousWorkerError("unified resource cgroup is unavailable") from None
+    if re.fullmatch(r"/system\.slice/agent-team-v1-anonymous-[a-f0-9]{16}\.service", cgroup_entry) is None:
+        raise AnonymousWorkerError("worker is not inside the declared transient cgroup")
+    cgroup = Path("/sys/fs/cgroup") / cgroup_entry.lstrip("/")
+    if (
+        _read_exact_integer(cgroup / "memory.max", "memory limit")
+        != EXPECTED_MEMORY_MAX_BYTES
+        or _read_exact_integer(cgroup / "memory.swap.max", "swap limit")
+        != EXPECTED_MEMORY_SWAP_MAX_BYTES
+        or _read_exact_integer(cgroup / "pids.max", "process limit")
+        != EXPECTED_TASKS_MAX
+    ):
+        raise AnonymousWorkerError("worker cgroup resource limits differ")
+    try:
+        cpu_quota, cpu_period = (
+            int(value)
+            for value in (cgroup / "cpu.max").read_text(encoding="ascii").split()
+        )
+    except (OSError, ValueError):
+        raise AnonymousWorkerError("CPU quota is unavailable") from None
+    if (cpu_quota, cpu_period) != (
+        EXPECTED_CPU_QUOTA_US,
+        EXPECTED_CPU_PERIOD_US,
+    ):
+        raise AnonymousWorkerError("worker CPU quota differs")
+    file_limit = resource.getrlimit(resource.RLIMIT_FSIZE)
+    if file_limit != (
+        EXPECTED_FILE_SIZE_LIMIT_BYTES,
+        EXPECTED_FILE_SIZE_LIMIT_BYTES,
+    ):
+        raise AnonymousWorkerError("worker file-size limit differs")
+    filesystem = os.statvfs("/tmp")
+    tmpfs_bytes = filesystem.f_frsize * filesystem.f_blocks
+    if tmpfs_bytes != EXPECTED_TMPFS_BYTES:
+        raise AnonymousWorkerError("worker temporary-filesystem limit differs")
+    try:
+        mount_record = next(
+            line
+            for line in Path("/proc/self/mountinfo").read_text(encoding="utf-8").splitlines()
+            if len(line.split()) > 8 and line.split()[4] == "/tmp"
+        )
+    except (OSError, StopIteration):
+        raise AnonymousWorkerError("private temporary filesystem is unavailable") from None
+    if " - tmpfs " not in mount_record:
+        raise AnonymousWorkerError("worker /tmp is not a private tmpfs")
+    return {
+        "resource_isolation": {
+            "cgroup_v2": True,
+            "process_tree_cgroup_isolated": True,
+            "bounded_output_capture": True,
+            "memory_max_bytes": EXPECTED_MEMORY_MAX_BYTES,
+            "memory_swap_max_bytes": EXPECTED_MEMORY_SWAP_MAX_BYTES,
+            "tasks_max": EXPECTED_TASKS_MAX,
+            "cpu_quota_percent": EXPECTED_CPU_QUOTA_US // 1000,
+            "file_size_limit_bytes": EXPECTED_FILE_SIZE_LIMIT_BYTES,
+            "temporary_filesystem_limit_bytes": EXPECTED_TMPFS_BYTES,
+        }
+    }
 
 
 def _linux_process_boundary(credential_parent_pid: int) -> dict[str, Any]:
@@ -165,7 +282,8 @@ def _linux_process_boundary(credential_parent_pid: int) -> dict[str, Any]:
         "supplementary_groups_empty": True,
         "no_new_privileges": True,
         "capabilities_empty": True,
-        "isolation_mechanism": "linux-setpriv-random-uid-no-new-privileges",
+        "isolation_mechanism": "linux-systemd-cgroup-setpriv-random-uid-v1",
+        **_resource_boundary(),
     }
 
 
@@ -389,8 +507,13 @@ def main() -> int:
     parser.add_argument("--verified-at", required=True)
     arguments = parser.parse_args()
     result: dict[str, Any] | None = None
+    workspace_created = False
     try:
         boundary = _linux_process_boundary(arguments.credential_parent_pid)
+        if arguments.workspace.exists() or arguments.workspace.parent != Path("/tmp"):
+            raise AnonymousWorkerError("anonymous workspace path is not fresh private /tmp")
+        arguments.workspace.mkdir(mode=0o700)
+        workspace_created = True
         result = _execute_workflow(
             arguments.release,
             arguments.tag_object,
@@ -404,14 +527,16 @@ def main() -> int:
         return 2
     finally:
         try:
-            if arguments.workspace.is_symlink() or not arguments.workspace.is_dir():
-                raise OSError("anonymous workspace identity changed")
-            arguments.workspace.chmod(0o700)
-            for child in arguments.workspace.iterdir():
-                if child.is_dir() and not child.is_symlink():
-                    shutil.rmtree(child)
-                else:
-                    child.unlink()
+            if workspace_created:
+                if arguments.workspace.is_symlink() or not arguments.workspace.is_dir():
+                    raise OSError("anonymous workspace identity changed")
+                arguments.workspace.chmod(0o700)
+                for child in arguments.workspace.iterdir():
+                    if child.is_dir() and not child.is_symlink():
+                        shutil.rmtree(child)
+                    else:
+                        child.unlink()
+                arguments.workspace.rmdir()
         except OSError:
             print("anonymous release worker could not clear its workspace", file=sys.stderr)
             return 2

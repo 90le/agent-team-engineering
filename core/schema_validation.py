@@ -75,12 +75,36 @@ def validate_schema(value: Any, schema: dict[str, Any], path: str = "$") -> list
         "minimum",
         "maximum",
         "format",
+        "oneOf",
+        "not",
     }
     issues = [
         SchemaIssue(path, f"unsupported schema keyword: {key}")
         for key in schema
         if key not in supported
     ]
+
+    one_of = schema.get("oneOf")
+    if one_of is not None:
+        if not isinstance(one_of, list) or not one_of or not all(
+            isinstance(candidate, dict) for candidate in one_of
+        ):
+            issues.append(SchemaIssue(path, "oneOf must contain schema objects"))
+        else:
+            matches = sum(
+                not validate_schema(value, candidate, path) for candidate in one_of
+            )
+            if matches != 1:
+                issues.append(
+                    SchemaIssue(path, f"must match exactly one oneOf branch; matched {matches}")
+                )
+
+    forbidden = schema.get("not")
+    if forbidden is not None:
+        if not isinstance(forbidden, dict):
+            issues.append(SchemaIssue(path, "not must contain a schema object"))
+        elif not validate_schema(value, forbidden, path):
+            issues.append(SchemaIssue(path, "must not match the forbidden schema"))
 
     expected = schema.get("type")
     if expected is not None:

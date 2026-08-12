@@ -69,11 +69,11 @@
     "unit_tests": {
       "status": "PASS",
       "command": "python3 -m unittest discover -s tests -v",
-      "count": 354
+      "count": 357
     },
     "writer_authority": {
       "status": "PASS",
-      "test_count": 15,
+      "test_count": 16,
       "topology_digest": "sha256:b4b3e8ad868889082a871e3ecc7588b00ced58a0555da299061c0aae758de0dd",
       "plan_digest": "sha256:5736168426ff82d70e78ba52d36c6407894e75922dd569de18db375eaded7efb",
       "approval_scope_digest": "sha256:2457ab8a7d297122c9f82322445b79bb7a90ba59f649bba9e5f315b5b0dfc4b7",

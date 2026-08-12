@@ -83,7 +83,7 @@ FINAL_COMMANDS = (
     "anonymous exact-tag install and lifecycle verification",
 )
 ANONYMOUS_COMMANDS = (
-    "setpriv random unregistered UID; no groups/capabilities; no-new-privileges; verify credential-parent /proc isolation",
+    "systemd transient cgroup with memory/CPU/PID/file/tmpfs limits; setpriv random unregistered UID; no groups/capabilities; no-new-privileges; verify credential-parent /proc isolation",
     "git clone --no-local --no-checkout https://github.com/90le/agent-team-engineering.git <temporary>",
     "git verify annotated tag object and peeled commit",
     "git checkout --detach <peeled-tag-commit>; verify clean exact HEAD",
@@ -255,6 +255,7 @@ def _empty_publication(tag: str, tag_object: str, commit: str, environment: dict
             "no_new_privileges": None,
             "capabilities_empty": None,
             "isolation_mechanism": None,
+            "resource_isolation": None,
         },
     }
 
@@ -505,6 +506,7 @@ def validate_release_evidence(document: dict[str, Any]) -> None:
                     "no_new_privileges",
                     "capabilities_empty",
                     "isolation_mechanism",
+                    "resource_isolation",
                 )
             )
             or anonymous_install["commands"]
@@ -612,7 +614,19 @@ def validate_release_evidence(document: dict[str, Any]) -> None:
             or anonymous_install["no_new_privileges"] is not True
             or anonymous_install["capabilities_empty"] is not True
             or anonymous_install["isolation_mechanism"]
-            != "linux-setpriv-random-uid-no-new-privileges"
+            != "linux-systemd-cgroup-setpriv-random-uid-v1"
+            or anonymous_install["resource_isolation"]
+            != {
+                "cgroup_v2": True,
+                "process_tree_cgroup_isolated": True,
+                "bounded_output_capture": True,
+                "memory_max_bytes": 1073741824,
+                "memory_swap_max_bytes": 0,
+                "tasks_max": 128,
+                "cpu_quota_percent": 200,
+                "file_size_limit_bytes": 16777216,
+                "temporary_filesystem_limit_bytes": 536870912,
+            }
         ):
             raise ReleaseEvidenceError(
                 "final index anonymous installation boundary differs from the exact transport and process contract"

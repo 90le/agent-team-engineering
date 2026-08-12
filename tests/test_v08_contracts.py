@@ -110,6 +110,34 @@ class V08ContractTests(unittest.TestCase):
         with self.assertRaises(KeyError):
             validate_contract("paperclip_company", {})
 
+    def test_plan_and_approval_schema_versions_bind_topology_presence(self) -> None:
+        for contract in ("plan_revision", "approval_grant"):
+            current = self._load(contract)
+            schema = json.loads(
+                (ROOT / CONTRACT_SCHEMAS[contract]).read_text(encoding="utf-8")
+            )
+            from core.schema_validation import validate_schema
+
+            self.assertEqual(validate_schema(current, schema), [])
+
+            missing = copy.deepcopy(current)
+            missing.pop("writer_topology")
+            self.assertTrue(validate_schema(missing, schema))
+
+            legacy = copy.deepcopy(current)
+            legacy["$schema"] = legacy["$schema"].replace("1.1.0", "1.0.0")
+            legacy["schema_version"] = "1.0.0"
+            legacy.pop("writer_topology")
+            self.assertEqual(validate_schema(legacy, schema), [])
+
+            forbidden = copy.deepcopy(legacy)
+            forbidden["writer_topology"] = None
+            self.assertTrue(validate_schema(forbidden, schema))
+
+            mismatched = copy.deepcopy(current)
+            mismatched["schema_version"] = "1.0.0"
+            self.assertTrue(validate_schema(mismatched, schema))
+
     def test_core_schemas_do_not_require_known_platform_names(self) -> None:
         combined = "\n".join(
             (ROOT / relative).read_text(encoding="utf-8").lower()

@@ -4,6 +4,23 @@
   "title": "Exact and time-bound ApprovalGrant",
   "type": "object",
   "additionalProperties": false,
+  "oneOf": [
+    {
+      "required": ["$schema", "schema_version"],
+      "properties": {
+        "$schema": {"const": "urn:agent-team:schema:approval-grant:1.0.0"},
+        "schema_version": {"const": "1.0.0"}
+      },
+      "not": {"required": ["writer_topology"]}
+    },
+    {
+      "required": ["$schema", "schema_version", "writer_topology"],
+      "properties": {
+        "$schema": {"const": "urn:agent-team:schema:approval-grant:1.1.0"},
+        "schema_version": {"const": "1.1.0"}
+      }
+    }
+  ],
   "required": ["$schema", "schema_version", "approval_id", "actor_id", "identity_provider", "work_item_id", "plan_revision", "plan_digest", "repository_id", "base_commit", "allowed_paths", "allowed_actions", "runner_profile", "agent_capabilities", "budget_limit", "time_limit_seconds", "merge_allowed", "deploy_allowed", "issued_at", "expires_at", "nonce", "evidence_ref", "signature_ref", "scope_digest"],
   "properties": {
     "$schema": {"enum": ["urn:agent-team:schema:approval-grant:1.0.0", "urn:agent-team:schema:approval-grant:1.1.0"]},

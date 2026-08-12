@@ -19,11 +19,13 @@ import platform
 import pwd
 import re
 import secrets
+import selectors
 import shutil
 import stat
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -39,6 +41,14 @@ if str(ROOT) not in sys.path:
 
 from core.json_support import loads_strict  # noqa: E402
 from core.security import find_inline_secret  # noqa: E402
+from tools.anonymous_release_worker import (  # noqa: E402
+    EXPECTED_CPU_QUOTA_US,
+    EXPECTED_FILE_SIZE_LIMIT_BYTES,
+    EXPECTED_MEMORY_MAX_BYTES,
+    EXPECTED_MEMORY_SWAP_MAX_BYTES,
+    EXPECTED_TASKS_MAX,
+    EXPECTED_TMPFS_BYTES,
+)
 from tools.release_evidence import (  # noqa: E402
     EVIDENCE_ASSETS,
     GATE_IDS,
@@ -87,8 +97,12 @@ MAX_ARCHIVE_FILENAME_BYTES = 1024
 MAX_REVIEW_PATCH_BYTES = 16 * 1024 * 1024
 ANONYMOUS_WORKER = ROOT / "tools" / "anonymous_release_worker.py"
 ANONYMOUS_SETPRIV = Path("/usr/bin/setpriv")
+ANONYMOUS_SYSTEMD_RUN = Path("/usr/bin/systemd-run")
+ANONYMOUS_SYSTEMCTL = Path("/usr/bin/systemctl")
+ANONYMOUS_ENV = Path("/usr/bin/env")
+MAX_ANONYMOUS_WORKER_OUTPUT_BYTES = 1024 * 1024
 ANONYMOUS_COMMANDS = (
-    "setpriv random unregistered UID; no groups/capabilities; no-new-privileges; verify credential-parent /proc isolation",
+    "systemd transient cgroup with memory/CPU/PID/file/tmpfs limits; setpriv random unregistered UID; no groups/capabilities; no-new-privileges; verify credential-parent /proc isolation",
     "git clone --no-local --no-checkout https://github.com/90le/agent-team-engineering.git <temporary>",
     "git verify annotated tag object and peeled commit",
     "git checkout --detach <peeled-tag-commit>; verify clean exact HEAD",
@@ -1881,13 +1895,54 @@ def _anonymous_worker_command(
     expected_commit: str,
     verified_at: str,
 ) -> list[str]:
-    """Build the no-capability, no-new-privileges credential boundary."""
+    """Build the cgroup, resource, credential and environment boundary."""
 
     if not ANONYMOUS_SETPRIV.is_file() or not os.access(ANONYMOUS_SETPRIV, os.X_OK):
         raise ReleasePublicationError("/usr/bin/setpriv is required for anonymous verification")
+    if not ANONYMOUS_SYSTEMD_RUN.is_file() or not os.access(
+        ANONYMOUS_SYSTEMD_RUN, os.X_OK
+    ):
+        raise ReleasePublicationError(
+            "/usr/bin/systemd-run is required for anonymous verification"
+        )
+    if not ANONYMOUS_ENV.is_file() or not os.access(ANONYMOUS_ENV, os.X_OK):
+        raise ReleasePublicationError("/usr/bin/env is required for anonymous verification")
     if not ANONYMOUS_WORKER.is_file() or ANONYMOUS_WORKER.is_symlink():
         raise ReleasePublicationError("anonymous release worker is missing or unsafe")
+    unit = f"agent-team-v1-anonymous-{secrets.token_hex(8)}"
     return [
+        str(ANONYMOUS_SYSTEMD_RUN),
+        "--quiet",
+        "--wait",
+        "--pipe",
+        "--collect",
+        "--service-type=exec",
+        f"--unit={unit}",
+        "--property=KillMode=control-group",
+        f"--property=MemoryMax={EXPECTED_MEMORY_MAX_BYTES}",
+        f"--property=MemorySwapMax={EXPECTED_MEMORY_SWAP_MAX_BYTES}",
+        f"--property=TasksMax={EXPECTED_TASKS_MAX}",
+        f"--property=CPUQuota={EXPECTED_CPU_QUOTA_US // 1000}%",
+        "--property=RuntimeMaxSec=1800",
+        f"--property=LimitFSIZE={EXPECTED_FILE_SIZE_LIMIT_BYTES}",
+        "--property=TimeoutStopSec=5s",
+        "--property=OOMPolicy=kill",
+        "--property=NoNewPrivileges=yes",
+        "--property=ProtectSystem=strict",
+        "--property=ProtectHome=read-only",
+        "--property=PrivateDevices=yes",
+        "--property=RestrictSUIDSGID=yes",
+        "--property=LockPersonality=yes",
+        "--property=ProtectKernelTunables=yes",
+        "--property=ProtectKernelModules=yes",
+        "--property=ProtectControlGroups=yes",
+        "--property=ProtectKernelLogs=yes",
+        "--property=ProtectClock=yes",
+        "--property=InaccessiblePaths=/var/tmp /dev/shm",
+        "--property=TemporaryFileSystem=/tmp:rw,size=512M,mode=0700,uid="
+        f"{uid},gid={gid}",
+        "--property=WorkingDirectory=/tmp",
+        "--property=UMask=0077",
         str(ANONYMOUS_SETPRIV),
         "--reuid",
         str(uid),
@@ -1900,6 +1955,14 @@ def _anonymous_worker_command(
         "--no-new-privs",
         "--pdeathsig",
         "SIGKILL",
+        str(ANONYMOUS_ENV),
+        "-i",
+        "HOME=/tmp",
+        "PATH=/usr/local/bin:/usr/bin:/bin",
+        "LANG=C.UTF-8",
+        "LC_ALL=C.UTF-8",
+        "PYTHONNOUSERSITE=1",
+        "PYTHONDONTWRITEBYTECODE=1",
         str(Path(sys.executable).resolve()),
         str(ANONYMOUS_WORKER),
         "--release",
@@ -1917,6 +1980,113 @@ def _anonymous_worker_command(
     ]
 
 
+def _anonymous_unit_name(command: list[str]) -> str:
+    unit_option = next(
+        (value for value in command if value.startswith("--unit=")), None
+    )
+    if unit_option is None:
+        raise ReleasePublicationError("anonymous worker command lacks a unit identity")
+    unit = unit_option.split("=", 1)[1]
+    if re.fullmatch(r"agent-team-v1-anonymous-[a-f0-9]{16}", unit) is None:
+        raise ReleasePublicationError("anonymous worker unit identity is invalid")
+    return unit + ".service"
+
+
+def _stop_anonymous_unit(command: list[str], process: subprocess.Popen[bytes]) -> None:
+    try:
+        unit = _anonymous_unit_name(command)
+        if ANONYMOUS_SYSTEMCTL.is_file() and os.access(ANONYMOUS_SYSTEMCTL, os.X_OK):
+            subprocess.run(
+                [
+                    str(ANONYMOUS_SYSTEMCTL),
+                    "kill",
+                    "--kill-whom=all",
+                    "--signal=SIGKILL",
+                    unit,
+                ],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+                timeout=10,
+                shell=False,
+            )
+    except (OSError, subprocess.SubprocessError, ReleasePublicationError):
+        pass
+    if process.poll() is None:
+        process.kill()
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        pass
+
+
+def _run_anonymous_worker(command: list[str]) -> str:
+    """Run the transient unit without buffering untrusted output without bound."""
+
+    environment = {
+        "HOME": "/tmp",
+        "PATH": "/usr/bin:/bin",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONDONTWRITEBYTECODE": "1",
+    }
+    try:
+        process = subprocess.Popen(
+            command,
+            cwd=ROOT,
+            env=environment,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=False,
+        )
+    except OSError:
+        raise ReleasePublicationError(
+            "credential-isolated anonymous release worker failed"
+        ) from None
+    streams = selectors.DefaultSelector()
+    buffers: dict[str, bytearray] = {"stdout": bytearray(), "stderr": bytearray()}
+    assert process.stdout is not None and process.stderr is not None
+    streams.register(process.stdout, selectors.EVENT_READ, "stdout")
+    streams.register(process.stderr, selectors.EVENT_READ, "stderr")
+    deadline = time.monotonic() + 1830
+    try:
+        while streams.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise ReleasePublicationError("anonymous release worker timed out")
+            for key, _ in streams.select(timeout=min(remaining, 0.25)):
+                chunk = os.read(key.fileobj.fileno(), 65536)
+                if not chunk:
+                    streams.unregister(key.fileobj)
+                    continue
+                buffers[key.data].extend(chunk)
+                if sum(len(value) for value in buffers.values()) > MAX_ANONYMOUS_WORKER_OUTPUT_BYTES:
+                    raise ReleasePublicationError(
+                        "anonymous release worker output is too large"
+                    )
+        return_code = process.wait(timeout=10)
+    except (OSError, subprocess.SubprocessError, ReleasePublicationError):
+        _stop_anonymous_unit(command, process)
+        raise ReleasePublicationError(
+            "credential-isolated anonymous release worker failed"
+        ) from None
+    finally:
+        streams.close()
+        process.stdout.close()
+        process.stderr.close()
+    if return_code != 0:
+        raise ReleasePublicationError(
+            "credential-isolated anonymous release worker failed"
+        )
+    try:
+        return bytes(buffers["stdout"]).decode("utf-8", errors="strict")
+    except UnicodeDecodeError:
+        raise ReleasePublicationError("anonymous release worker output is invalid") from None
+
+
 def run_anonymous_exact_tag_install(
     release: str,
     expected_tag_object: str,
@@ -1925,12 +2095,8 @@ def run_anonymous_exact_tag_install(
     observed_at: datetime | None = None,
 ) -> dict[str, Any]:
     uid, gid = _anonymous_worker_identity()
-    container_root = Path(tempfile.mkdtemp(prefix="agent-team-v1-anonymous-"))
-    workspace = container_root / "workspace"
+    workspace = Path("/tmp/workspace")
     try:
-        container_root.chmod(0o711)
-        workspace.mkdir(mode=0o700)
-        os.chown(workspace, uid, gid)
         verified_at = _now(observed_at)
         command = _anonymous_worker_command(
             uid,
@@ -1941,35 +2107,15 @@ def run_anonymous_exact_tag_install(
             expected_commit,
             verified_at,
         )
-        completed = subprocess.run(
-            command,
-            cwd=ROOT,
-            env={
-                "HOME": str(workspace),
-                "PATH": "/usr/bin:/bin",
-                "LANG": "C.UTF-8",
-                "LC_ALL": "C.UTF-8",
-                "PYTHONNOUSERSITE": "1",
-                "PYTHONDONTWRITEBYTECODE": "1",
-            },
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=1800,
-            shell=False,
-        )
-        if len(completed.stdout.encode("utf-8")) > 1024 * 1024:
-            raise ReleasePublicationError("anonymous release worker output is too large")
+        output = _run_anonymous_worker(command)
         try:
-            result = loads_strict(completed.stdout)
+            result = loads_strict(output)
         except ValueError:
             raise ReleasePublicationError("anonymous release worker output is invalid") from None
     except (OSError, subprocess.SubprocessError):
         raise ReleasePublicationError(
             "credential-isolated anonymous release worker failed"
         ) from None
-    finally:
-        shutil.rmtree(container_root, ignore_errors=True)
     expected = {
         "status": "PASS",
         "workflow_url": None,
@@ -1989,7 +2135,18 @@ def run_anonymous_exact_tag_install(
         "supplementary_groups_empty": True,
         "no_new_privileges": True,
         "capabilities_empty": True,
-        "isolation_mechanism": "linux-setpriv-random-uid-no-new-privileges",
+        "isolation_mechanism": "linux-systemd-cgroup-setpriv-random-uid-v1",
+        "resource_isolation": {
+            "cgroup_v2": True,
+            "process_tree_cgroup_isolated": True,
+            "bounded_output_capture": True,
+            "memory_max_bytes": EXPECTED_MEMORY_MAX_BYTES,
+            "memory_swap_max_bytes": EXPECTED_MEMORY_SWAP_MAX_BYTES,
+            "tasks_max": EXPECTED_TASKS_MAX,
+            "cpu_quota_percent": EXPECTED_CPU_QUOTA_US // 1000,
+            "file_size_limit_bytes": EXPECTED_FILE_SIZE_LIMIT_BYTES,
+            "temporary_filesystem_limit_bytes": EXPECTED_TMPFS_BYTES,
+        },
     }
     if result != expected:
         raise ReleasePublicationError("anonymous release worker boundary or result differs")
@@ -2025,7 +2182,18 @@ def build_final_release_index(
             "supplementary_groups_empty": True,
             "no_new_privileges": True,
             "capabilities_empty": True,
-            "isolation_mechanism": "linux-setpriv-random-uid-no-new-privileges",
+            "isolation_mechanism": "linux-systemd-cgroup-setpriv-random-uid-v1",
+            "resource_isolation": {
+                "cgroup_v2": True,
+                "process_tree_cgroup_isolated": True,
+                "bounded_output_capture": True,
+                "memory_max_bytes": EXPECTED_MEMORY_MAX_BYTES,
+                "memory_swap_max_bytes": EXPECTED_MEMORY_SWAP_MAX_BYTES,
+                "tasks_max": EXPECTED_TASKS_MAX,
+                "cpu_quota_percent": EXPECTED_CPU_QUOTA_US // 1000,
+                "file_size_limit_bytes": EXPECTED_FILE_SIZE_LIMIT_BYTES,
+                "temporary_filesystem_limit_bytes": EXPECTED_TMPFS_BYTES,
+            },
         }.items()
     ):
         raise ReleasePublicationError("anonymous installation identity or boundary differs")

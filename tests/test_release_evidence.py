@@ -32,6 +32,7 @@ from tools.release_publication import (
     RELEASE_REQUIRED_CHECKS,
     ReleasePublicationError,
     _anonymous_worker_command,
+    _run_anonymous_worker,
     _require_artifact_redirect_url,
     _require_public_https_url,
     _review_diff_arguments,
@@ -1165,7 +1166,18 @@ class ReleaseEvidenceTests(unittest.TestCase):
             "supplementary_groups_empty": True,
             "no_new_privileges": True,
             "capabilities_empty": True,
-            "isolation_mechanism": "linux-setpriv-random-uid-no-new-privileges",
+            "isolation_mechanism": "linux-systemd-cgroup-setpriv-random-uid-v1",
+            "resource_isolation": {
+                "cgroup_v2": True,
+                "process_tree_cgroup_isolated": True,
+                "bounded_output_capture": True,
+                "memory_max_bytes": 1073741824,
+                "memory_swap_max_bytes": 0,
+                "tasks_max": 128,
+                "cpu_quota_percent": 200,
+                "file_size_limit_bytes": 16777216,
+                "temporary_filesystem_limit_bytes": 536870912,
+            },
         }
         final = build_final_release_index(
             request,
@@ -1282,6 +1294,12 @@ class ReleaseEvidenceTests(unittest.TestCase):
                     {"cryptographically_authenticated": True}
                 ),
             ),
+            (
+                "weakened-anonymous-memory-limit",
+                lambda value: value["publication"]["anonymous_install"][
+                    "resource_isolation"
+                ].update({"memory_max_bytes": 2147483648}),
+            ),
         ):
             altered = deepcopy(final)
             mutation(altered)
@@ -1328,7 +1346,18 @@ class ReleaseEvidenceTests(unittest.TestCase):
             "supplementary_groups_empty": True,
             "no_new_privileges": True,
             "capabilities_empty": True,
-            "isolation_mechanism": "linux-setpriv-random-uid-no-new-privileges",
+            "isolation_mechanism": "linux-systemd-cgroup-setpriv-random-uid-v1",
+            "resource_isolation": {
+                "cgroup_v2": True,
+                "process_tree_cgroup_isolated": True,
+                "bounded_output_capture": True,
+                "memory_max_bytes": 1073741824,
+                "memory_swap_max_bytes": 0,
+                "tasks_max": 128,
+                "cpu_quota_percent": 200,
+                "file_size_limit_bytes": 16777216,
+                "temporary_filesystem_limit_bytes": 536870912,
+            },
         }
         final = build_final_release_index(
             request,
@@ -1627,7 +1656,18 @@ class ReleaseEvidenceTests(unittest.TestCase):
             "b" * 40,
             "2026-08-12T06:20:00Z",
         )
-        self.assertEqual(command[0], "/usr/bin/setpriv")
+        self.assertEqual(command[0], "/usr/bin/systemd-run")
+        self.assertIn("--property=KillMode=control-group", command)
+        self.assertIn("--property=MemoryMax=1073741824", command)
+        self.assertIn("--property=MemorySwapMax=0", command)
+        self.assertIn("--property=TasksMax=128", command)
+        self.assertIn("--property=CPUQuota=200%", command)
+        self.assertIn("--property=LimitFSIZE=16777216", command)
+        self.assertIn(
+            "--property=TemporaryFileSystem=/tmp:rw,size=512M,mode=0700,uid=234567,gid=234567",
+            command,
+        )
+        self.assertIn("/usr/bin/setpriv", command)
         self.assertIn("--reuid", command)
         self.assertIn("234567", command)
         self.assertIn("--clear-groups", command)
@@ -1636,6 +1676,48 @@ class ReleaseEvidenceTests(unittest.TestCase):
         self.assertIn("--bounding-set=-all", command)
         self.assertIn("--no-new-privs", command)
         self.assertIn("--credential-parent-pid", command)
+
+    @unittest.skipUnless(
+        sys.platform == "linux" and os.geteuid() == 0,
+        "requires root Linux transient systemd units",
+    )
+    def test_anonymous_worker_output_limit_kills_the_complete_cgroup(self) -> None:
+        token = "1234567890abcdef"
+        marker = Path(f"/tmp/agent-team-anonymous-child-{os.getpid()}")
+        marker.unlink(missing_ok=True)
+        code = (
+            "import pathlib,subprocess,sys,time;"
+            "child=subprocess.Popen(['/usr/bin/sleep','300']);"
+            f"pathlib.Path({str(marker)!r}).write_text(str(child.pid));"
+            "sys.stdout.buffer.write(b'x'*(1024*1024+65536));sys.stdout.flush();"
+            "time.sleep(300)"
+        )
+        command = [
+            "/usr/bin/systemd-run",
+            "--quiet",
+            "--wait",
+            "--pipe",
+            "--collect",
+            "--service-type=exec",
+            f"--unit=agent-team-v1-anonymous-{token}",
+            "--property=KillMode=control-group",
+            "/usr/bin/python3",
+            "-c",
+            code,
+        ]
+        try:
+            with self.assertRaises(ReleasePublicationError):
+                _run_anonymous_worker(command)
+            child_pid = int(marker.read_text(encoding="ascii"))
+            for _ in range(50):
+                if not Path(f"/proc/{child_pid}").exists():
+                    break
+                import time
+
+                time.sleep(0.02)
+            self.assertFalse(Path(f"/proc/{child_pid}").exists())
+        finally:
+            marker.unlink(missing_ok=True)
 
     def test_anonymous_worker_detaches_to_peeled_tag_before_candidate(self) -> None:
         tag_object = "a" * 40
@@ -1708,7 +1790,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
 
     @unittest.skipUnless(
         sys.platform == "linux" and os.geteuid() == 0,
-        "requires root Linux setpriv boundary",
+        "requires root Linux systemd cgroup and setpriv boundary",
     )
     def test_anonymous_worker_cannot_read_token_parent_environment(self) -> None:
         marker = "github-token-must-remain-parent-only"
@@ -1716,23 +1798,34 @@ class ReleaseEvidenceTests(unittest.TestCase):
             "from tools.anonymous_release_worker import _linux_process_boundary;"
             "import json,sys;print(json.dumps(_linux_process_boundary(int(sys.argv[1])),sort_keys=True))"
         )
-        with tempfile.TemporaryDirectory() as temporary:
-            import_root = Path(temporary)
-            import_root.chmod(0o755)
-            tools_root = import_root / "tools"
-            tools_root.mkdir(mode=0o755)
-            source_root = Path(__file__).resolve().parents[1] / "tools"
-            for name in ("anonymous_release_worker.py",):
-                destination = tools_root / name
-                destination.write_bytes((source_root / name).read_bytes())
-                destination.chmod(0o644)
-            environment = {
-                "PATH": "/usr/bin:/bin",
-                "PYTHONPATH": str(import_root),
-                "GITHUB_TOKEN": marker,
-            }
+        import_root = Path(__file__).resolve().parents[1]
+        environment = {
+            "PATH": "/usr/bin:/bin",
+            "PYTHONPATH": str(import_root),
+            "GITHUB_TOKEN": marker,
+        }
+        with mock.patch.dict(os.environ, environment, clear=False):
+            unit = "agent-team-v1-anonymous-0123456789abcdef"
             completed = subprocess.run(
                 [
+                    "/usr/bin/systemd-run",
+                    "--quiet",
+                    "--wait",
+                    "--pipe",
+                    "--collect",
+                    "--service-type=exec",
+                    f"--unit={unit}",
+                    "--property=KillMode=control-group",
+                    "--property=MemoryMax=1073741824",
+                    "--property=MemorySwapMax=0",
+                    "--property=TasksMax=128",
+                    "--property=CPUQuota=200%",
+                    "--property=RuntimeMaxSec=30",
+                    "--property=LimitFSIZE=16777216",
+                    "--property=TimeoutStopSec=5s",
+                    "--property=OOMPolicy=kill",
+                    "--property=NoNewPrivileges=yes",
+                    "--property=TemporaryFileSystem=/tmp:rw,size=512M,mode=0700,uid=234567,gid=234567",
                     "/usr/bin/setpriv",
                     "--reuid",
                     "234567",
@@ -1743,6 +1836,12 @@ class ReleaseEvidenceTests(unittest.TestCase):
                     "--ambient-caps=-all",
                     "--bounding-set=-all",
                     "--no-new-privs",
+                    "/usr/bin/env",
+                    "-i",
+                    f"PYTHONPATH={import_root}",
+                    "PATH=/usr/bin:/bin",
+                    "LANG=C.UTF-8",
+                    "LC_ALL=C.UTF-8",
                     sys.executable,
                     "-c",
                     script,
@@ -1760,6 +1859,24 @@ class ReleaseEvidenceTests(unittest.TestCase):
         self.assertTrue(boundary["supplementary_groups_empty"])
         self.assertTrue(boundary["no_new_privileges"])
         self.assertTrue(boundary["capabilities_empty"])
+        self.assertEqual(
+            boundary["isolation_mechanism"],
+            "linux-systemd-cgroup-setpriv-random-uid-v1",
+        )
+        self.assertEqual(
+            boundary["resource_isolation"],
+            {
+                "bounded_output_capture": True,
+                "cgroup_v2": True,
+                "cpu_quota_percent": 200,
+                "file_size_limit_bytes": 16777216,
+                "memory_max_bytes": 1073741824,
+                "memory_swap_max_bytes": 0,
+                "process_tree_cgroup_isolated": True,
+                "tasks_max": 128,
+                "temporary_filesystem_limit_bytes": 536870912,
+            },
+        )
         self.assertNotIn(marker, completed.stdout)
 
 
