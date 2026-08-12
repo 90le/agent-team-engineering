@@ -67,7 +67,7 @@ SQLite运行库可能含有用户反馈、摘要和外部引用，至少按采�
 
 生命周期文件互斥依赖POSIX `fcntl`，只约束遵守Factory协议的本机命令。操作者必须在升级、恢复或回滚前停止所有调度器、Worker和适配器；数据库pause不能作为进程停止证明。恢复包只保护Factory转换文件，不能替代SQLite、目标项目、秘密、外部提供者或整机灾备。
 
-v1宿主文件生命周期另使用目标目录内持久`.agent-team/.host-lifecycle.guard`串行化apply、受保护verify和uninstall。Guard是`empty-regular-file-v1`空普通文件，plan显示其空内容摘要与准确旧guard/tombstone基线。无install lock的准确空guard可用于guard fsync后、`APPLYING` lock前崩溃恢复，但它从不被删除、也不授予文件删除权。唯一临时元数据路径`.agent-team/.host-lifecycle.json.stage`由plan显式声明；apply/uninstall可创建或替换、然后删除它，成功时必须不存在，不得触碰其它类似隐藏文件。目录描述符、`O_NOFOLLOW`、发布前摘要复核、独占hard-link、unlink前摘要与inode复核只缩小TOCTOU窗口。POSIX `fcntl`仍只约束协作Factory进程，不能原子抵抗root、内核、文件系统/存储故障，或其它特权进程替换目录项。宿主目标目录执行生命周期变更时，不得同时运行其它特权配置管理、同步或清理工具。
+v1宿主文件生命周期另使用目标目录内持久`.agent-team/.host-lifecycle.guard`串行化apply、受保护verify和uninstall。Guard是`empty-regular-file-v1`空普通文件，plan显示其空内容摘要与准确旧guard/tombstone基线。无install lock的准确空guard可用于guard fsync后崩溃恢复，但它从不被删除、也不授予文件删除权。创建plan时，固定元数据路径`.agent-team/.host-lifecycle.json.stage`与所有`.agent-team/.host-apply.intent-`前缀条目必须不存在。完成投影文件/stage冲突检查后，apply只创建plan摘要绑定的随机空intent，持久化准确`APPLYING`后删除它；若普通崩溃留下该准确空intent/元数据stage，仅同一已确认plan可校验并恢复。任何其它既有intent/stage必须保留并fail closed。目录描述符、`O_NOFOLLOW`、发布前摘要复核、独占hard-link、unlink前摘要与inode复核只缩小TOCTOU窗口。POSIX `fcntl`仍只约束协作Factory进程，不能原子抵抗root、内核、文件系统/存储故障，或其它特权进程替换目录项。宿主目标目录执行生命周期变更时，不得同时运行其它特权配置管理、同步或清理工具。
 
 CLI的暂停/恢复操作假定调用者已经通过本机操作系统权限进入可信管理边界。工作流owner转换即使声明`actor-kind=human`也不会通过，除非同时提供由已配置验证器校验的短期绑定断言。v0.4的HMAC验证器是本地参考实现；对外提供审批入口仍必须由认证适配器校验用户、会话、操作内容、有效期与一次性挑战，不能把公开IM消息或Agent自报身份直接转换成人工批准。
 

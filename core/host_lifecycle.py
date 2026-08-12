@@ -8,6 +8,7 @@ import os
 import stat
 import tempfile
 import unicodedata
+import uuid
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -31,6 +32,7 @@ INSTALL_LOCK_RELATIVE = ".agent-team/host-install.lock.json"
 OPERATION_GUARD_RELATIVE = ".agent-team/.host-lifecycle.guard"
 UNINSTALL_TOMBSTONE_RELATIVE = ".agent-team/host-uninstall.tombstone.json"
 METADATA_STAGE_RELATIVE = ".agent-team/.host-lifecycle.json.stage"
+APPLY_INTENT_PREFIX = ".agent-team/.host-apply.intent-"
 RESERVED_DESTINATIONS = frozenset(
     {
         INSTALL_LOCK_RELATIVE,
@@ -76,6 +78,9 @@ def _lifecycle_contract(destination: Path | None = None) -> dict[str, Any]:
         "uninstall_tombstone": UNINSTALL_TOMBSTONE_RELATIVE,
         "metadata_recovery_stage": METADATA_STAGE_RELATIVE,
         "metadata_recovery_stage_retained": False,
+        "initial_apply_intent_prefix": APPLY_INTENT_PREFIX,
+        "initial_apply_intent_format": "plan-bound-random-empty-regular-file-v1",
+        "initial_apply_intent_retained": False,
         "locking": "posix-fcntl-exclusive-nonblocking",
         "retained_files_after_uninstall": [
             OPERATION_GUARD_RELATIVE,
@@ -98,6 +103,7 @@ def _proposal_lifecycle_contract(
 ) -> dict[str, Any]:
     return {
         **_lifecycle_contract(destination),
+        "expected_prior_metadata_recovery_stage": None,
         "expected_prior_guard": prior_guard,
         "expected_prior_uninstall_tombstone": prior_tombstone,
         "remove_prior_uninstall_tombstone": prior_tombstone is not None,
@@ -631,6 +637,73 @@ def _atomic_json_relative(
         os.fsync(parent)
 
 
+def _existing_apply_intents(root: RootHandle) -> list[str]:
+    try:
+        with _parent_directory_fd(root, INSTALL_LOCK_RELATIVE, create=False) as (parent, _):
+            names = os.listdir(parent)
+    except FileNotFoundError:
+        return []
+    prefix = Path(APPLY_INTENT_PREFIX).name
+    return sorted(
+        (Path(".agent-team") / name).as_posix()
+        for name in names
+        if name.startswith(prefix)
+    )
+
+
+def _ensure_apply_intent(
+    root: RootHandle,
+    relative: str,
+    *,
+    may_resume: bool,
+) -> dict[str, Any]:
+    """Create or finish exact initial-apply authority without deleting a collision."""
+
+    with _parent_directory_fd(root, relative, create=True) as (parent, name):
+        flags = (
+            os.O_RDWR
+            | getattr(os, "O_NONBLOCK", 0)
+            | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_CLOEXEC", 0)
+        )
+        created = False
+        try:
+            descriptor = os.open(
+                name,
+                flags | os.O_CREAT | os.O_EXCL,
+                0o600,
+                dir_fd=parent,
+            )
+            created = True
+        except FileExistsError:
+            if not may_resume:
+                raise HostLifecycleError(
+                    "host apply intent changed after planning; create and confirm a new plan"
+                )
+            try:
+                descriptor = os.open(name, flags, dir_fd=parent)
+            except OSError as exc:
+                raise HostLifecycleError(f"cannot open host apply intent: {exc}") from exc
+        except OSError as exc:
+            raise HostLifecycleError(f"cannot create host apply intent: {exc}") from exc
+        try:
+            metadata = os.fstat(descriptor)
+            if not stat.S_ISREG(metadata.st_mode):
+                raise HostLifecycleError("host apply intent must be a regular file")
+            os.lseek(descriptor, 0, os.SEEK_SET)
+            content = _read_descriptor_bytes(descriptor)
+            if content:
+                raise HostLifecycleError("host apply intent must be empty")
+            if created:
+                os.fsync(descriptor)
+            os.lseek(descriptor, 0, os.SEEK_SET)
+            metadata = os.fstat(descriptor)
+        finally:
+            os.close(descriptor)
+        os.fsync(parent)
+        return _file_binding(content, metadata)
+
+
 def _host_descriptor(host_id: str) -> dict[str, Any]:
     try:
         from core.host_catalog import load_host_descriptor
@@ -725,6 +798,16 @@ def build_install_plan(team: Path, host_id: str, destination: Path) -> dict[str,
         raise HostLifecycleError("host destination must be outside the Factory repository")
     if target.exists() and not target.is_dir():
         raise HostLifecycleError("host destination must be a directory or an absent path")
+    if target.is_dir() and _relative_present(target, METADATA_STAGE_RELATIVE):
+        raise HostLifecycleError(
+            "host destination contains the reserved metadata recovery stage; "
+            "reconcile it before creating a plan"
+        )
+    if target.is_dir() and _existing_apply_intents(target):
+        raise HostLifecycleError(
+            "host destination contains the reserved initial apply intent; "
+            "reconcile it before creating a plan"
+        )
     prior_guard = _guard_binding(target) if target.is_dir() else None
     prior_tombstone = _tombstone_binding(target) if target.is_dir() else None
     lock_path = team_root / LOCK_RELATIVE
@@ -760,7 +843,7 @@ def build_install_plan(team: Path, host_id: str, destination: Path) -> dict[str,
         },
         "limitations": [
             "Apply creates only previously absent projected files plus the lifecycle metadata paths displayed in this proposal.",
-            "The declared metadata recovery stage is transient scratch: apply or uninstall may replace or remove it, and success requires it to be absent.",
+            "The metadata recovery stage and initial apply intent must be absent at planning; only an exact digest-bound in-progress lifecycle may rebuild or remove its own crash residue.",
             "Uninstall retains the empty operation guard and digest-bound tombstone so concurrent operations and replay remain fail-closed.",
             "Uninstall removes no directories because the file-only ownership record cannot prove who created an empty parent directory.",
             "The kernel lock serializes cooperating local Factory processes; hostile privileged filesystem mutation is outside this boundary.",
@@ -768,6 +851,9 @@ def build_install_plan(team: Path, host_id: str, destination: Path) -> dict[str,
             "Host object import or runtime activation remains a separate host-specific, explicitly authorized operation.",
         ],
     }
+    proposal["lifecycle"]["initial_apply_intent"] = (
+        APPLY_INTENT_PREFIX + uuid.uuid4().hex
+    )
     plan = {
         "schema_version": "1.1.0",
         "state": "DRAFT",
@@ -789,10 +875,21 @@ def _validate_proposal_semantics(proposal: dict[str, Any]) -> None:
     ):
         raise HostLifecycleError("host installation destination must be an absolute non-root path")
     lifecycle = proposal["lifecycle"]
-    if lifecycle != _proposal_lifecycle_contract(
+    expected_lifecycle = _proposal_lifecycle_contract(
         destination=destination,
         prior_guard=lifecycle["expected_prior_guard"],
         prior_tombstone=lifecycle["expected_prior_uninstall_tombstone"],
+    )
+    expected_lifecycle["initial_apply_intent"] = lifecycle.get("initial_apply_intent")
+    if (
+        lifecycle != expected_lifecycle
+        or not isinstance(lifecycle.get("initial_apply_intent"), str)
+        or not lifecycle["initial_apply_intent"].startswith(APPLY_INTENT_PREFIX)
+        or len(lifecycle["initial_apply_intent"]) != len(APPLY_INTENT_PREFIX) + 32
+        or any(
+            character not in "0123456789abcdef"
+            for character in lifecycle["initial_apply_intent"][len(APPLY_INTENT_PREFIX) :]
+        )
     ):
         raise HostLifecycleError("host lifecycle metadata contract differs from this Factory")
     if not proposal["effects"]["filesystem_deletes"]:
@@ -820,6 +917,8 @@ def _validate_proposal_semantics(proposal: dict[str, Any]) -> None:
             or stage_path in seen
             or stage_path in stages
             or stage_path != _stage_relative(relative, record["sha256"])
+            or relative.startswith(APPLY_INTENT_PREFIX)
+            or stage_path.startswith(APPLY_INTENT_PREFIX)
         ):
             raise HostLifecycleError("host installation stage path is reserved or inconsistent")
         seen.add(relative)
@@ -938,6 +1037,10 @@ def preview_install_plan(plan: dict[str, Any]) -> str:
             f"- Install record: `{lifecycle['install_record']}`",
             f"- Uninstall tombstone: `{lifecycle['uninstall_tombstone']}`",
             f"- Transient metadata recovery stage: `{lifecycle['metadata_recovery_stage']}` (retained: `false`)",
+            "- Expected prior metadata recovery stage: `absent`",
+            f"- Initial apply intent prefix: `{lifecycle['initial_apply_intent_prefix']}` (retained: `false`)",
+            f"- Initial apply intent format: `{lifecycle['initial_apply_intent_format']}`",
+            f"- Exact initial apply intent: `{lifecycle['initial_apply_intent']}` (expected prior state: `absent`)",
             f"- Locking: `{lifecycle['locking']}`",
             "- Apply phase: create or reuse the exact guard; create and transition the install record; do not create a new tombstone.",
             "- Uninstall phase: remove unchanged projected files and the install record; create the digest-bound tombstone.",
@@ -987,7 +1090,7 @@ def preview_install_plan(plan: dict[str, Any]) -> str:
         [
             "",
             "No live host configuration, credentials, bindings, tasks, or external APIs are used by apply.",
-            "Projected files are never overwritten. Apply manages the declared transient metadata stage and may additionally delete only the exact prior tombstone shown above.",
+            "Projected files are never overwritten. A first apply refuses a pre-existing metadata stage; an exact in-progress lifecycle may recover only its own declared scratch. Apply may additionally delete only the exact prior tombstone shown above.",
             "Confirm this exact digest before applying.",
             "",
         ]
@@ -1426,6 +1529,8 @@ def _verify_installation_locked(
             raise HostLifecycleError(
                 "active host installation retains the metadata recovery stage"
             )
+        if _existing_apply_intents(handle):
+            raise HostLifecycleError("active host installation retains an initial apply intent")
     else:
         metadata_recovery_stage_present = False
     return {
@@ -1597,7 +1702,15 @@ def apply_install_plan(path: Path) -> dict[str, Any]:
         _assert_directory_binding(resolved, root_binding)
         lock_present = _relative_present(handle, INSTALL_LOCK_RELATIVE)
         resuming = False
+        intent_binding: dict[str, Any] | None = None
+        intent_relative = proposal["lifecycle"]["initial_apply_intent"]
         if lock_present:
+            intents = _existing_apply_intents(handle)
+            unexpected_intents = [item for item in intents if item != intent_relative]
+            if unexpected_intents:
+                raise HostLifecycleError(
+                    "host apply intent differs from this exact plan"
+                )
             lock = _load_install_lock(resolved, handle)
             if lock["schema_version"] == "1.0.0":
                 raise HostLifecycleError(
@@ -1619,6 +1732,17 @@ def apply_install_plan(path: Path) -> dict[str, Any]:
                     "incomplete host installation lock differs from this exact plan"
                 )
             resuming = True
+            if _relative_present(handle, intent_relative):
+                content, metadata = _read_regular_relative(
+                    handle,
+                    intent_relative,
+                    label="host apply intent",
+                )
+                if content:
+                    raise HostLifecycleError(
+                        "host apply intent differs from this exact plan"
+                    )
+                intent_binding = _file_binding(content, metadata)
         else:
             expected_guard = proposal["lifecycle"]["expected_prior_guard"]
             if expected_guard is None:
@@ -1629,6 +1753,20 @@ def apply_install_plan(path: Path) -> dict[str, Any]:
             elif operation["created"] or guard_binding != expected_guard:
                 raise HostLifecycleError(
                     "host lifecycle guard differs from the approved baseline"
+                )
+
+            intents = _existing_apply_intents(handle)
+            unexpected_intents = [item for item in intents if item != intent_relative]
+            if unexpected_intents:
+                raise HostLifecycleError(
+                    "host apply intent changed after planning; create and confirm a new plan"
+                )
+            intent_present = intent_relative in intents
+            metadata_stage_present = _relative_present(handle, METADATA_STAGE_RELATIVE)
+            if metadata_stage_present and not intent_present:
+                raise HostLifecycleError(
+                    "host metadata recovery stage changed after planning; "
+                    "create and confirm a new plan"
                 )
 
         expected_tombstone = proposal["lifecycle"][
@@ -1670,12 +1808,26 @@ def apply_install_plan(path: Path) -> dict[str, Any]:
                 )
 
         if not resuming:
+            intent_binding = _ensure_apply_intent(
+                handle,
+                intent_relative,
+                may_resume=intent_present and not operation["created"],
+            )
             _assert_directory_binding(resolved, root_binding)
             _atomic_json_relative(
                 handle,
                 INSTALL_LOCK_RELATIVE,
                 _lock_document(plan, "APPLYING", guard_binding),
                 expected_current_digest=None,
+            )
+        if intent_binding is not None:
+            _assert_directory_binding(resolved, root_binding)
+            _unlink_bound_relative(
+                handle,
+                intent_relative,
+                intent_binding["sha256"],
+                allow_missing=False,
+                expected_binding=intent_binding,
             )
         if current_tombstone is not None:
             _assert_directory_binding(resolved, root_binding)

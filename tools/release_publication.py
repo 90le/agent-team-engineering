@@ -62,6 +62,10 @@ REVIEW_BASE_COMMIT = "a286cfadbfb6f387a4f1fb94c244f57d4dd089e6"
 REVIEW_WORKFLOW_COMMIT = "5dd269b0015b576bad3b85cc358d75d8ed205ed6"
 REVIEW_AGENT_ID = "ate-3df2c143-independent-reviewer"
 REVIEW_RUNTIME = "openclaw/relay/gpt-5.6-sol"
+RELEASE_REQUIRED_CHECKS = (
+    {"name": "conformance", "app_id": 15368},
+    {"name": "validate", "app_id": 15368},
+)
 SCM_REPOSITORY = "90le/agent-team-v10-conformance-private"
 SCM_WORKFLOW_PATH = ".github/workflows/agent-team-v10-conformance.yml"
 SCM_REPORT_ASSETS = (
@@ -876,6 +880,12 @@ def _required_checks(record: Any, active_rules: Any) -> list[dict[str, Any]]:
                 effective_app_id = app_id
             elif app_id == -1 and isinstance(existing["app_id"], int) and existing["app_id"] > 0:
                 effective_app_id = existing["app_id"]
+            elif existing["app_id"] is None and isinstance(app_id, int) and app_id > 0:
+                effective_app_id = app_id
+            elif app_id is None and isinstance(existing["app_id"], int) and existing["app_id"] > 0:
+                effective_app_id = existing["app_id"]
+            elif {existing["app_id"], app_id} == {None, -1}:
+                effective_app_id = -1
             else:
                 raise ReleasePublicationError(
                     "branch protection and ruleset app bindings conflict"
@@ -883,7 +893,12 @@ def _required_checks(record: Any, active_rules: Any) -> list[dict[str, Any]]:
             required_by_name[name] = {"name": name, "app_id": effective_app_id}
     if not required_by_name:
         raise ReleasePublicationError("main has no effective required checks")
-    return [required_by_name[name] for name in sorted(required_by_name)]
+    effective = [required_by_name[name] for name in sorted(required_by_name)]
+    if effective != list(RELEASE_REQUIRED_CHECKS):
+        raise ReleasePublicationError(
+            "main required-check policy differs from the immutable v1 release contract"
+        )
+    return effective
 
 
 def _observation_order(value: Any, record_id: Any, label: str) -> tuple[datetime, int]:
@@ -1006,7 +1021,7 @@ def _verify_required_checks(
             observation
             for observation in named_observations
             if (
-                (required_app_id is None and observation["app_id"] is None)
+                (required_app_id is None)
                 or (required_app_id == -1 and observation["app_id"] is not None)
                 or observation["app_id"] == required_app_id
             )

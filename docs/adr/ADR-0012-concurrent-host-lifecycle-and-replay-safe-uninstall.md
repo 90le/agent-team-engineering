@@ -18,11 +18,11 @@ Use a persistent POSIX `fcntl` guard for every mutating v1 host lifecycle operat
 
 Plan schema `1.1.0` digest-binds the complete proposal: team and descriptor authority, destination, projected files and deterministic file stages, the empty guard contract, install/tombstone paths, the fixed transient metadata scratch `.agent-team/.host-lifecycle.json.stage`, exact expected prior guard/tombstone identities, all effects, retention, directory behavior, and limitations. Lock schema `1.1.0` stores the complete proposal and exact guard binding in addition to the derived managed-file list.
 
-`filesystem_deletes` is always true because apply/uninstall may create or replace and then delete the declared metadata scratch during crash recovery. `persistent_filesystem_deletes` is true only when the new plan binds and confirms removal of an exact prior tombstone. The lifecycle may never delete the guard, infer delete authority from an unbound empty guard, or touch another similarly named hidden file. Any prior-tombstone baseline change fails closed.
+`filesystem_deletes` is always true because apply removes its exact plan-bound empty intent and apply/uninstall may rebuild and remove the declared metadata scratch during crash recovery. `persistent_filesystem_deletes` is true only when the new plan binds and confirms removal of an exact prior tombstone. The lifecycle may never delete the guard, infer delete authority from an unbound empty guard, adopt a pre-existing intent/scratch, or touch another similarly named hidden file. Any prior-tombstone baseline change fails closed.
 
 Every source file is opened through no-follow directory descriptors and its exact bytes are checked against the proposal digest immediately before staging. Each file stage path is deterministic from the destination path and source digest. Publication uses an exclusive hard link, so it cannot replace an existing destination name. First apply requires projected files and their file stages to be absent. After an interruption, only an exact same-proposal `APPLYING` lock permits the same confirmed plan to validate an existing full file stage, discard and rebuild its own torn file stage, accept its own already-published matching file, and continue.
 
-Lifecycle JSON transitions use only the fixed metadata scratch and may create or replace and then delete it to recover an interrupted transition. Successful apply, verify, and uninstall require it to be absent. An `ACTIVE` installation must also have no remaining projected-file stages. Verification uses the same digest-bound descriptor reads.
+The first lifecycle JSON transition creates one random empty intent whose exact path is bound by the confirmed plan. Only that plan may use the intent to recover its fixed metadata scratch after interruption. Later lifecycle JSON transitions use the same fixed scratch. Successful apply and verification require both the intent prefix and metadata scratch to be absent; successful uninstall requires the scratch to be absent. An `ACTIVE` installation must also have no remaining projected-file stages. Verification uses the same digest-bound descriptor reads.
 
 Uninstall follows this state machine:
 
@@ -52,7 +52,7 @@ The guard serializes cooperating local Factory commands. No portable userspace p
 - Interrupted uninstall is resumable and completion replay is idempotent.
 - Persistent effects are visible before confirmation and bound into the proposal digest.
 - An exact empty guard supports recovery across the guard-fsync/lock-publication crash window without granting deletion authority.
-- One fixed declared metadata scratch makes JSON transitions recoverable without claiming similarly named hidden files.
+- One fixed metadata scratch plus one plan-digest-bound random empty initial-apply intent make the first JSON transition recoverable without adopting pre-existing scratch or similarly named hidden files.
 
 ### Costs
 
@@ -84,10 +84,11 @@ Rejected because it prevents deterministic recovery after an ordinary crash betw
 
 - concurrent different-plan apply fails before a second mutation;
 - source mutation after initial validation fails before publication;
-- the plan and lock bind the complete proposal, exact empty guard contract/binding, deterministic file stages, fixed metadata scratch, prior tombstone, and transient/persistent delete effects;
-- apply remains resumable after interruption only for the exact same `APPLYING` proposal;
+- the plan and lock bind the complete proposal, exact empty guard contract/binding, deterministic file stages, fixed metadata scratch, exact random empty initial-apply intent, prior tombstone, and transient/persistent delete effects;
+- planning rejects any metadata scratch or `.host-apply.intent-` prefix entry; after confirmation and collision checks, apply creates one exact plan-bound empty intent and only the same plan may use it to recover the first metadata transition;
+- apply remains resumable after later interruption only for the exact same `APPLYING` proposal;
 - an exact empty guard without an install lock can be reused but cannot authorize any deletion;
-- apply/uninstall may create or replace and then delete only `.agent-team/.host-lifecycle.json.stage`, never a lookalike, and success leaves it absent;
+- apply may remove only its exact plan-bound empty intent and lifecycle operations may rebuild/remove only `.agent-team/.host-lifecycle.json.stage`; every unrelated/pre-existing collision is preserved and rejected, and success leaves neither transient path;
 - uninstall rechecks content and identity immediately before removal;
 - uninstall preview is read-only and distinguishes `ACTIVE`, `UNINSTALLING`, `ALREADY_UNINSTALLED`, and `LEGACY_UNBOUND`; the first two expose the scratch in delete/create/transient lists while the latter two expose empty lists;
 - `ACTIVE` removal requires human process confirmation and the exact digest while the CLI records no authenticated approval;

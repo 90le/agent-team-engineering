@@ -27,6 +27,7 @@ from tools.release_publication import (
     REVIEW_AGENT_ID,
     REVIEW_RUNTIME,
     REVIEW_WORKFLOW_COMMIT,
+    RELEASE_REQUIRED_CHECKS,
     ReleasePublicationError,
     _anonymous_environment,
     _require_artifact_redirect_url,
@@ -44,6 +45,7 @@ from tools.release_publication import (
     verify_publication_snapshot,
     write_final_index,
 )
+from tools import release_publication
 
 
 class ReleaseEvidenceTests(unittest.TestCase):
@@ -609,34 +611,96 @@ class ReleaseEvidenceTests(unittest.TestCase):
     def test_legacy_required_status_is_bound_to_exact_head_and_url(self) -> None:
         request = self._request()
         snapshot = self._snapshot(request)
-        required = {"strict": True, "contexts": ["legacy-ci"], "checks": [{"context": "legacy-ci", "app_id": None}]}
-        pull_url = "https://ci.example.test/pr/13"
-        main_url = "https://ci.example.test/main/bbbbbbbb"
-        request["pull_request"]["checks"] = [
-            {"name": "legacy-ci", "url": pull_url, "app_id": None}
-        ]
-        request["merged_main"]["checks"] = [
-            {"name": "legacy-ci", "url": main_url, "app_id": None}
-        ]
+        required = {
+            "strict": True,
+            "contexts": [item["name"] for item in RELEASE_REQUIRED_CHECKS],
+            "checks": [
+                {"context": item["name"], "app_id": None}
+                for item in RELEASE_REQUIRED_CHECKS
+            ],
+        }
+        pull_statuses = []
+        main_statuses = []
+        for index, item in enumerate(RELEASE_REQUIRED_CHECKS, start=1):
+            pull_url = f"https://ci.example.test/pr/13/{item['name']}"
+            main_url = f"https://ci.example.test/main/bbbbbbbb/{item['name']}"
+            request["pull_request"]["checks"][index - 1].update(
+                {"name": item["name"], "url": pull_url, "app_id": None}
+            )
+            request["merged_main"]["checks"][index - 1].update(
+                {"name": item["name"], "url": main_url, "app_id": None}
+            )
+            pull_statuses.append(
+                {"id": 30 + index, "context": item["name"], "sha": "c" * 40, "state": "success", "target_url": pull_url, "created_at": f"2026-08-12T01:00:0{index}Z"}
+            )
+            main_statuses.append(
+                {"id": 40 + index, "context": item["name"], "sha": "b" * 40, "state": "success", "target_url": main_url, "created_at": f"2026-08-12T04:00:0{index}Z"}
+            )
         snapshot.update(
             {
                 "required_status_checks": required,
                 "pull_request_check_runs": [],
-                "pull_request_statuses": [
-                    {"id": 31, "context": "legacy-ci", "sha": "c" * 40, "state": "success", "target_url": pull_url, "created_at": "2026-08-12T01:00:00Z"}
-                ],
+                "pull_request_statuses": pull_statuses,
                 "merged_main_check_runs": [],
-                "merged_main_statuses": [
-                    {"id": 32, "context": "legacy-ci", "sha": "b" * 40, "state": "success", "target_url": main_url, "created_at": "2026-08-12T04:00:00Z"}
-                ],
+                "merged_main_statuses": main_statuses,
             }
         )
-        publication = verify_publication_snapshot(request, snapshot)
-        self.assertEqual(publication["pull_request"]["checks"][0]["name"], "legacy-ci")
-        wrong_head = deepcopy(snapshot)
-        wrong_head["pull_request_statuses"][0]["sha"] = "d" * 40
-        with self.assertRaises(ReleasePublicationError):
-            verify_publication_snapshot(request, wrong_head)
+        with self.assertRaisesRegex(
+            ReleasePublicationError,
+            "immutable v1 release contract",
+        ):
+            verify_publication_snapshot(request, snapshot)
+
+    def test_null_app_binding_accepts_check_runs_but_immutable_policy_rejects_it(self) -> None:
+        request = self._request()
+        snapshot = self._snapshot(request)
+        for record in snapshot["required_status_checks"]["checks"]:
+            record["app_id"] = None
+        for record in request["pull_request"]["checks"]:
+            record["app_id"] = None
+        for record in request["merged_main"]["checks"]:
+            record["app_id"] = None
+        with self.assertRaisesRegex(
+            ReleasePublicationError,
+            "immutable v1 release contract",
+        ):
+            verify_publication_snapshot(request, snapshot)
+
+        permissive_policy = tuple(
+            {"name": item["name"], "app_id": None}
+            for item in RELEASE_REQUIRED_CHECKS
+        )
+        with mock.patch.object(
+            release_publication,
+            "RELEASE_REQUIRED_CHECKS",
+            permissive_policy,
+        ):
+            publication = verify_publication_snapshot(request, snapshot)
+        self.assertEqual(
+            [item["app_id"] for item in publication["pull_request"]["checks"]],
+            [None, None],
+        )
+
+    def test_live_policy_cannot_remove_a_pinned_v1_required_check(self) -> None:
+        request = self._request()
+        snapshot = self._snapshot(request)
+        snapshot["required_status_checks"]["contexts"].remove("conformance")
+        snapshot["required_status_checks"]["checks"] = [
+            item
+            for item in snapshot["required_status_checks"]["checks"]
+            if item["context"] != "conformance"
+        ]
+        request["pull_request"]["checks"] = [
+            item for item in request["pull_request"]["checks"] if item["name"] != "conformance"
+        ]
+        request["merged_main"]["checks"] = [
+            item for item in request["merged_main"]["checks"] if item["name"] != "conformance"
+        ]
+        with self.assertRaisesRegex(
+            ReleasePublicationError,
+            "immutable v1 release contract",
+        ):
+            verify_publication_snapshot(request, snapshot)
 
     def test_owner_approval_requires_trusted_exact_head_github_user(self) -> None:
         request = self._request()

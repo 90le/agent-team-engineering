@@ -178,6 +178,12 @@ class HostLifecycleTests(unittest.TestCase):
             confirm_install_plan(second_path, digest=second["proposal_digest"], approved_by="Owner")
             with self.assertRaisesRegex(HostLifecycleError, "never overwrites"):
                 apply_install_plan(second_path)
+            self.assertFalse(
+                any(
+                    path.name.startswith(".host-apply.intent-")
+                    for path in (conflict / ".agent-team").iterdir()
+                )
+            )
 
     def test_plan_digest_detects_edits_and_unknown_target_stops(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -382,11 +388,12 @@ class HostLifecycleTests(unittest.TestCase):
             metadata_fifo = destination / ".agent-team/.host-lifecycle.json.stage"
             metadata_fifo.parent.mkdir(parents=True)
             os.mkfifo(metadata_fifo)
-            self._assert_fifo_is_rejected_without_blocking(
-                metadata_fifo,
-                lambda: apply_install_plan(plan_path),
-                "recovery stage.*regular file",
-            )
+            with self.assertRaisesRegex(
+                HostLifecycleError,
+                "metadata recovery stage changed after planning",
+            ):
+                apply_install_plan(plan_path)
+            self.assertTrue(stat.S_ISFIFO(metadata_fifo.lstat().st_mode))
             self.assertFalse(
                 (destination / ".agent-team/host-install.lock.json").exists()
             )
@@ -449,6 +456,48 @@ class HostLifecycleTests(unittest.TestCase):
                 "managed host file is unsafe",
             )
             self.assertTrue(install_lock.is_file())
+
+    def test_preexisting_lifecycle_scratch_is_never_adopted_or_deleted(self) -> None:
+        for kind in ("metadata-stage", "apply-intent"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temporary:
+                base = Path(temporary)
+                team = self._team(base)
+                destination = base / "destination"
+                plan = build_install_plan(team, "codex", destination)
+                plan_path = base / "plan.json"
+                write_install_plan(plan, plan_path)
+                confirm_install_plan(
+                    plan_path,
+                    digest=plan["proposal_digest"],
+                    approved_by="Owner",
+                )
+                if kind == "metadata-stage":
+                    collision = destination / ".agent-team/.host-lifecycle.json.stage"
+                else:
+                    collision = destination / plan["proposal"]["lifecycle"][
+                        "initial_apply_intent"
+                    ]
+                collision.parent.mkdir(parents=True, exist_ok=True)
+                collision.write_bytes(
+                    b"user owned\n" if kind == "metadata-stage" else b""
+                )
+                with self.assertRaisesRegex(
+                    HostLifecycleError,
+                    "metadata recovery stage changed|apply intent changed",
+                ):
+                    apply_install_plan(plan_path)
+                self.assertEqual(
+                    collision.read_bytes(),
+                    b"user owned\n" if kind == "metadata-stage" else b"",
+                )
+                self.assertFalse(
+                    (destination / ".agent-team/host-install.lock.json").exists()
+                )
+                with self.assertRaisesRegex(
+                    HostLifecycleError,
+                    "reserved metadata recovery stage|reserved initial apply intent",
+                ):
+                    build_install_plan(team, "codex", destination)
 
     def test_managed_team_can_plan_hermes_and_multica_host_packages(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
