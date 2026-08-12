@@ -47,11 +47,13 @@ def build_plan(
         raise GitHubScmError("SCM conformance repository_id is not the fixed v1 identity")
     if not COMMIT_ID.fullmatch(base_commit) or not COMMIT_ID.fullmatch(framework_commit):
         raise GitHubScmError("SCM conformance commits must be exact 40-character object IDs")
+    candidate_suffix = framework_commit
+    evidence_path = f"conformance/v10-approved-change-{candidate_suffix}.md"
     plan = {
         "$schema": "urn:agent-team:schema:plan-revision:1.1.0",
         "schema_version": "1.1.0",
-        "plan_id": "plan-github-scm-conformance-v10",
-        "work_item_id": "work-github-scm-conformance-v10",
+        "plan_id": f"plan-github-scm-conformance-v10-{candidate_suffix}",
+        "work_item_id": f"work-github-scm-conformance-v10-{candidate_suffix}",
         "revision": 1,
         "previous_plan_digest": None,
         "repository_id": repository_id,
@@ -71,7 +73,7 @@ def build_plan(
                 "completion_evidence": ["change-commit", "draft-pr"],
             }
         ],
-        "allowed_paths": ["conformance/v10-approved-change.md"],
+        "allowed_paths": [evidence_path],
         "allowed_actions": ["repository.read", "commit.create", "draft-pr.create"],
         "tests": ["Reconcile the workflow and prove object counts do not increase."],
         "risk_level": "LOW",
@@ -91,14 +93,22 @@ def build_change(plan: dict, repository: str) -> dict:
     if repository != SCM_REPOSITORY:
         raise GitHubScmError("SCM conformance repository is not the fixed v1 repository")
     digest_hex = plan["plan_digest"].removeprefix("sha256:")
+    candidate_suffix = plan["work_item_id"].removeprefix(
+        "work-github-scm-conformance-v10-"
+    )
+    if COMMIT_ID.fullmatch(candidate_suffix) is None:
+        raise GitHubScmError("SCM conformance work item lacks the exact Factory commit")
+    expected_path = f"conformance/v10-approved-change-{candidate_suffix}.md"
+    if plan["allowed_paths"] != [expected_path]:
+        raise GitHubScmError("SCM conformance path differs from the exact Factory commit")
     return {
         "schema_version": "1.0.0",
         "repository": repository,
         "repository_id": plan["repository_id"],
         "work_item_id": plan["work_item_id"],
         "base_branch": SCM_BASE_BRANCH,
-        "proposal_branch": f"agent-team/v10-conformance-{plan['base_commit'][:12]}",
-        "file_path": "conformance/v10-approved-change.md",
+        "proposal_branch": f"agent-team/v10-conformance-{candidate_suffix}",
+        "file_path": expected_path,
         "file_content": (
             "# Agent Team v1.0 SCM conformance\n\n"
             f"Approved plan: `{plan['plan_digest']}`\n\n"

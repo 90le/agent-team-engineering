@@ -2,16 +2,8 @@ name: Disposable Runner Conformance
 
 on:
   pull_request:
-    paths:
-      - ".github/workflows/disposable-runner.yml"
-      - "adapters/native-oci/**"
-      - "contracts/runner-candidates.json"
-      - "core/isolation.py"
-      - "core/runner_conformance.py"
-      - "schemas/execution-request.schema.json"
-      - "schemas/runner-conformance-report.schema.json"
-      - "schemas/sandbox-profile.schema.json"
-      - "tools/disposable_runner_probe.py"
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:

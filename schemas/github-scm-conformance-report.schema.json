@@ -13,7 +13,7 @@
     "repository_id": {"const": "repo.conformance.github.v10"},
     "repository_private": {"const": true},
     "base_branch": {"const": "main"},
-    "proposal_branch": {"type": "string", "pattern": "^agent-team/v10-conformance-[a-f0-9]{12}$"},
+    "proposal_branch": {"type": "string", "pattern": "^agent-team/v10-conformance-[a-f0-9]{40}$"},
     "base_commit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
     "framework_repository": {"const": "90le/agent-team-engineering"},
     "framework_commit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
@@ -62,7 +62,7 @@
       "required": ["object_type", "external_ref", "provider_id", "created"],
       "properties": {
         "object_type": {"const": "branch"},
-        "external_ref": {"type": "string", "pattern": "^https://api\\.github\\.com/repos/90le/agent-team-v10-conformance-private/git/refs/heads/agent-team/v10-conformance-[a-f0-9]{12}$"},
+        "external_ref": {"type": "string", "pattern": "^https://api\\.github\\.com/repos/90le/agent-team-v10-conformance-private/git/refs/heads/agent-team/v10-conformance-[a-f0-9]{40}$"},
         "provider_id": {"type": "string", "pattern": "^REF_[A-Za-z0-9_-]+$", "maxLength": 256},
         "created": {"type": "boolean"}
       }

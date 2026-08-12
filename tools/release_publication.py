@@ -78,6 +78,16 @@ RELEASE_REQUIRED_CHECKS = (
     {"name": "conformance", "app_id": 15368},
     {"name": "validate", "app_id": 15368},
 )
+RELEASE_REQUIRED_CHECK_WORKFLOWS = {
+    "conformance": {
+        "path": ".github/workflows/disposable-runner.yml",
+        "workflow_id": 331692900,
+    },
+    "validate": {
+        "path": ".github/workflows/validate.yml",
+        "workflow_id": 330803196,
+    },
+}
 SCM_REPOSITORY = "90le/agent-team-v10-conformance-private"
 SCM_WORKFLOW_PATH = ".github/workflows/agent-team-v10-conformance.yml"
 SCM_REPORT_ASSETS = (
@@ -298,6 +308,20 @@ def _require_github_run_url(value: Any, repository: str, label: str) -> tuple[st
     if match is None:
         raise ReleasePublicationError(f"{label} URL differs from the exact workflow-run contract")
     return value, match.group(1)
+
+
+def _require_github_job_url(value: Any, label: str) -> tuple[str, int, int]:
+    if not isinstance(value, str):
+        raise ReleasePublicationError(f"{label} URL is missing")
+    match = re.fullmatch(
+        rf"https://github\.com/{re.escape(REPOSITORY)}/actions/runs/([1-9][0-9]*)/job/([1-9][0-9]*)",
+        value,
+    )
+    if match is None:
+        raise ReleasePublicationError(
+            f"{label} URL differs from the exact Actions job contract"
+        )
+    return value, int(match.group(1)), int(match.group(2))
 
 
 def _require_artifact_api_url(
@@ -613,6 +637,36 @@ def _github_check_runs(commit: str, token: str) -> list[dict[str, Any]]:
     return records
 
 
+def _github_required_check_workflow_runs(
+    check_runs: list[dict[str, Any]], token: str
+) -> dict[str, dict[str, Any]]:
+    run_ids: set[int] = set()
+    for record in check_runs:
+        if not isinstance(record, dict) or record.get("name") not in RELEASE_REQUIRED_CHECK_WORKFLOWS:
+            continue
+        urls = {
+            value
+            for value in (record.get("details_url"), record.get("html_url"))
+            if isinstance(value, str)
+        }
+        for url in urls:
+            match = re.fullmatch(
+                rf"https://github\.com/{re.escape(REPOSITORY)}/actions/runs/([1-9][0-9]*)/job/[1-9][0-9]*",
+                url,
+            )
+            if match is not None:
+                run_ids.add(int(match.group(1)))
+    if len(run_ids) > 1000:
+        raise ReleasePublicationError("required-check workflow runs exceed the safety limit")
+    records: dict[str, dict[str, Any]] = {}
+    for run_id in sorted(run_ids):
+        record = _github_json(f"/repos/{REPOSITORY}/actions/runs/{run_id}", token)
+        if not isinstance(record, dict) or record.get("id") != run_id:
+            raise ReleasePublicationError("required-check workflow-run identity is malformed")
+        records[str(run_id)] = record
+    return records
+
+
 def _github_statuses(commit: str, token: str) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     page = 1
@@ -758,6 +812,8 @@ def fetch_publication_snapshot(request: dict[str, Any], token: str) -> dict[str,
     )
     active_main_rules = _github_branch_rules(token)
     pull_head = request["pull_request"]["head_commit"]
+    pull_check_runs = _github_check_runs(pull_head, token)
+    main_check_runs = _github_check_runs(commit, token)
     review_material = _recompute_public_review_patch(pull_head)
     return {
         "pull_request": pull,
@@ -780,9 +836,15 @@ def fetch_publication_snapshot(request: dict[str, Any], token: str) -> dict[str,
         ),
         "required_status_checks": required_status_checks,
         "active_main_rules": active_main_rules,
-        "pull_request_check_runs": _github_check_runs(pull_head, token),
+        "pull_request_check_runs": pull_check_runs,
+        "pull_request_check_workflow_runs": _github_required_check_workflow_runs(
+            pull_check_runs, token
+        ),
         "pull_request_statuses": _github_statuses(pull_head, token),
-        "merged_main_check_runs": _github_check_runs(commit, token),
+        "merged_main_check_runs": main_check_runs,
+        "merged_main_check_workflow_runs": _github_required_check_workflow_runs(
+            main_check_runs, token
+        ),
         "merged_main_statuses": _github_statuses(commit, token),
         "expected_commit": commit,
     }
@@ -911,7 +973,12 @@ def _observation_order(value: Any, record_id: Any, label: str) -> tuple[datetime
     return (_parse_datetime(value), record_id)
 
 
-def _check_run_observation(record: Any, commit: str) -> dict[str, Any]:
+def _check_run_observation(
+    record: Any,
+    commit: str,
+    workflow_runs: Any,
+    expected_event: str,
+) -> dict[str, Any]:
     if not isinstance(record, dict) or record.get("head_sha") != commit:
         raise ReleasePublicationError("check-run evidence is malformed or belongs to another head")
     name = record.get("name")
@@ -930,6 +997,41 @@ def _check_run_observation(record: Any, commit: str) -> dict[str, Any]:
         for value in (record.get("details_url"), record.get("html_url"))
         if isinstance(value, str)
     }
+    if len(urls) != 1:
+        raise ReleasePublicationError("check-run job URL is missing or ambiguous")
+    url, run_id, job_id = _require_github_job_url(next(iter(urls)), "check-run")
+    check_suite = record.get("check_suite")
+    check_suite_id = check_suite.get("id") if isinstance(check_suite, dict) else None
+    run = workflow_runs.get(str(run_id)) if isinstance(workflow_runs, dict) else None
+    expected_workflow = RELEASE_REQUIRED_CHECK_WORKFLOWS.get(name)
+    if (
+        record.get("id") != job_id
+        or not isinstance(check_suite_id, int)
+        or isinstance(check_suite_id, bool)
+        or check_suite_id < 1
+        or not isinstance(run, dict)
+        or run.get("id") != run_id
+        or run.get("check_suite_id") != check_suite_id
+        or not isinstance(run.get("run_attempt"), int)
+        or isinstance(run.get("run_attempt"), bool)
+        or run["run_attempt"] < 1
+        or run.get("status") != "completed"
+        or run.get("conclusion") != "success"
+        or run.get("head_sha") != commit
+        or run.get("event") != expected_event
+        or not isinstance(expected_workflow, dict)
+        or run.get("path") != expected_workflow.get("path")
+        or run.get("html_url") != f"{GITHUB_WEB}/{REPOSITORY}/actions/runs/{run_id}"
+        or run.get("workflow_id") != expected_workflow.get("workflow_id")
+        or not isinstance(run.get("repository"), dict)
+        or run["repository"].get("full_name") != REPOSITORY
+        or not isinstance(run.get("head_repository"), dict)
+        or run["head_repository"].get("full_name") != REPOSITORY
+        or (expected_event == "push" and run.get("head_branch") != "main")
+    ):
+        raise ReleasePublicationError(
+            f"required check is not produced by the immutable workflow contract: {name}"
+        )
     started_at = _parse_datetime(str(record.get("started_at")))
     completed_at = _parse_datetime(str(record.get("completed_at")))
     if completed_at < started_at:
@@ -938,7 +1040,7 @@ def _check_run_observation(record: Any, commit: str) -> dict[str, Any]:
         "name": name,
         "app_id": app_id,
         "successful": record.get("status") == "completed" and record.get("conclusion") == "success",
-        "urls": urls,
+        "urls": {url},
         "order": _observation_order(
             record.get("completed_at"),
             record.get("id"),
@@ -974,9 +1076,11 @@ def _verify_required_checks(
     required: list[dict[str, Any]],
     requested: Any,
     check_runs: Any,
+    workflow_runs: Any,
     statuses: Any,
     commit: str,
     label: str,
+    expected_event: str,
     *,
     completed_no_earlier_than: datetime | None = None,
     completed_no_later_than: datetime | None = None,
@@ -996,7 +1100,7 @@ def _verify_required_checks(
     required_names = {item["name"] for item in required}
     observations = [
         *(
-            _check_run_observation(record, commit)
+            _check_run_observation(record, commit, workflow_runs, expected_event)
             for record in check_runs
             if isinstance(record, dict) and record.get("name") in required_names
         ),
@@ -1411,9 +1515,11 @@ def verify_publication_snapshot(
         required_checks,
         request["pull_request"]["checks"],
         snapshot.get("pull_request_check_runs"),
+        snapshot.get("pull_request_check_workflow_runs"),
         snapshot.get("pull_request_statuses"),
         request["pull_request"]["head_commit"],
         "pull request",
+        "pull_request",
         completed_no_later_than=merged_at,
     )
     technical_review = _verify_technical_review(request, snapshot)
@@ -1501,9 +1607,11 @@ def verify_publication_snapshot(
         required_checks,
         request["merged_main"]["checks"],
         snapshot.get("merged_main_check_runs"),
+        snapshot.get("merged_main_check_workflow_runs"),
         snapshot.get("merged_main_statuses"),
         commit,
         "merged main",
+        "push",
         completed_no_earlier_than=merged_at,
         completed_no_later_than=tagged_at,
     )

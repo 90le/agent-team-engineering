@@ -33,6 +33,7 @@ from tools.release_publication import (
     REVIEW_RUNTIME,
     REVIEW_WORKFLOW_COMMIT,
     RELEASE_REQUIRED_CHECKS,
+    RELEASE_REQUIRED_CHECK_WORKFLOWS,
     ReleasePublicationError,
     _anonymous_worker_command,
     _run_anonymous_worker,
@@ -221,7 +222,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
             hour = 1 if commit == "c" * 40 else 4
             return [
                 {
-                    "id": index,
+                    "id": int(check["url"].rsplit("/", 1)[-1]),
                     "name": check["name"],
                     "head_sha": commit,
                     "status": "completed",
@@ -229,11 +230,38 @@ class ReleaseEvidenceTests(unittest.TestCase):
                     "started_at": f"2026-08-12T{hour:02d}:00:{index:02d}Z",
                     "completed_at": f"2026-08-12T{hour:02d}:01:{index:02d}Z",
                     "app": {"id": check["app_id"]},
+                    "check_suite": {"id": 1000 + index},
                     "html_url": check["url"],
                     "details_url": check["url"],
                 }
                 for index, check in enumerate(checks, start=1)
             ]
+
+        def workflow_runs(commit: str, checks: list[dict], event: str) -> dict[str, dict]:
+            records: dict[str, dict] = {}
+            for index, check in enumerate(checks, start=1):
+                run_id = int(check["url"].split("/runs/", 1)[1].split("/", 1)[0])
+                records[str(run_id)] = {
+                    "id": run_id,
+                    "check_suite_id": 1000 + index,
+                    "workflow_id": RELEASE_REQUIRED_CHECK_WORKFLOWS[check["name"]][
+                        "workflow_id"
+                    ],
+                    "run_attempt": 1,
+                    "status": "completed",
+                    "conclusion": "success",
+                    "head_sha": commit,
+                    "head_branch": "feature" if event == "pull_request" else "main",
+                    "event": event,
+                    "path": RELEASE_REQUIRED_CHECK_WORKFLOWS[check["name"]]["path"],
+                    "html_url": (
+                        "https://github.com/90le/agent-team-engineering/actions/runs/"
+                        f"{run_id}"
+                    ),
+                    "repository": {"full_name": "90le/agent-team-engineering"},
+                    "head_repository": {"full_name": "90le/agent-team-engineering"},
+                }
+            return records
 
         return {
             "pull_request": {
@@ -323,9 +351,15 @@ class ReleaseEvidenceTests(unittest.TestCase):
             "pull_request_check_runs": check_runs(
                 "c" * 40, request["pull_request"]["checks"]
             ),
+            "pull_request_check_workflow_runs": workflow_runs(
+                "c" * 40, request["pull_request"]["checks"], "pull_request"
+            ),
             "pull_request_statuses": [],
             "merged_main_check_runs": check_runs(
                 "b" * 40, request["merged_main"]["checks"]
+            ),
+            "merged_main_check_workflow_runs": workflow_runs(
+                "b" * 40, request["merged_main"]["checks"], "push"
             ),
             "merged_main_statuses": [],
             "artifacts": {
@@ -609,7 +643,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
         rerun_url = "https://github.com/90le/agent-team-engineering/actions/runs/118/job/18"
         rerun.update(
             {
-                "id": 98,
+                "id": 18,
                 "started_at": "2026-08-12T02:00:00Z",
                 "completed_at": "2026-08-12T02:01:00Z",
                 "html_url": rerun_url,
@@ -617,6 +651,12 @@ class ReleaseEvidenceTests(unittest.TestCase):
             }
         )
         successful_rerun["pull_request_check_runs"].append(rerun)
+        successful_rerun["pull_request_check_workflow_runs"]["118"] = {
+            **deepcopy(successful_rerun["pull_request_check_workflow_runs"]["111"]),
+            "id": 118,
+            "check_suite_id": rerun["check_suite"]["id"],
+            "html_url": "https://github.com/90le/agent-team-engineering/actions/runs/118",
+        }
         latest_request = deepcopy(request)
         latest_request["pull_request"]["checks"][0]["url"] = rerun_url
         verify_publication_snapshot(latest_request, successful_rerun)
@@ -642,7 +682,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
         rerun = deepcopy(latest_failure["pull_request_check_runs"][0])
         rerun.update(
             {
-                "id": 99,
+                "id": 19,
                 "started_at": "2026-08-12T02:00:00Z",
                 "completed_at": "2026-08-12T02:01:00Z",
                 "conclusion": "failure",
@@ -655,6 +695,20 @@ class ReleaseEvidenceTests(unittest.TestCase):
         bad_main = deepcopy(snapshot)
         bad_main["merged_main_check_runs"][0]["conclusion"] = "failure"
         cases.append(("failed-main", bad_main))
+        wrong_workflow = deepcopy(snapshot)
+        wrong_workflow["pull_request_check_workflow_runs"]["111"]["path"] = (
+            ".github/workflows/release-verify.yml"
+        )
+        cases.append(("same-name-wrong-workflow", wrong_workflow))
+        wrong_event = deepcopy(snapshot)
+        wrong_event["pull_request_check_workflow_runs"]["111"]["event"] = "push"
+        cases.append(("same-name-wrong-event", wrong_event))
+        wrong_suite = deepcopy(snapshot)
+        wrong_suite["pull_request_check_workflow_runs"]["111"]["check_suite_id"] = 999
+        cases.append(("same-name-wrong-run", wrong_suite))
+        wrong_workflow_id = deepcopy(snapshot)
+        wrong_workflow_id["pull_request_check_workflow_runs"]["111"]["workflow_id"] = 1
+        cases.append(("recreated-workflow-id", wrong_workflow_id))
         extra_required = deepcopy(snapshot)
         extra_required["required_status_checks"]["contexts"].append("release-policy")
         extra_required["required_status_checks"]["checks"].append(

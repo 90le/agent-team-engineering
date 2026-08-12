@@ -14,6 +14,7 @@ from tools.release_audit import (
     SCM_PROFILE_PATH,
     ReleaseAuditError,
     _validate_release_identity,
+    _workflow_action_pins,
     validate_release_assets,
     validate_scm_evidence_documents,
 )
@@ -271,6 +272,61 @@ class ReleaseAssetTests(unittest.TestCase):
                 ReleaseAuditError
             ):
                 _validate_release_identity(sbom, provenance, "1.0.0")
+
+            for token in (
+                "third-party/action@" + "1" * 40,
+                "./local-action",
+                "docker://example.invalid/action:latest",
+                "Actions/checkout@" + "3d3c42e5aac5ba805825da76410c181273ba90b1",
+                "actions/checkout@main",
+            ):
+                candidate = workflows / "candidate.yml"
+                candidate.write_text(
+                    f"jobs:\n  audit:\n    steps:\n      - uses: {token}\n",
+                    encoding="utf-8",
+                )
+                with self.subTest(token=token), self.assertRaises(ReleaseAuditError):
+                    _workflow_action_pins(candidate)
+
+            flow = workflows / "flow.yml"
+            flow.write_text(
+                "jobs:\n  audit:\n    steps:\n      - { uses: actions/checkout@"
+                + "3d3c42e5aac5ba805825da76410c181273ba90b1"
+                + " }\n",
+                encoding="utf-8",
+            )
+            with self.assertRaises(ReleaseAuditError):
+                _workflow_action_pins(flow)
+
+            quoted = workflows / "quoted.yml"
+            quoted.write_text(
+                "jobs:\n  audit:\n    steps:\n      - \"uses\": actions/checkout@"
+                + "3d3c42e5aac5ba805825da76410c181273ba90b1"
+                + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaises(ReleaseAuditError):
+                _workflow_action_pins(quoted)
+
+            explicit = workflows / "explicit.yml"
+            explicit.write_text(
+                "jobs:\n  audit:\n    steps:\n      - ? uses\n        : actions/checkout@"
+                + "3d3c42e5aac5ba805825da76410c181273ba90b1"
+                + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaises(ReleaseAuditError):
+                _workflow_action_pins(explicit)
+
+            escaped = workflows / "escaped.yml"
+            escaped.write_text(
+                "jobs:\n  audit:\n    steps:\n      - \"\\u0075ses\": actions/checkout@"
+                + "3d3c42e5aac5ba805825da76410c181273ba90b1"
+                + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaises(ReleaseAuditError):
+                _workflow_action_pins(escaped)
 
 
 if __name__ == "__main__":

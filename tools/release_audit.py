@@ -58,6 +58,8 @@ EXTERNAL_EVIDENCE_BASELINE_COMMIT = "a286cfadbfb6f387a4f1fb94c244f57d4dd089e6"
 EXTERNAL_EVIDENCE_PROTECTED_PATHS = frozenset(
     {
         ".github/workflows/release-verify.yml",
+        ".github/workflows/disposable-runner.yml",
+        ".github/workflows/validate.yml",
         "acceptance/github-scm-v10-first-run.json",
         "acceptance/github-scm-v10-replay.json",
         "acceptance/v10-host-native-conformance.json",
@@ -86,6 +88,9 @@ EXTERNAL_EVIDENCE_PROTECTED_PATHS = frozenset(
         "schemas/team-spec.schema.json",
         "schemas/v10-release-candidate-conformance.schema.json",
         "schemas/writer-topology.schema.json",
+        "tests/test_release_assets.py",
+        "tests/test_release_evidence.py",
+        "tests/test_github_scm.py",
         "examples/github-scm-conformance/workflow.yml",
         "tools/github_scm_conformance.py",
         "tools/anonymous_release_worker.py",
@@ -96,7 +101,14 @@ EXTERNAL_EVIDENCE_PROTECTED_PATHS = frozenset(
     }
 )
 COMMIT_ID = re.compile(r"^[a-f0-9]{40}$")
-ACTION_USE = re.compile(r"uses:\s*(actions/[a-z0-9-]+)@([a-f0-9]{40})")
+WORKFLOW_USE_LINE = re.compile(
+    r"^[ \t]*(?:-[ \t]*)?uses[ \t]*:[ \t]*([^#\s]+)[ \t]*(?:#.*)?$"
+)
+WORKFLOW_USE_KEY = re.compile(
+    r"(?:^[ \t]*(?:-[ \t]*)?|[{,][ \t]*)(?:uses|'uses'|\"uses\")[ \t]*:"
+)
+WORKFLOW_QUOTED_KEY = re.compile(r"^[ \t]*(?:-[ \t]*)?(?:'[^']*'|\"[^\"]*\")[ \t]*:")
+ACTION_USE = re.compile(r"^(actions/[a-z0-9-]+)@([a-f0-9]{40})$")
 EXPECTED_ACTIONS = {
     "actions/checkout": ("3d3c42e5aac5ba805825da76410c181273ba90b1", "v7.0.1"),
     "actions/setup-python": ("5fda3b95a4ea91299a34e894583c3862153e4b97", "v7.0.0"),
@@ -106,6 +118,43 @@ EXPECTED_ACTIONS = {
 
 class ReleaseAuditError(RuntimeError):
     pass
+
+
+def _workflow_action_pins(path: Path) -> set[tuple[str, str]]:
+    """Read every unambiguous workflow ``uses`` key and reject all other forms."""
+
+    pins: set[tuple[str, str]] = set()
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        stripped = line.lstrip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        match = WORKFLOW_USE_LINE.fullmatch(line)
+        starts_use_key = WORKFLOW_USE_KEY.search(line)
+        mentions_use_key = re.search(r"(?i)\buses\b", line)
+        quoted_key = WORKFLOW_QUOTED_KEY.match(line)
+        if match is None:
+            if (
+                starts_use_key is not None
+                or mentions_use_key is not None
+                or quoted_key is not None
+            ):
+                raise ReleaseAuditError(
+                    f"workflow uses syntax is unsupported at {path}:{line_number}"
+                )
+            continue
+        action = ACTION_USE.fullmatch(match.group(1))
+        if action is None:
+            raise ReleaseAuditError(
+                f"workflow action is not an exact allowlisted pin at {path}:{line_number}"
+            )
+        repository, revision = action.groups()
+        expected = EXPECTED_ACTIONS.get(repository)
+        if expected is None or expected[0] != revision:
+            raise ReleaseAuditError(
+                f"workflow action pin differs from source provenance at {path}:{line_number}"
+            )
+        pins.add((repository, revision))
+    return pins
 
 
 def _json(relative: str) -> dict[str, Any]:
@@ -203,10 +252,7 @@ def _validate_release_identity(
     ) + [ROOT / "examples/github-scm-conformance/workflow.yml"]
     uses: set[tuple[str, str]] = set()
     for workflow_path in workflow_paths:
-        for repository, revision in ACTION_USE.findall(
-            workflow_path.read_text(encoding="utf-8")
-        ):
-            uses.add((repository, revision))
+        uses.update(_workflow_action_pins(workflow_path))
     expected_uses = {(repository, values[0]) for repository, values in EXPECTED_ACTIONS.items()}
     if uses != expected_uses:
         raise ReleaseAuditError("workflow Action pins differ from source provenance")

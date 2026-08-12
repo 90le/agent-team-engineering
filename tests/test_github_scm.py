@@ -262,7 +262,21 @@ class GitHubIdentityTests(unittest.TestCase):
         self.assertIn(value["plan_digest"], build_change(value, SCM_REPOSITORY)["file_content"])
         self.assertEqual(
             build_change(value, SCM_REPOSITORY)["file_path"],
-            "conformance/v10-approved-change.md",
+            "conformance/v10-approved-change-" + "f" * 40 + ".md",
+        )
+        self.assertEqual(
+            build_change(value, SCM_REPOSITORY)["proposal_branch"],
+            "agent-team/v10-conformance-" + "f" * 40,
+        )
+        other = build_plan(
+            repository_id=SCM_REPOSITORY_ID,
+            base_commit=BASE,
+            framework_commit="e" * 40,
+        )
+        self.assertNotEqual(value["plan_digest"], other["plan_digest"])
+        self.assertNotEqual(
+            build_change(value, SCM_REPOSITORY)["file_path"],
+            build_change(other, SCM_REPOSITORY)["file_path"],
         )
         environment = {
             "GITHUB_RUN_ID": "99",
