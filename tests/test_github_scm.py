@@ -4,6 +4,7 @@ import base64
 import copy
 import unittest
 from datetime import datetime, timezone
+from unittest import mock
 
 from core.contracts import approval_scope_digest, plan_revision_digest
 from core.github_scm import (
@@ -454,6 +455,73 @@ class BoundedGitHubChangeTests(unittest.TestCase):
         client._request = request  # type: ignore[method-assign]
         with self.assertRaises(GitHubScmError):
             client.ensure_issue("marker", "title", "body")
+
+    def test_created_file_waits_only_for_bounded_branch_head_consistency(self) -> None:
+        client = GitHubJobClient(REPOSITORY, "x" * 20)
+        content = b"# approved\n"
+        base_commit = "a" * 40
+        created_commit = "c" * 40
+        observed_heads = iter((base_commit, base_commit, created_commit))
+
+        def request(method: str, path: str, payload=None, *, allow_missing=False):
+            del allow_missing
+            if method == "GET" and "/contents/" in path:
+                return None
+            if method == "PUT" and "/contents/" in path:
+                self.assertEqual(payload["branch"], "agent-team/conformance-1")
+                return {"commit": {"sha": created_commit}}
+            if method == "GET" and "/git/ref/heads/" in path:
+                commit = next(observed_heads)
+                return {
+                    "object": {
+                        "sha": commit,
+                        "type": "commit",
+                        "url": f"https://api.github.com/repos/{REPOSITORY}/git/commits/{commit}",
+                    }
+                }
+            self.fail(f"unexpected request: {method} {path}")
+
+        client._request = request  # type: ignore[method-assign]
+        with mock.patch("core.github_scm.time.sleep") as sleep:
+            result = client.ensure_file(
+                "agent-team/conformance-1",
+                "conformance/approved.md",
+                content,
+                "test: approved",
+            )
+        self.assertEqual(result["provider_id"], created_commit)
+        self.assertTrue(result["created"])
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [0.25, 0.5])
+
+        client = GitHubJobClient(REPOSITORY, "x" * 20)
+
+        def never_consistent(method: str, path: str, payload=None, *, allow_missing=False):
+            del payload, allow_missing
+            if method == "GET" and "/contents/" in path:
+                return None
+            if method == "PUT" and "/contents/" in path:
+                return {"commit": {"sha": created_commit}}
+            if method == "GET" and "/git/ref/heads/" in path:
+                return {
+                    "object": {
+                        "sha": base_commit,
+                        "type": "commit",
+                        "url": f"https://api.github.com/repos/{REPOSITORY}/git/commits/{base_commit}",
+                    }
+                }
+            self.fail(f"unexpected request: {method} {path}")
+
+        client._request = never_consistent  # type: ignore[method-assign]
+        with mock.patch("core.github_scm.time.sleep") as sleep, self.assertRaises(
+            GitHubScmError
+        ):
+            client.ensure_file(
+                "agent-team/conformance-1",
+                "conformance/approved.md",
+                content,
+                "test: approved",
+            )
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [0.25, 0.5, 1.0])
 
 
 if __name__ == "__main__":

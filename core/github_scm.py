@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import json
 import re
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -27,6 +28,7 @@ CHANGE_SCHEMA = ROOT / "schemas" / "github-change-set.schema.json"
 OBJECT_ID = re.compile(r"^[a-f0-9]{40}$")
 PLAN_DIGEST = re.compile(r"^sha256:[a-f0-9]{64}$")
 MAX_RESPONSE_BYTES = 5_000_000
+BRANCH_HEAD_CONSISTENCY_DELAYS = (0.0, 0.25, 0.5, 1.0)
 
 
 class GitHubScmError(RuntimeError):
@@ -468,10 +470,15 @@ class GitHubJobClient:
         if not isinstance(value, dict) or not isinstance(value.get("commit"), dict):
             raise GitHubScmError("GitHub commit response is malformed")
         created_commit = value["commit"].get("sha")
-        summary = self._branch_head_commit(branch, created=True)
-        if created_commit != summary["provider_id"]:
-            raise GitHubScmError("GitHub branch head differs from the created commit")
-        return summary
+        if not isinstance(created_commit, str) or not OBJECT_ID.fullmatch(created_commit):
+            raise GitHubScmError("GitHub created commit identity is malformed")
+        for delay in BRANCH_HEAD_CONSISTENCY_DELAYS:
+            if delay:
+                time.sleep(delay)
+            summary = self._branch_head_commit(branch, created=True)
+            if created_commit == summary["provider_id"]:
+                return summary
+        raise GitHubScmError("GitHub branch head differs from the created commit")
 
     def ensure_draft_pull_request(
         self, marker: str, title: str, body: str, head: str, base: str
