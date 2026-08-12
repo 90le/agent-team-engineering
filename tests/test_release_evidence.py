@@ -101,12 +101,13 @@ class ReleaseEvidenceTests(unittest.TestCase):
                 "merged": True,
                 "merge_commit_sha": "b" * 40,
                 "head": {"sha": "c" * 40},
-                "user": {"login": "change-author"},
+                "user": {"login": "change-author", "type": "User"},
             },
             "reviews": [
                 {
                     "state": "APPROVED",
-                    "user": {"login": "independent-reviewer"},
+                    "user": {"login": "independent-reviewer", "type": "User"},
+                    "author_association": "COLLABORATOR",
                     "html_url": request["independent_review"]["url"],
                     "commit_id": "c" * 40,
                 }
@@ -241,6 +242,22 @@ class ReleaseEvidenceTests(unittest.TestCase):
         no_review["reviews"] = []
         with self.assertRaises(ReleasePublicationError):
             verify_publication_snapshot(request, no_review)
+
+    def test_independent_review_requires_distinct_trusted_human_identity(self) -> None:
+        request = self._request()
+        snapshot = self._snapshot()
+        bot_review = deepcopy(snapshot)
+        bot_review["reviews"][0]["user"]["type"] = "Bot"
+        with self.assertRaises(ReleasePublicationError):
+            verify_publication_snapshot(request, bot_review)
+        untrusted_review = deepcopy(snapshot)
+        untrusted_review["reviews"][0]["author_association"] = "CONTRIBUTOR"
+        with self.assertRaises(ReleasePublicationError):
+            verify_publication_snapshot(request, untrusted_review)
+        same_human = deepcopy(snapshot)
+        same_human["pull_request"]["user"]["login"] = "Independent-Reviewer"
+        with self.assertRaises(ReleasePublicationError):
+            verify_publication_snapshot(request, same_human)
 
     def test_download_is_required_and_all_checksums_are_verified(self) -> None:
         request = self._request()

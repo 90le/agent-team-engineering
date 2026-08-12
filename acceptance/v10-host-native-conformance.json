@@ -69,7 +69,7 @@
     "unit_tests": {
       "status": "PASS",
       "command": "python3 -m unittest discover -s tests -v",
-      "count": 325
+      "count": 326
     },
     "writer_authority": {
       "status": "PASS",
@@ -115,12 +115,9 @@
       "command": "tools/release-smoke.sh"
     },
     "external_scm": {
-      "status": "PASS",
-      "live_runs": 2,
-      "evidence_files": [
-        "acceptance/github-scm-v10-first-run.json",
-        "acceptance/github-scm-v10-replay.json"
-      ]
+      "status": "NOT_RUN",
+      "live_runs": 0,
+      "evidence_files": []
     }
   },
   "supply_chain": {
@@ -146,9 +143,9 @@
     "automatic_deploy": false,
     "identity_or_signature_verified_offline": false,
     "independent_writer_execution": false,
-    "dedicated_scm_identity_used": true,
-    "ephemeral_scm_token_used": true,
-    "external_scm_write_scope": "GRANTED_DEDICATED_TEST_ONLY"
+    "dedicated_scm_identity_used": false,
+    "ephemeral_scm_token_used": false,
+    "external_scm_write_scope": "NONE"
   },
   "remote_gates": {
     "pull_request_ci": "NOT_RUN_IN_SOURCE",

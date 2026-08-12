@@ -258,11 +258,13 @@ def verify_publication_snapshot(
     pull_author = pull.get("user", {}).get("login") if isinstance(pull.get("user"), dict) else None
     if not isinstance(pull_author, str) or not pull_author:
         raise ReleasePublicationError("pull request author identity is missing")
-    if reviewer == pull_author or not any(
+    if reviewer.casefold() == pull_author.casefold() or not any(
         isinstance(record, dict)
         and record.get("state") == "APPROVED"
         and isinstance(record.get("user"), dict)
         and record["user"].get("login") == reviewer
+        and record["user"].get("type") == "User"
+        and record.get("author_association") in {"COLLABORATOR", "MEMBER", "OWNER"}
         and record.get("html_url") == review_url
         and record.get("commit_id") == request["pull_request"]["head_commit"]
         for record in reviews
