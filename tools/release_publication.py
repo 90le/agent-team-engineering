@@ -1412,21 +1412,25 @@ def verify_publication_snapshot(
         raise ReleasePublicationError("owner approval evidence is missing")
     reviewer = request["owner_approval"]["reviewer"]
     review_url = request["owner_approval"]["url"]
-    trusted_exact_reviews = [
+    trusted_reviews = [
         record
         for record in reviews
         if isinstance(record, dict)
         and isinstance(record.get("user"), dict)
         and record["user"].get("type") == "User"
         and record.get("author_association") in {"COLLABORATOR", "MEMBER", "OWNER"}
-        and record.get("commit_id") == request["pull_request"]["head_commit"]
         and record.get("state") in {"APPROVED", "CHANGES_REQUESTED", "DISMISSED"}
     ]
     latest_by_reviewer: dict[str, dict[str, Any]] = {}
-    for record in trusted_exact_reviews:
+    for record in trusted_reviews:
         login = record["user"].get("login")
-        if not isinstance(login, str) or not login:
-            raise ReleasePublicationError("trusted review lacks a GitHub login")
+        if (
+            not isinstance(login, str)
+            or not login
+            or not isinstance(record.get("commit_id"), str)
+            or COMMIT.fullmatch(record["commit_id"]) is None
+        ):
+            raise ReleasePublicationError("trusted review identity is malformed")
         order = _observation_order(record.get("submitted_at"), record.get("id"), "review")
         existing = latest_by_reviewer.get(login)
         if existing is None or order > existing["order"]:
@@ -1437,11 +1441,12 @@ def verify_publication_snapshot(
         value["record"].get("state") == "CHANGES_REQUESTED"
         for value in latest_by_reviewer.values()
     ):
-        raise ReleasePublicationError("an exact-head trusted review still requests changes")
+        raise ReleasePublicationError("a trusted review still requests changes")
     selected = latest_by_reviewer.get(reviewer, {}).get("record")
     if (
         not isinstance(selected, dict)
         or selected.get("state") != "APPROVED"
+        or selected.get("commit_id") != request["pull_request"]["head_commit"]
         or selected.get("html_url") != review_url
         or selected.get("user", {}).get("login") != RELEASE_OWNER_LOGIN
         or selected.get("user", {}).get("id") != RELEASE_OWNER_ID
@@ -2114,55 +2119,160 @@ def build_final_release_index(
     return document
 
 
+def _open_nofollow_directory(path: Path) -> int:
+    """Open an existing absolute directory without traversing symlink components."""
+
+    if not path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts[1:]):
+        raise ReleasePublicationError("final release index parent path is not canonical")
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+    )
+    descriptor = os.open("/", flags)
+    try:
+        for component in path.parts[1:]:
+            child = os.open(component, flags, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISDIR(metadata.st_mode):
+            raise ReleasePublicationError("final release index parent is not a directory")
+        return descriptor
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+def _assert_output_parent_binding(path: Path, expected: tuple[int, int]) -> None:
+    try:
+        descriptor = _open_nofollow_directory(path)
+    except (OSError, ReleasePublicationError):
+        raise ReleasePublicationError(
+            "final release index parent changed during publication"
+        ) from None
+    try:
+        metadata = os.fstat(descriptor)
+        if (metadata.st_dev, metadata.st_ino) != expected:
+            raise ReleasePublicationError(
+                "final release index parent changed during publication"
+            )
+    finally:
+        os.close(descriptor)
+
+
+def _write_all(descriptor: int, content: bytes) -> None:
+    offset = 0
+    while offset < len(content):
+        written = os.write(descriptor, content[offset:])
+        if written < 1:
+            raise OSError("short write while staging final release index")
+        offset += written
+
+
 def write_final_index(document: dict[str, Any], output: Path) -> None:
     try:
         validate_release_evidence(document)
     except ReleaseEvidenceError as error:
         raise ReleasePublicationError(str(error)) from None
-    source_root = ROOT.resolve()
-    destination = output.resolve()
-    if destination == source_root or source_root in destination.parents:
-        raise ReleasePublicationError("final release index must be written outside tagged source")
-    output.parent.mkdir(parents=True, exist_ok=True)
-    if output.exists():
-        raise ReleasePublicationError("final release index output already exists")
-    content = json.dumps(document, indent=2, sort_keys=True) + "\n"
-    with tempfile.NamedTemporaryFile(
-        mode="w",
-        encoding="utf-8",
-        dir=output.parent,
-        prefix=f".{output.name}.",
-        delete=False,
-    ) as handle:
-        stage = Path(handle.name)
-        handle.write(content)
-        handle.flush()
-        os.fsync(handle.fileno())
+    if output.name in {"", ".", ".."} or output.name != output.name.strip():
+        raise ReleasePublicationError("final release index output name is invalid")
+    absolute = output if output.is_absolute() else Path.cwd() / output
+    if any(part in {".", ".."} for part in absolute.parts):
+        raise ReleasePublicationError("final release index output path is not canonical")
+    parent = absolute.parent
     try:
+        parent_descriptor = _open_nofollow_directory(parent)
+    except OSError as error:
+        raise ReleasePublicationError(
+            f"cannot bind final release index parent: {error}"
+        ) from None
+    stage_name: str | None = None
+    try:
+        parent_metadata = os.fstat(parent_descriptor)
+        parent_binding = (parent_metadata.st_dev, parent_metadata.st_ino)
+        proc_path = Path(f"/proc/self/fd/{parent_descriptor}")
+        try:
+            resolved_parent = Path(os.readlink(proc_path)).resolve(strict=True)
+        except (OSError, RuntimeError):
+            raise ReleasePublicationError(
+                "cannot resolve the bound final release index parent"
+            ) from None
+        source_root = ROOT.resolve()
+        destination = resolved_parent / output.name
+        if destination == source_root or source_root in destination.parents:
+            raise ReleasePublicationError(
+                "final release index must be written outside tagged source"
+            )
+        try:
+            os.stat(output.name, dir_fd=parent_descriptor, follow_symlinks=False)
+        except FileNotFoundError:
+            pass
+        else:
+            raise ReleasePublicationError("final release index output already exists")
+
+        content = (json.dumps(document, indent=2, sort_keys=True) + "\n").encode(
+            "utf-8"
+        )
+        stage_name = f".{output.name}.{secrets.token_hex(16)}"
+        stage_descriptor = os.open(
+            stage_name,
+            os.O_WRONLY
+            | os.O_CREAT
+            | os.O_EXCL
+            | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_CLOEXEC", 0),
+            0o600,
+            dir_fd=parent_descriptor,
+        )
+        try:
+            _write_all(stage_descriptor, content)
+            os.fsync(stage_descriptor)
+        finally:
+            os.close(stage_descriptor)
+
+        _assert_output_parent_binding(parent, parent_binding)
         # A hard-link publishes the already-fsynced bytes while preserving the
         # kernel's O_EXCL-style no-overwrite guarantee.  os.replace() cannot be
         # used here: a file created after the preflight check would be silently
         # destroyed.
+        published = False
         try:
-            os.link(stage, output, follow_symlinks=False)
+            os.link(
+                stage_name,
+                output.name,
+                src_dir_fd=parent_descriptor,
+                dst_dir_fd=parent_descriptor,
+                follow_symlinks=False,
+            )
+            published = True
         except FileExistsError:
             raise ReleasePublicationError(
                 "final release index output appeared during publication"
             ) from None
-        directory_fd = os.open(
-            output.parent,
-            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
-        )
-        try:
-            os.fsync(directory_fd)
-        finally:
-            os.close(directory_fd)
-        stage.unlink()
-        stage = None
+        _assert_output_parent_binding(parent, parent_binding)
+        os.fsync(parent_descriptor)
+        os.unlink(stage_name, dir_fd=parent_descriptor)
+        stage_name = None
+        os.fsync(parent_descriptor)
+        _assert_output_parent_binding(parent, parent_binding)
     except BaseException:
-        if stage is not None:
-            stage.unlink(missing_ok=True)
+        if "published" in locals() and published:
+            try:
+                os.unlink(output.name, dir_fd=parent_descriptor)
+                os.fsync(parent_descriptor)
+            except FileNotFoundError:
+                pass
+        if stage_name is not None:
+            try:
+                os.unlink(stage_name, dir_fd=parent_descriptor)
+                os.fsync(parent_descriptor)
+            except FileNotFoundError:
+                pass
         raise
+    finally:
+        os.close(parent_descriptor)
 
 
 def main() -> int:

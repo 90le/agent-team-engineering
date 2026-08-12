@@ -733,6 +733,20 @@ class ReleaseEvidenceTests(unittest.TestCase):
         stale_review["reviews"][0]["commit_id"] = "e" * 40
         with self.assertRaises(ReleasePublicationError):
             verify_publication_snapshot(request, stale_review)
+        unresolved_old_head = deepcopy(snapshot)
+        unresolved_old_head["reviews"].append(
+            {
+                "id": 98,
+                "state": "CHANGES_REQUESTED",
+                "user": {"login": "stale-maintainer", "type": "User"},
+                "author_association": "MEMBER",
+                "html_url": "https://github.com/90le/agent-team-engineering/pull/13#pullrequestreview-98",
+                "commit_id": "e" * 40,
+                "submitted_at": "2026-08-12T01:09:00Z",
+            }
+        )
+        with self.assertRaisesRegex(ReleasePublicationError, "still requests changes"):
+            verify_publication_snapshot(request, unresolved_old_head)
         later_blocker = deepcopy(snapshot)
         later_blocker["reviews"].append(
             {
@@ -1330,7 +1344,16 @@ class ReleaseEvidenceTests(unittest.TestCase):
             foreign = b"foreign concurrent owner\n"
 
             def race_link(source: object, destination: object, **kwargs: object) -> None:
-                Path(destination).write_bytes(foreign)
+                descriptor = os.open(
+                    destination,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                    0o600,
+                    dir_fd=kwargs["dst_dir_fd"],
+                )
+                try:
+                    os.write(descriptor, foreign)
+                finally:
+                    os.close(descriptor)
                 real_link(source, destination, **kwargs)
 
             with mock.patch(
@@ -1340,6 +1363,36 @@ class ReleaseEvidenceTests(unittest.TestCase):
             ):
                 write_final_index(final, output)
             self.assertEqual(output.read_bytes(), foreign)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            parent = root / "approved"
+            parent.mkdir()
+            redirected = root / "redirected"
+            redirected.mkdir()
+            moved = root / "moved-approved"
+            output = parent / "v1.0.0-final-release-index.json"
+            real_assert = release_publication._assert_output_parent_binding
+            replaced = False
+
+            def replace_parent(path: Path, expected: tuple[int, int]) -> None:
+                nonlocal replaced
+                if not replaced:
+                    parent.rename(moved)
+                    parent.symlink_to(redirected, target_is_directory=True)
+                    replaced = True
+                real_assert(path, expected)
+
+            with mock.patch(
+                "tools.release_publication._assert_output_parent_binding",
+                side_effect=replace_parent,
+            ), self.assertRaisesRegex(
+                ReleasePublicationError, "parent changed during publication"
+            ):
+                write_final_index(final, output)
+            self.assertFalse((redirected / output.name).exists())
+            self.assertFalse((moved / output.name).exists())
+            self.assertEqual(list(moved.glob(f".{output.name}.*")), [])
 
     def test_request_requires_exact_urls_and_no_unknown_fields(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
