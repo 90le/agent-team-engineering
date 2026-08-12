@@ -80,8 +80,8 @@ v1.0 产品发布新增的是 `WriterTopology → PlanRevision → ApprovalGrant
 
 ```text
 topology sha256:b4b3e8ad868889082a871e3ecc7588b00ced58a0555da299061c0aae758de0dd
-    → plan sha256:e8b43d51e503d3cd453627aa0249775a301e1ae14336ef866eb1cfd6980ede7a
-    → approval scope sha256:57137766d7f2c13c1b5eaecba648a67deab6d888400b609cfb1b210dc90c3b00
+    → plan sha256:5736168426ff82d70e78ba52d36c6407894e75922dd569de18db375eaded7efb
+    → approval scope sha256:2457ab8a7d297122c9f82322445b79bb7a90ba59f649bba9e5f315b5b0dfc4b7
 ```
 
 当前 PlanRevision 与 ApprovalGrant 的统一 Schema 文件 `$id` 都是 `1.1.0`，仍兼容 `1.0.0` 文档。语义边界必须保持准确：
@@ -89,6 +89,7 @@ topology sha256:b4b3e8ad868889082a871e3ecc7588b00ced58a0555da299061c0aae758de0dd
 - `1.1.0` 文档必须显式包含 `writer_topology`，取值只能是准确身份/摘要对象或 `null`；
 - `null` 表示没有 WriterTopology 权威，不能从角色名推断；
 - `1.0.0` 文档必须省略该字段，不能声称拥有 `1.1.0` 绑定；
+- 拓扑绑定的 `1.1.0` 计划必须为每个任务声明 `allowed_paths`；Writer 任务只能使用自己角色的 ownership roots，Tester/Reviewer/Integrator 等非 Writer 任务必须使用空路径，计划级 `allowed_paths` 必须等于所有 Writer 任务路径的精确并集；
 - 拓扑对象要求 `approval.binding=exact-plan-and-topology-digests`；`topology_digest` 进入 plan、approval 与 retry identity；
 - 任何拓扑变化都需要新 plan digest、新 approval scope digest 与新批准，不能沿用旧 retry 身份。
 

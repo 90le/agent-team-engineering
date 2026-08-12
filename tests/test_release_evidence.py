@@ -207,6 +207,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
                 "ref": "refs/heads/main",
                 "object": {"type": "commit", "sha": "b" * 40},
             },
+            "merged_main_git_commit": {"tree": {"sha": "d" * 40}},
             "reviews": [
                 {
                     "id": 99,
@@ -484,6 +485,9 @@ class ReleaseEvidenceTests(unittest.TestCase):
         malformed_main = deepcopy(snapshot)
         malformed_main["main_ref"]["object"]["type"] = "tag"
         cases.append(("main-ref-not-commit", malformed_main))
+        unreviewed_merge_tree = deepcopy(snapshot)
+        unreviewed_merge_tree["merged_main_git_commit"]["tree"]["sha"] = "f" * 40
+        cases.append(("merged-main-tree-differs-from-reviewed-head", unreviewed_merge_tree))
         for label, altered in cases:
             with self.subTest(label=label), self.assertRaises(ReleasePublicationError):
                 verify_publication_snapshot(request, altered)

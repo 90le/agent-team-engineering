@@ -93,10 +93,11 @@
         "technical_review": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["status", "head_commit", "workflow_commit", "reviewer_kind", "reviewer_runtime", "evidence_url", "evidence_sha256", "decision", "authenticated_human", "generated_at", "completed_at"],
+          "required": ["status", "head_commit", "head_tree", "workflow_commit", "reviewer_kind", "reviewer_runtime", "evidence_url", "evidence_sha256", "decision", "authenticated_human", "generated_at", "completed_at"],
           "properties": {
             "status": {"enum": ["PASS", "FAIL", "NOT_RUN"]},
             "head_commit": {"type": ["string", "null"], "pattern": "^[a-f0-9]{40}$"},
+            "head_tree": {"type": ["string", "null"], "pattern": "^[a-f0-9]{40}$"},
             "workflow_commit": {"type": ["string", "null"], "pattern": "^[a-f0-9]{40}$"},
             "reviewer_kind": {"enum": ["independent-ai", null]},
             "reviewer_runtime": {"type": ["string", "null"], "minLength": 1},
@@ -125,11 +126,12 @@
         "merged_main": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["status", "ref", "commit", "checks"],
+          "required": ["status", "ref", "commit", "tree", "checks"],
           "properties": {
             "status": {"enum": ["PASS", "FAIL", "NOT_RUN"]},
             "ref": {"enum": ["refs/heads/main", null]},
             "commit": {"type": ["string", "null"], "pattern": "^[a-f0-9]{40}$"},
+            "tree": {"type": ["string", "null"], "pattern": "^[a-f0-9]{40}$"},
             "checks": {
               "type": "array",
               "uniqueItems": true,

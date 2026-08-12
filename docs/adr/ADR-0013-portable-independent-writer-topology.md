@@ -33,14 +33,15 @@ WriterTopology topology_digest
 The canonical trio binds:
 
 - topology: `sha256:b4b3e8ad868889082a871e3ecc7588b00ced58a0555da299061c0aae758de0dd`;
-- plan: `sha256:e8b43d51e503d3cd453627aa0249775a301e1ae14336ef866eb1cfd6980ede7a`;
-- approval scope: `sha256:57137766d7f2c13c1b5eaecba648a67deab6d888400b609cfb1b210dc90c3b00`.
+- plan: `sha256:5736168426ff82d70e78ba52d36c6407894e75922dd569de18db375eaded7efb`;
+- approval scope: `sha256:2457ab8a7d297122c9f82322445b79bb7a90ba59f649bba9e5f315b5b0dfc4b7`.
 
 The topology contract requires:
 
 - at least two distinct source-writing identities;
 - normalized, non-overlapping repository subtrees for each writer;
 - no ordinary writer ownership of root SCM/CI controls or Factory/host governance namespaces such as `.gitmodules`, `.gitattributes`, `.gitignore`, `.github`, `.gitlab`, `.circleci`, `.claude-plugin`, `factory-package.json`, `VERSION`, `CODEOWNERS`, or `AGENTS.md`; standard nested `docs/CODEOWNERS` is reserved as well, and cross-cutting control files require a separately approved integrator policy in a future contract;
+- every topology-bound PlanRevision task carries its own path list; a writer task is constrained to that writer's roots, a non-writer task has no source path authority, and the plan-wide path list is exactly the task-level union;
 - worktree and branch templates containing both work-item and writer identities;
 - an integrator identity distinct from every writer;
 - exactly one read-only tester and one read-only reviewer, both distinct from writers and integrator and unable to review their own work;

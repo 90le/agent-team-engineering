@@ -15,9 +15,9 @@
   "objective": "Implement and test the approved frontend and backend change without merging or deploying.",
   "assumptions": ["The existing authentication API remains unchanged."],
   "tasks": [
-    {"task_id": "task-frontend", "role_id": "role.frontend", "objective": "Implement the bounded frontend change.", "depends_on": [], "required_capabilities": ["code.change"], "completion_evidence": ["change-commit"]},
-    {"task_id": "task-backend", "role_id": "role.backend", "objective": "Implement the bounded backend change.", "depends_on": [], "required_capabilities": ["code.change"], "completion_evidence": ["change-commit"]},
-    {"task_id": "task-test", "role_id": "role.tester", "objective": "Run deterministic tests.", "depends_on": ["task-backend", "task-frontend"], "required_capabilities": ["test.run"], "completion_evidence": ["test-result"]}
+    {"task_id": "task-frontend", "role_id": "role.frontend", "objective": "Implement the bounded frontend change.", "depends_on": [], "allowed_paths": ["apps/web/", "packages/ui/"], "required_capabilities": ["code.change"], "completion_evidence": ["change-commit"]},
+    {"task_id": "task-backend", "role_id": "role.backend", "objective": "Implement the bounded backend change.", "depends_on": [], "allowed_paths": ["db/migrations/", "services/api/"], "required_capabilities": ["code.change"], "completion_evidence": ["change-commit"]},
+    {"task_id": "task-test", "role_id": "role.tester", "objective": "Run deterministic tests.", "depends_on": ["task-backend", "task-frontend"], "allowed_paths": [], "required_capabilities": ["test.run"], "completion_evidence": ["test-result"]}
   ],
   "allowed_paths": ["apps/web/", "db/migrations/", "packages/ui/", "services/api/"],
   "allowed_actions": ["repository.read", "workspace.write", "test.run", "commit.create", "draft-pr.create", "ci.read"],
@@ -28,5 +28,5 @@
   "time_limit_seconds": 3600,
   "created_by": "role.planner",
   "created_at": "2026-08-11T05:31:00Z",
-  "plan_digest": "sha256:e8b43d51e503d3cd453627aa0249775a301e1ae14336ef866eb1cfd6980ede7a"
+  "plan_digest": "sha256:5736168426ff82d70e78ba52d36c6407894e75922dd569de18db375eaded7efb"
 }

@@ -296,6 +296,24 @@ def _validate_plan(document: dict[str, Any]) -> list[ContractIssue]:
             issues.append(_issue(f"$.tasks[{index}].depends_on", f"unknown tasks: {', '.join(unknown)}"))
         if task_id in dependencies:
             issues.append(_issue(f"$.tasks[{index}].depends_on", "task cannot depend on itself"))
+        task_paths = task.get("allowed_paths")
+        if version == "1.1.0" and isinstance(document.get("writer_topology"), dict):
+            if not isinstance(task_paths, list):
+                issues.append(
+                    _issue(
+                        f"$.tasks[{index}].allowed_paths",
+                        "topology-bound v1.1 tasks must declare their exact path authority",
+                    )
+                )
+            else:
+                for path_index, path in enumerate(task_paths):
+                    if _normalized_repository_path(path) is None:
+                        issues.append(
+                            _issue(
+                                f"$.tasks[{index}].allowed_paths[{path_index}]",
+                                "must be a repository-relative safe path",
+                            )
+                        )
     visiting: set[str] = set()
     visited: set[str] = set()
 
@@ -988,12 +1006,59 @@ def validate_writer_authority(
             )
         )
 
-    roots = [
-        normalized.rstrip("/").casefold()
+    roots_by_writer = {
+        str(writer["actor_id"]): [
+            normalized.rstrip("/").casefold()
+            for root in writer["ownership_roots"]
+            if (normalized := _normalized_repository_path(root)) is not None
+        ]
         for writer in topology["writers"]
-        for root in writer["ownership_roots"]
-        if (normalized := _normalized_repository_path(root)) is not None
-    ]
+    }
+    roots = [root for writer_roots in roots_by_writer.values() for root in writer_roots]
+    task_path_union: set[str] = set()
+    for task_index, task in enumerate(plan.get("tasks", [])):
+        role_id = str(task.get("role_id", ""))
+        task_paths = task.get("allowed_paths")
+        if not isinstance(task_paths, list):
+            issues.append(
+                _issue(
+                    f"$.plan.tasks[{task_index}].allowed_paths",
+                    "must explicitly bind this task's path authority",
+                )
+            )
+            continue
+        if role_id not in writer_ids and task_paths:
+            issues.append(
+                _issue(
+                    f"$.plan.tasks[{task_index}].allowed_paths",
+                    "non-writer topology roles cannot receive source path authority",
+                )
+            )
+            continue
+        writer_roots = roots_by_writer.get(role_id, [])
+        if role_id in writer_ids and not task_paths:
+            issues.append(
+                _issue(
+                    f"$.plan.tasks[{task_index}].allowed_paths",
+                    "writer tasks must bind at least one owned path",
+                )
+            )
+        for path_index, raw_path in enumerate(task_paths):
+            normalized = _normalized_repository_path(raw_path)
+            candidate = normalized.rstrip("/").casefold() if normalized is not None else ""
+            if normalized is None or not any(
+                candidate == root or candidate.startswith(root + "/")
+                for root in writer_roots
+            ):
+                issues.append(
+                    _issue(
+                        f"$.plan.tasks[{task_index}].allowed_paths[{path_index}]",
+                        "must remain inside this task writer's own ownership roots",
+                    )
+                )
+            else:
+                task_path_union.add(candidate)
+    global_path_set: set[str] = set()
     for index, raw_path in enumerate(plan.get("allowed_paths", [])):
         normalized = _normalized_repository_path(raw_path)
         candidate = normalized.rstrip("/").casefold() if normalized is not None else ""
@@ -1006,6 +1071,15 @@ def validate_writer_authority(
                     "must remain inside one topology writer ownership root",
                 )
             )
+        else:
+            global_path_set.add(candidate)
+    if task_path_union != global_path_set:
+        issues.append(
+            _issue(
+                "$.plan.allowed_paths",
+                "must equal the exact union of per-task writer path authority",
+            )
+        )
 
     compared_fields = (
         "work_item_id",

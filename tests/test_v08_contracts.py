@@ -188,6 +188,35 @@ class V08ContractTests(unittest.TestCase):
         authority_issues = validate_writer_authority(changed, plan, approval)
         self.assertIn("$.plan.writer_topology", {issue.path for issue in authority_issues})
 
+        # A coherent re-signing cannot swap frontend/backend path authority
+        # while preserving the same plan-wide path union.
+        cross_writer_plan = copy.deepcopy(plan)
+        cross_writer_approval = copy.deepcopy(approval)
+        frontend_paths = cross_writer_plan["tasks"][0]["allowed_paths"]
+        backend_paths = cross_writer_plan["tasks"][1]["allowed_paths"]
+        cross_writer_plan["tasks"][0]["allowed_paths"] = backend_paths
+        cross_writer_plan["tasks"][1]["allowed_paths"] = frontend_paths
+        cross_writer_plan["plan_digest"] = plan_revision_digest(cross_writer_plan)
+        cross_writer_approval["plan_digest"] = cross_writer_plan["plan_digest"]
+        cross_writer_approval["scope_digest"] = approval_scope_digest(
+            cross_writer_approval
+        )
+        self.assertEqual(validate_contract("plan_revision", cross_writer_plan), [])
+        self.assertEqual(
+            validate_contract("approval_grant", cross_writer_approval), []
+        )
+        cross_writer_issues = validate_writer_authority(
+            topology, cross_writer_plan, cross_writer_approval
+        )
+        self.assertIn(
+            "$.plan.tasks[0].allowed_paths[0]",
+            {issue.path for issue in cross_writer_issues},
+        )
+        self.assertIn(
+            "$.plan.tasks[1].allowed_paths[0]",
+            {issue.path for issue in cross_writer_issues},
+        )
+
     def test_writer_topology_semantic_bypass_matrix_fails_with_recomputed_digest(self) -> None:
         def writer_scope(document: dict) -> None:
             document["writers"][0]["allowed_actions"].append("outside-owned-paths.write")

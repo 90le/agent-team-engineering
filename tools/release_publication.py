@@ -621,6 +621,9 @@ def fetch_publication_snapshot(request: dict[str, Any], token: str) -> dict[str,
         "pull_head_git_commit": _github_json(
             f"/repos/{REPOSITORY}/git/commits/{pull_head}", token
         ),
+        "merged_main_git_commit": _github_json(
+            f"/repos/{REPOSITORY}/git/commits/{commit}", token
+        ),
         "required_status_checks": required_status_checks,
         "active_main_rules": active_main_rules,
         "pull_request_check_runs": _github_check_runs(pull_head, token),
@@ -1159,6 +1162,7 @@ def _verify_technical_review(
     return {
         "status": "PASS",
         "head_commit": head,
+        "head_tree": expected_tree,
         "workflow_commit": REVIEW_WORKFLOW_COMMIT,
         "reviewer_kind": "independent-ai",
         "reviewer_runtime": REVIEW_RUNTIME,
@@ -1208,6 +1212,22 @@ def verify_publication_snapshot(
     ):
         raise ReleasePublicationError(
             "accepted merge commit is not the current exact main branch tip"
+        )
+    pull_commit = snapshot.get("pull_head_git_commit")
+    pull_tree = pull_commit.get("tree") if isinstance(pull_commit, dict) else None
+    pull_tree_id = pull_tree.get("sha") if isinstance(pull_tree, dict) else None
+    main_commit = snapshot.get("merged_main_git_commit")
+    main_tree = main_commit.get("tree") if isinstance(main_commit, dict) else None
+    main_tree_id = main_tree.get("sha") if isinstance(main_tree, dict) else None
+    if (
+        not isinstance(pull_tree_id, str)
+        or COMMIT.fullmatch(pull_tree_id) is None
+        or not isinstance(main_tree_id, str)
+        or COMMIT.fullmatch(main_tree_id) is None
+        or main_tree_id != pull_tree_id
+    ):
+        raise ReleasePublicationError(
+            "accepted main source tree differs from the independently reviewed head tree"
         )
     merged_at = _parse_datetime(str(pull.get("merged_at")))
     required_checks = _required_checks(
@@ -1401,6 +1421,7 @@ def verify_publication_snapshot(
             "status": "PASS",
             "ref": "refs/heads/main",
             "commit": commit,
+            "tree": main_tree_id,
             "checks": main_checks,
         },
         "annotated_tag": {
@@ -1719,6 +1740,7 @@ def build_final_release_index(
         "technical-review": [
             publication["technical_review"]["evidence_url"],
             publication["technical_review"]["evidence_sha256"],
+            publication["technical_review"]["head_tree"],
         ],
         "owner-approval": [publication["owner_approval"]["url"]],
         "merged-main": [
@@ -1727,6 +1749,7 @@ def build_final_release_index(
                 for check in publication["merged_main"]["checks"]
             ),
             request["commit"],
+            publication["merged_main"]["tree"],
         ],
         "annotated-tag": [f"refs/tags/{request['release']}@{publication['annotated_tag']['object_id']}", request["commit"]],
         "tag-workflow": [publication["tag_workflow"]["url"]],

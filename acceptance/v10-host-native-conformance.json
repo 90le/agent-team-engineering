@@ -75,8 +75,8 @@
       "status": "PASS",
       "test_count": 14,
       "topology_digest": "sha256:b4b3e8ad868889082a871e3ecc7588b00ced58a0555da299061c0aae758de0dd",
-      "plan_digest": "sha256:e8b43d51e503d3cd453627aa0249775a301e1ae14336ef866eb1cfd6980ede7a",
-      "approval_scope_digest": "sha256:57137766d7f2c13c1b5eaecba648a67deab6d888400b609cfb1b210dc90c3b00",
+      "plan_digest": "sha256:5736168426ff82d70e78ba52d36c6407894e75922dd569de18db375eaded7efb",
+      "approval_scope_digest": "sha256:2457ab8a7d297122c9f82322445b79bb7a90ba59f649bba9e5f315b5b0dfc4b7",
       "automatic_execution": false,
       "identity_or_signature_verified": false
     },

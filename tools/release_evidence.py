@@ -158,6 +158,7 @@ def _empty_publication(tag: str, tag_object: str, commit: str, environment: dict
         "technical_review": {
             "status": "NOT_RUN",
             "head_commit": None,
+            "head_tree": None,
             "workflow_commit": None,
             "reviewer_kind": None,
             "reviewer_runtime": None,
@@ -181,6 +182,7 @@ def _empty_publication(tag: str, tag_object: str, commit: str, environment: dict
             "status": "NOT_RUN",
             "ref": None,
             "commit": None,
+            "tree": None,
             "checks": [],
         },
         "annotated_tag": {
@@ -431,6 +433,7 @@ def validate_release_evidence(document: dict[str, Any]) -> None:
                 technical_review[field] is not None
                 for field in (
                     "head_commit",
+                    "head_tree",
                     "workflow_commit",
                     "reviewer_kind",
                     "reviewer_runtime",
@@ -455,6 +458,7 @@ def validate_release_evidence(document: dict[str, Any]) -> None:
             or owner_approval["decision"] != "NOT_RUN"
             or merged_main["ref"] is not None
             or merged_main["commit"] is not None
+            or merged_main["tree"] is not None
             or any(
                 tag_record[field] is not None
                 for field in (
@@ -631,6 +635,7 @@ def validate_release_evidence(document: dict[str, Any]) -> None:
         if (
             merged_main["ref"] != "refs/heads/main"
             or merged_main["commit"] != document["commit"]
+            or COMMIT.fullmatch(str(merged_main["tree"])) is None
         ):
             raise ReleaseEvidenceError("merged-main checks do not bind the accepted commit")
         if (
@@ -644,6 +649,8 @@ def validate_release_evidence(document: dict[str, Any]) -> None:
             not head_commit
             or not pull_request["merged_at"]
             or technical_review["head_commit"] != head_commit
+            or COMMIT.fullmatch(str(technical_review["head_tree"])) is None
+            or technical_review["head_tree"] != merged_main["tree"]
             or technical_review["workflow_commit"] != REVIEW_WORKFLOW_COMMIT
             or technical_review["reviewer_kind"] != "independent-ai"
             or technical_review["reviewer_runtime"] != REVIEW_RUNTIME
@@ -691,6 +698,7 @@ def validate_release_evidence(document: dict[str, Any]) -> None:
                 "technical-review": [
                     technical_review["evidence_url"],
                     technical_review["evidence_sha256"],
+                    technical_review["head_tree"],
                 ],
                 "owner-approval": [owner_approval["url"]],
                 "merged-main": [
@@ -699,6 +707,7 @@ def validate_release_evidence(document: dict[str, Any]) -> None:
                         for record in merged_main["checks"]
                     ),
                     document["commit"],
+                    merged_main["tree"],
                 ],
                 "annotated-tag": [
                     f"refs/tags/{document['tag']}@{document['tag_object']}",

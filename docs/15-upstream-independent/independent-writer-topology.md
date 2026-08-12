@@ -14,11 +14,11 @@ sha256:b4b3e8ad868889082a871e3ecc7588b00ced58a0555da299061c0aae758de0dd
         │ exact topology identity + digest
         ▼
 PlanRevision.plan_digest
-sha256:e8b43d51e503d3cd453627aa0249775a301e1ae14336ef866eb1cfd6980ede7a
+sha256:5736168426ff82d70e78ba52d36c6407894e75922dd569de18db375eaded7efb
         │ exact plan fields + topology binding
         ▼
 ApprovalGrant.scope_digest
-sha256:57137766d7f2c13c1b5eaecba648a67deab6d888400b609cfb1b210dc90c3b00
+sha256:2457ab8a7d297122c9f82322445b79bb7a90ba59f649bba9e5f315b5b0dfc4b7
 ```
 
 The canonical files are:
@@ -52,6 +52,7 @@ Do not confuse the product version, contract versions, or host-install plan:
 For PlanRevision and ApprovalGrant:
 
 - a `1.1.0` document must include `writer_topology` explicitly;
+- a topology-bound `1.1.0` plan must give every task an exact `allowed_paths` list; each writer task stays inside that writer's own ownership roots, non-writer tasks receive no source path, and the plan-level list is the exact union;
 - use the exact topology identity/digest object when independent-writer authority is intended;
 - use `null` when no WriterTopology authority is claimed; never infer a topology from role names;
 - a compatible `1.0.0` document must omit `writer_topology` and cannot claim the `1.1.0` binding;

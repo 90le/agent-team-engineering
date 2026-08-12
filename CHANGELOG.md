@@ -6,7 +6,7 @@
 
 Agent Team Factory 的“可移植独立写入者权威链与可恢复宿主生命周期”版本：
 
-- 新增严格的 `WriterTopology` 契约，并把规范 `WriterTopology → PlanRevision → ApprovalGrant` 三件套绑定为拓扑摘要 `sha256:b4b3e8ad868889082a871e3ecc7588b00ced58a0555da299061c0aae758de0dd`、计划摘要 `sha256:e8b43d51e503d3cd453627aa0249775a301e1ae14336ef866eb1cfd6980ede7a` 与批准范围摘要 `sha256:57137766d7f2c13c1b5eaecba648a67deab6d888400b609cfb1b210dc90c3b00`。PlanRevision 与 ApprovalGrant 的统一 Schema `$id` 升级为 `1.1.0`，仍兼容省略 `writer_topology` 的 `1.0.0` 文档；`1.1.0` 必须显式绑定准确拓扑或 `null`，拓扑变化会同时使计划、批准与重试身份失效。
+- 新增严格的 `WriterTopology` 契约，并把规范 `WriterTopology → PlanRevision → ApprovalGrant` 三件套绑定为拓扑摘要 `sha256:b4b3e8ad868889082a871e3ecc7588b00ced58a0555da299061c0aae758de0dd`、计划摘要 `sha256:5736168426ff82d70e78ba52d36c6407894e75922dd569de18db375eaded7efb` 与批准范围摘要 `sha256:2457ab8a7d297122c9f82322445b79bb7a90ba59f649bba9e5f315b5b0dfc4b7`。PlanRevision 与 ApprovalGrant 的统一 Schema `$id` 升级为 `1.1.0`，仍兼容省略 `writer_topology` 的 `1.0.0` 文档；`1.1.0` 必须显式绑定准确拓扑或 `null`，拓扑变化或逐任务 Writer 路径变化都会同时使计划、批准与重试身份失效。
 - 新增 `./agent-team native writer-authority-validate` 离线链校验。它只证明三个本地文档的 Schema、语义、摘要和交叉绑定一致，并明确返回 `automatic_execution: false` 与 `identity_or_signature_verified: false`；它不认证批准者身份或签名，也不会启动 Agent、创建 worktree/分支、写仓库、开 PR、merge、release 或 deploy。
 - Host-install plan 与 install lock 升级为完整 proposal 绑定的 `1.1.0` 生命周期：准确披露持久空 ordinary-file guard、确定性文件 stage、唯一临时元数据 scratch、旧 tombstone 删除效果和卸载保留项。v0.9 尚未执行的 host plan 必须重新 `plan → preview → confirm`；v0.9 legacy lock 仅可 `LEGACY_UNBOUND` 只读核验，禁止自动破坏性卸载。
 - Apply、verify 和 uninstall 通过持久 `fcntl` guard 串行化协作中的本机 Factory 进程。源文件通过不跟随符号链接的目录描述符读取，并在独占发布前再次核对准确 SHA-256；不同计划的并发 apply 在第二次写入发生前安全停止。该机制不宣称抵抗 root、内核、文件系统、存储故障或非协作特权写入。
