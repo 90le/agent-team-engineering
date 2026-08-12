@@ -7,6 +7,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from tools.release_audit import (
+    EXTERNAL_EVIDENCE_PROTECTED_PATHS,
+    SCM_EVIDENCE_PATHS,
+    SCM_PROFILE_PATH,
     ReleaseAuditError,
     _validate_release_identity,
     validate_release_assets,
@@ -125,6 +128,12 @@ def _report(*, created: bool, run_id: int) -> dict:
 
 
 class ReleaseAssetTests(unittest.TestCase):
+    def test_release_authorizing_scm_documents_are_protected(self) -> None:
+        self.assertTrue(
+            set(SCM_EVIDENCE_PATHS) | {SCM_PROFILE_PATH}
+            <= EXTERNAL_EVIDENCE_PROTECTED_PATHS
+        )
+
     def test_versions_sbom_license_and_provenance_are_consistent(self) -> None:
         report = validate_release_assets()
         self.assertEqual(report["version"], "1.0.0")

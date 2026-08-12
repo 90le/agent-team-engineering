@@ -51,11 +51,16 @@ SCM_EVIDENCE_PATHS = (
     "acceptance/github-scm-v10-first-run.json",
     "acceptance/github-scm-v10-replay.json",
 )
+SCM_PROFILE_PATH = "acceptance/v10-host-native-conformance.json"
+SCM_EVIDENCE_RECORD_PATHS = frozenset(SCM_EVIDENCE_PATHS)
 EXTERNAL_EVIDENCE_BASELINE_TAG = "v0.9.0"
 EXTERNAL_EVIDENCE_BASELINE_COMMIT = "a286cfadbfb6f387a4f1fb94c244f57d4dd089e6"
 EXTERNAL_EVIDENCE_PROTECTED_PATHS = frozenset(
     {
         ".github/workflows/release-verify.yml",
+        "acceptance/github-scm-v10-first-run.json",
+        "acceptance/github-scm-v10-replay.json",
+        "acceptance/v10-host-native-conformance.json",
         "adapters/github/adapter.json",
         "contracts/core-contracts.json",
         "contracts/native-reference-workflow.json",
@@ -630,7 +635,7 @@ def validate_external_scm_evidence() -> dict[str, Any]:
     missing = [relative for relative in SCM_EVIDENCE_PATHS if not (ROOT / relative).is_file()]
     if missing:
         raise ReleaseAuditError("GitHub SCM evidence is missing: " + ", ".join(missing))
-    profile = _json("acceptance/v10-host-native-conformance.json")
+    profile = _json(SCM_PROFILE_PATH)
     first = _json(SCM_EVIDENCE_PATHS[0])
     replay = _json(SCM_EVIDENCE_PATHS[1])
     report = validate_scm_evidence_documents(profile, first, replay)
@@ -651,11 +656,43 @@ def validate_external_scm_evidence() -> dict[str, Any]:
     if framework_commit == baseline_commit:
         raise ReleaseAuditError("v1.0 SCM evidence cannot reuse the v0.9.0 implementation")
     _git_output(["merge-base", "--is-ancestor", baseline_commit, framework_commit])
+
+    evidence_commits = {
+        _git_output(["log", "-1", "--format=%H", "--", relative])
+        for relative in SCM_EVIDENCE_PATHS
+    }
+    if len(evidence_commits) != 1:
+        raise ReleaseAuditError(
+            "external SCM first-run and replay must share one evidence-only commit"
+        )
+    evidence_commit = evidence_commits.pop()
+    if COMMIT_ID.fullmatch(evidence_commit) is None:
+        raise ReleaseAuditError("external SCM evidence commit is malformed")
+    commit_line = _git_output(
+        ["rev-list", "--parents", "-n", "1", evidence_commit]
+    ).split()
+    if len(commit_line) != 2 or commit_line[1] != framework_commit:
+        raise ReleaseAuditError(
+            "external SCM evidence must be the direct child of its evidenced implementation"
+        )
+    evidence_changes = set(
+        filter(
+            None,
+            _git_output(
+                ["diff-tree", "--no-commit-id", "--name-only", "-r", evidence_commit]
+            ).splitlines(),
+        )
+    )
+    if evidence_changes != SCM_EVIDENCE_RECORD_PATHS:
+        raise ReleaseAuditError(
+            "external SCM evidence commit must change exactly the two evidence reports"
+        )
+    _git_output(["merge-base", "--is-ancestor", evidence_commit, "HEAD"])
     protected_changes = set(
         filter(
             None,
             _git_output(
-                ["diff", "--name-only", f"{framework_commit}..HEAD"]
+                ["diff", "--name-only", f"{evidence_commit}..HEAD"]
             ).splitlines(),
         )
     ) & EXTERNAL_EVIDENCE_PROTECTED_PATHS
@@ -687,10 +724,11 @@ def validate_external_scm_evidence() -> dict[str, Any]:
         set(
             filter(
                 None,
-                _git_output(["diff", "--name-only", f"{framework_commit}..HEAD"]).splitlines(),
+                _git_output(["diff", "--name-only", f"{evidence_commit}..HEAD"]).splitlines(),
             )
         )
     )
+    report["scm_evidence_record_commit"] = evidence_commit
     report["external_evidence_baseline"] = EXTERNAL_EVIDENCE_BASELINE_TAG
     report["protected_paths_verified_unchanged"] = len(
         EXTERNAL_EVIDENCE_PROTECTED_PATHS

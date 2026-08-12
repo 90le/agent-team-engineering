@@ -40,6 +40,7 @@ from tools.release_publication import (
     build_final_release_index,
     load_finalization_request,
     verify_downloaded_artifact,
+    verify_live_external_scm_artifacts,
     verify_publication_snapshot,
     write_final_index,
 )
@@ -112,6 +113,19 @@ class ReleaseEvidenceTests(unittest.TestCase):
             local_gate_evidence=self._local_gate_fixture(),
         )
         return document, contents
+
+    def _live_scm_fixture(self) -> dict[str, object]:
+        return {
+            "status": "PASS",
+            "evidence": [
+                "https://github.com/90le/agent-team-v10-conformance-private/actions/runs/101",
+                "https://api.github.com/repos/90le/agent-team-v10-conformance-private/actions/artifacts/1001@sha256:"
+                + "1" * 64,
+                "https://github.com/90le/agent-team-v10-conformance-private/actions/runs/102",
+                "https://api.github.com/repos/90le/agent-team-v10-conformance-private/actions/artifacts/1002@sha256:"
+                + "2" * 64,
+            ],
+        }
 
     def _request(self) -> dict:
         checks = [
@@ -1004,6 +1018,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
                 publication,
                 tag_evidence,
                 {"status": "PASS"},
+                {"status": "NOT_RUN", "evidence": []},
             )
         observed, _ = verify_downloaded_artifact(
             archive,
@@ -1057,6 +1072,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
             publication,
             tag_evidence,
             anonymous,
+            self._live_scm_fixture(),
             generated_at=datetime(2026, 8, 12, 6, 21, tzinfo=timezone.utc),
         )
         self.assertEqual(final["status"], "ACCEPTED")
@@ -1255,6 +1271,107 @@ class ReleaseEvidenceTests(unittest.TestCase):
             "tools.release_publication._github_json", return_value=duplicate
         ), self.assertRaises(ReleasePublicationError):
             _github_run_artifacts("90le/example", "123", "TOKEN")
+
+    def test_live_scm_artifacts_must_match_tagged_report_bytes(self) -> None:
+        _, contents = self._tag_evidence()
+        first_path = "acceptance/github-scm-v10-first-run.json"
+        replay_path = "acceptance/github-scm-v10-replay.json"
+        reports = []
+        for run_id, path in (("101", first_path), ("102", replay_path)):
+            report = {
+                "base_commit": "a" * 40,
+                "workflow": {
+                    "run_id": run_id,
+                    "run_url": (
+                        "https://github.com/90le/agent-team-v10-conformance-private/"
+                        f"actions/runs/{run_id}"
+                    ),
+                },
+            }
+            encoded = (json.dumps(report, sort_keys=True) + "\n").encode()
+            contents[f"bundle/{path}"] = encoded
+            reports.append(encoded)
+
+        runs = []
+        artifact_pages = []
+        archives = []
+        for index, (run_id, encoded) in enumerate(zip((101, 102), reports), start=1):
+            runs.append(
+                {
+                    "id": run_id,
+                    "run_attempt": 1,
+                    "status": "completed",
+                    "conclusion": "success",
+                    "event": "workflow_dispatch",
+                    "head_branch": "main",
+                    "head_sha": "a" * 40,
+                    "path": ".github/workflows/agent-team-v10-conformance.yml",
+                    "html_url": (
+                        "https://github.com/90le/agent-team-v10-conformance-private/"
+                        f"actions/runs/{run_id}"
+                    ),
+                    "repository": {
+                        "full_name": "90le/agent-team-v10-conformance-private",
+                        "private": True,
+                    },
+                    "actor": {"login": "90le", "id": 68719118, "type": "User"},
+                    "triggering_actor": {
+                        "login": "90le",
+                        "id": 68719118,
+                        "type": "User",
+                    },
+                }
+            )
+            with io.BytesIO() as buffer:
+                with zipfile.ZipFile(buffer, "w", zipfile.ZIP_STORED) as bundle:
+                    bundle.writestr("github-scm-conformance.json", encoded)
+                archive = buffer.getvalue()
+            archives.append(archive)
+            artifact_id = 1000 + index
+            artifact_pages.append(
+                {
+                    "total_count": 1,
+                    "artifacts": [
+                        {
+                            "id": artifact_id,
+                            "name": f"github-scm-conformance-{run_id}-1",
+                            "expired": False,
+                            "workflow_run": {"id": run_id},
+                            "url": (
+                                "https://api.github.com/repos/90le/"
+                                "agent-team-v10-conformance-private/actions/artifacts/"
+                                f"{artifact_id}"
+                            ),
+                            "archive_download_url": (
+                                "https://api.github.com/repos/90le/"
+                                "agent-team-v10-conformance-private/actions/artifacts/"
+                                f"{artifact_id}/zip"
+                            ),
+                            "digest": "sha256:"
+                            + hashlib.sha256(archive).hexdigest(),
+                        }
+                    ],
+                }
+            )
+
+        side_effect = [runs[0], artifact_pages[0], runs[1], artifact_pages[1]]
+        with mock.patch(
+            "tools.release_publication._github_json", side_effect=side_effect
+        ), mock.patch(
+            "tools.release_publication._github_download", side_effect=archives
+        ):
+            observed = verify_live_external_scm_artifacts(contents, "TOKEN")
+        self.assertEqual(observed["status"], "PASS")
+        self.assertEqual(len(observed["evidence"]), 4)
+
+        forged = deepcopy(contents)
+        forged[f"bundle/{first_path}"] += b" "
+        with mock.patch(
+            "tools.release_publication._github_json", side_effect=side_effect
+        ), mock.patch(
+            "tools.release_publication._github_download", side_effect=archives
+        ), self.assertRaises(ReleasePublicationError):
+            verify_live_external_scm_artifacts(forged, "TOKEN")
 
     def test_anonymous_environment_is_literal_minimal_allowlist(self) -> None:
         injected = {

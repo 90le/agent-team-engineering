@@ -49,7 +49,7 @@ DIGEST = re.compile(r"^sha256:[a-f0-9]{64}$")
 CHECKSUM_LINE = re.compile(r"^([a-f0-9]{64})  ([A-Za-z0-9._/-]+)$")
 ARTIFACT_API_URL = re.compile(
     r"^https://api\.github\.com/repos/90le/"
-    r"(?:agent-team-engineering|agent-team-v10-review-private)/"
+    r"(?:agent-team-engineering|agent-team-v10-review-private|agent-team-v10-conformance-private)/"
     r"actions/artifacts/[1-9][0-9]*/zip$"
 )
 ARTIFACT_REDIRECT_HOST_SUFFIXES = (
@@ -62,6 +62,12 @@ REVIEW_BASE_COMMIT = "a286cfadbfb6f387a4f1fb94c244f57d4dd089e6"
 REVIEW_WORKFLOW_COMMIT = "5dd269b0015b576bad3b85cc358d75d8ed205ed6"
 REVIEW_AGENT_ID = "ate-3df2c143-independent-reviewer"
 REVIEW_RUNTIME = "openclaw/relay/gpt-5.6-sol"
+SCM_REPOSITORY = "90le/agent-team-v10-conformance-private"
+SCM_WORKFLOW_PATH = ".github/workflows/agent-team-v10-conformance.yml"
+SCM_REPORT_ASSETS = (
+    ("external-scm-first-run", "acceptance/github-scm-v10-first-run.json"),
+    ("external-scm-replay", "acceptance/github-scm-v10-replay.json"),
+)
 RELEASE_OWNER_LOGIN = "90le"
 RELEASE_OWNER_ID = 68719118
 GITHUB_API = "https://api.github.com"
@@ -1732,6 +1738,116 @@ def verify_downloaded_artifact(
     return tag_evidence, contents
 
 
+def verify_live_external_scm_artifacts(
+    contents: dict[str, bytes], token: str
+) -> dict[str, Any]:
+    """Requery and byte-bind both private SCM workflow artifacts."""
+
+    evidence: list[str] = []
+    observed_runs: set[str] = set()
+    for _, relative in SCM_REPORT_ASSETS:
+        report_bytes = contents.get(f"bundle/{relative}")
+        if not isinstance(report_bytes, bytes):
+            raise ReleasePublicationError(
+                f"release evidence lacks bundled SCM report: {relative}"
+            )
+        try:
+            report = loads_strict(report_bytes)
+        except ValueError:
+            raise ReleasePublicationError(
+                f"bundled SCM report is not strict JSON: {relative}"
+            ) from None
+        workflow = report.get("workflow") if isinstance(report, dict) else None
+        run_id = workflow.get("run_id") if isinstance(workflow, dict) else None
+        run_url = workflow.get("run_url") if isinstance(workflow, dict) else None
+        if (
+            not isinstance(run_id, str)
+            or not run_id.isdigit()
+            or run_id in observed_runs
+            or run_url != f"{GITHUB_WEB}/{SCM_REPOSITORY}/actions/runs/{run_id}"
+        ):
+            raise ReleasePublicationError("bundled SCM workflow identity is malformed")
+        observed_runs.add(run_id)
+        run = _github_json(f"/repos/{SCM_REPOSITORY}/actions/runs/{run_id}", token)
+        actor = run.get("actor") if isinstance(run, dict) else None
+        triggering = run.get("triggering_actor") if isinstance(run, dict) else None
+        repository = run.get("repository") if isinstance(run, dict) else None
+        if (
+            not isinstance(run, dict)
+            or run.get("id") != int(run_id)
+            or run.get("run_attempt") != 1
+            or run.get("status") != "completed"
+            or run.get("conclusion") != "success"
+            or run.get("event") != "workflow_dispatch"
+            or run.get("head_branch") != "main"
+            or run.get("head_sha") != report.get("base_commit")
+            or run.get("path") != SCM_WORKFLOW_PATH
+            or run.get("html_url") != run_url
+            or not isinstance(repository, dict)
+            or repository.get("full_name") != SCM_REPOSITORY
+            or repository.get("private") is not True
+            or any(
+                not isinstance(identity, dict)
+                or identity.get("login") != RELEASE_OWNER_LOGIN
+                or identity.get("id") != RELEASE_OWNER_ID
+                or identity.get("type") != "User"
+                for identity in (actor, triggering)
+            )
+        ):
+            raise ReleasePublicationError("live SCM workflow identity or result differs")
+        artifacts = _github_run_artifacts(SCM_REPOSITORY, run_id, token)
+        records = artifacts.get("artifacts") if isinstance(artifacts, dict) else None
+        expected_name = f"github-scm-conformance-{run_id}-1"
+        matching = [
+            record
+            for record in records or []
+            if isinstance(record, dict) and record.get("name") == expected_name
+        ]
+        if len(matching) != 1:
+            raise ReleasePublicationError(
+                "exactly one live SCM conformance artifact is required"
+            )
+        artifact = matching[0]
+        artifact_id = artifact.get("id")
+        digest = artifact.get("digest")
+        if (
+            artifact.get("expired") is not False
+            or not isinstance(artifact_id, int)
+            or isinstance(artifact_id, bool)
+            or artifact_id < 1
+            or artifact.get("workflow_run", {}).get("id") != int(run_id)
+            or not isinstance(digest, str)
+            or DIGEST.fullmatch(digest) is None
+        ):
+            raise ReleasePublicationError("live SCM artifact identity is malformed")
+        archive_url = _require_artifact_api_url(
+            artifact.get("archive_download_url"),
+            SCM_REPOSITORY,
+            "SCM conformance artifact",
+            archive=True,
+            expected_id=artifact_id,
+        )
+        artifact_url = _require_artifact_api_url(
+            artifact.get("url"),
+            SCM_REPOSITORY,
+            "SCM conformance artifact",
+            archive=False,
+            expected_id=artifact_id,
+        )
+        archive = _github_download(archive_url, token)
+        if _sha256(archive) != digest:
+            raise ReleasePublicationError("live SCM artifact digest differs from GitHub")
+        archive_contents = _bounded_zip_contents(archive, "SCM conformance artifact")
+        if set(archive_contents) != {"github-scm-conformance.json"}:
+            raise ReleasePublicationError("live SCM artifact file set differs")
+        if archive_contents["github-scm-conformance.json"] != report_bytes:
+            raise ReleasePublicationError(
+                "live SCM artifact bytes differ from the tagged evidence report"
+            )
+        evidence.extend((run_url, f"{artifact_url}@{digest}"))
+    return {"status": "PASS", "evidence": evidence}
+
+
 def _anonymous_environment(home: Path) -> dict[str, str]:
     """Return a literal allowlist; no caller process value is consulted."""
 
@@ -1857,6 +1973,7 @@ def build_final_release_index(
     publication: dict[str, Any],
     tag_evidence: dict[str, Any],
     anonymous_install: dict[str, Any],
+    external_scm: dict[str, Any],
     *,
     generated_at: datetime | None = None,
 ) -> dict[str, Any]:
@@ -1878,9 +1995,20 @@ def build_final_release_index(
         }.items()
     ):
         raise ReleasePublicationError("anonymous installation identity or boundary differs")
+    if (
+        external_scm.get("status") != "PASS"
+        or not isinstance(external_scm.get("evidence"), list)
+        or len(external_scm["evidence"]) != 4
+        or len(set(external_scm["evidence"])) != 4
+    ):
+        raise ReleasePublicationError("live external SCM verification is incomplete")
     gates = [dict(record) for record in tag_evidence["gates"]]
     gate_map = {record["id"]: record for record in gates}
     evidence_by_gate = {
+        "external-scm": [
+            *gate_map["external-scm"]["evidence"],
+            *external_scm["evidence"],
+        ],
         "pull-request": [
             publication["pull_request"]["url"],
             *(
@@ -1933,6 +2061,7 @@ def build_final_release_index(
             {"command": "GitHub REST read-only publication verification", "exit_code": 0},
             {"command": "download and verify release-evidence artifact", "exit_code": 0},
             {"command": "verify SHA256SUMS and bundled evidence", "exit_code": 0},
+            {"command": "download and byte-verify live external SCM artifacts", "exit_code": 0},
             {"command": "anonymous exact-tag install and lifecycle verification", "exit_code": 0},
         ],
         "assets": tag_evidence["assets"],
@@ -2000,13 +2129,16 @@ def main() -> int:
         snapshot = fetch_publication_snapshot(request, token)
         publication = verify_publication_snapshot(request, snapshot)
         archive = _github_download(publication["evidence_artifact"]["archive_download_url"], token)
-        tag_evidence, _ = verify_downloaded_artifact(archive, publication, request)
+        tag_evidence, contents = verify_downloaded_artifact(archive, publication, request)
+        external_scm = verify_live_external_scm_artifacts(contents, token)
         anonymous = run_anonymous_exact_tag_install(
             request["release"],
             publication["annotated_tag"]["object_id"],
             request["commit"],
         )
-        document = build_final_release_index(request, publication, tag_evidence, anonymous)
+        document = build_final_release_index(
+            request, publication, tag_evidence, anonymous, external_scm
+        )
         write_final_index(document, arguments.output)
     except (OSError, ValueError, ReleasePublicationError) as error:
         print(f"release publication refused or failed: {error}", file=sys.stderr)

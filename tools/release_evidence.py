@@ -79,6 +79,7 @@ FINAL_COMMANDS = (
     "GitHub REST read-only publication verification",
     "download and verify release-evidence artifact",
     "verify SHA256SUMS and bundled evidence",
+    "download and byte-verify live external SCM artifacts",
     "anonymous exact-tag install and lifecycle verification",
 )
 ANONYMOUS_COMMANDS = (
@@ -686,6 +687,35 @@ def validate_release_evidence(document: dict[str, Any]) -> None:
         ):
             raise ReleaseEvidenceError("final index lacks the trusted release-owner identity chain")
         expected_gate_evidence = _expected_local_gate_evidence(asset_map)
+        external_scm_evidence = gate_map["external-scm"]["evidence"]
+        expected_external_prefix = expected_gate_evidence["external-scm"]
+        live_external = external_scm_evidence[len(expected_external_prefix) :]
+        if (
+            external_scm_evidence[: len(expected_external_prefix)]
+            != expected_external_prefix
+            or len(live_external) != 4
+            or len(set(live_external)) != 4
+            or any(
+                re.fullmatch(
+                    r"https://github\.com/90le/agent-team-v10-conformance-private/actions/runs/[1-9][0-9]*",
+                    value,
+                )
+                is None
+                for value in live_external[::2]
+            )
+            or any(
+                re.fullmatch(
+                    r"https://api\.github\.com/repos/90le/agent-team-v10-conformance-private/actions/artifacts/[1-9][0-9]*@sha256:[a-f0-9]{64}",
+                    value,
+                )
+                is None
+                for value in live_external[1::2]
+            )
+        ):
+            raise ReleaseEvidenceError(
+                "final index lacks live byte-bound external SCM evidence"
+            )
+        expected_gate_evidence["external-scm"] = external_scm_evidence
         expected_gate_evidence.update(
             {
                 "pull-request": [
