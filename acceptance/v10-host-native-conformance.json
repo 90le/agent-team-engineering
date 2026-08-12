@@ -100,24 +100,27 @@
       "plugin_manifests": 2
     },
     "isolated_hosts": {
-      "status": "NOT_RUN",
-      "load_tests": 0,
-      "hosts": []
+      "status": "PASS",
+      "load_tests": 2,
+      "hosts": ["openclaw", "hermes"]
     },
     "cold_start": {
-      "status": "NOT_RUN",
-      "runs": 0,
+      "status": "PASS",
+      "runs": 1,
       "command": "tools/cold-start.sh"
     },
     "release_smoke": {
-      "status": "NOT_RUN",
-      "runs": 0,
+      "status": "PASS",
+      "runs": 1,
       "command": "tools/release-smoke.sh"
     },
     "external_scm": {
-      "status": "NOT_RUN",
-      "live_runs": 0,
-      "evidence_files": []
+      "status": "PASS",
+      "live_runs": 2,
+      "evidence_files": [
+        "acceptance/github-scm-v10-first-run.json",
+        "acceptance/github-scm-v10-replay.json"
+      ]
     }
   },
   "supply_chain": {
@@ -143,9 +146,9 @@
     "automatic_deploy": false,
     "identity_or_signature_verified_offline": false,
     "independent_writer_execution": false,
-    "dedicated_scm_identity_used": false,
-    "ephemeral_scm_token_used": false,
-    "external_scm_write_scope": "NONE"
+    "dedicated_scm_identity_used": true,
+    "ephemeral_scm_token_used": true,
+    "external_scm_write_scope": "GRANTED_DEDICATED_TEST_ONLY"
   },
   "remote_gates": {
     "pull_request_ci": "NOT_RUN_IN_SOURCE",
