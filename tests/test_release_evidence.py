@@ -1663,34 +1663,44 @@ class ReleaseEvidenceTests(unittest.TestCase):
             "from tools.anonymous_release_worker import _linux_process_boundary;"
             "import json,sys;print(json.dumps(_linux_process_boundary(int(sys.argv[1])),sort_keys=True))"
         )
-        environment = {
-            "PATH": "/usr/bin:/bin",
-            "PYTHONPATH": str(Path.cwd()),
-            "GITHUB_TOKEN": marker,
-        }
-        completed = subprocess.run(
-            [
-                "/usr/bin/setpriv",
-                "--reuid",
-                "234567",
-                "--regid",
-                "234567",
-                "--clear-groups",
-                "--inh-caps=-all",
-                "--ambient-caps=-all",
-                "--bounding-set=-all",
-                "--no-new-privs",
-                sys.executable,
-                "-c",
-                script,
-                str(os.getpid()),
-            ],
-            env=environment,
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
+        with tempfile.TemporaryDirectory() as temporary:
+            import_root = Path(temporary)
+            import_root.chmod(0o755)
+            tools_root = import_root / "tools"
+            tools_root.mkdir(mode=0o755)
+            source_root = Path(__file__).resolve().parents[1] / "tools"
+            for name in ("anonymous_release_worker.py",):
+                destination = tools_root / name
+                destination.write_bytes((source_root / name).read_bytes())
+                destination.chmod(0o644)
+            environment = {
+                "PATH": "/usr/bin:/bin",
+                "PYTHONPATH": str(import_root),
+                "GITHUB_TOKEN": marker,
+            }
+            completed = subprocess.run(
+                [
+                    "/usr/bin/setpriv",
+                    "--reuid",
+                    "234567",
+                    "--regid",
+                    "234567",
+                    "--clear-groups",
+                    "--inh-caps=-all",
+                    "--ambient-caps=-all",
+                    "--bounding-set=-all",
+                    "--no-new-privs",
+                    sys.executable,
+                    "-c",
+                    script,
+                    str(os.getpid()),
+                ],
+                env=environment,
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
         boundary = json.loads(completed.stdout)
         self.assertFalse(boundary["credential_parent_environment_readable"])
         self.assertTrue(boundary["credential_process_uid_isolated"])
