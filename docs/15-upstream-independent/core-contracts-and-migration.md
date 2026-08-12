@@ -69,6 +69,6 @@ python3 -m unittest tests.test_v08_contracts -v
   --approval examples/v08-contracts/valid/approval-grant.json
 ```
 
-The single-contract command validates only the topology document. The three-file command validates the canonical digest chain `b4b3e8… → e8b43d… → 571377…` and returns `automatic_execution: false`.
+The single-contract command validates only the topology document. The three-file command validates the canonical digest chain `b4b3e8… → 573616… → 2457ab…` and returns `automatic_execution: false`.
 
 Valid examples are under [`examples/v08-contracts/valid`](../../examples/v08-contracts/valid/). The negative mutation suite proves unknown fields, version mismatch, authority conflict, approval bypass, topology/plan/approval digest tampering, unsafe grants, invalid leases, evidence tampering, undeclared adapter ports, revision errors, and writer-ownership overlap are rejected. See the [independent-writer guide](independent-writer-topology.md) for the exact compatibility and design/runtime boundaries.

@@ -88,6 +88,7 @@ EXTERNAL_EVIDENCE_PROTECTED_PATHS = frozenset(
         "schemas/writer-topology.schema.json",
         "examples/github-scm-conformance/workflow.yml",
         "tools/github_scm_conformance.py",
+        "tools/anonymous_release_worker.py",
         "tools/release_evidence.py",
         "tools/release_publication.py",
         "tools/release_audit.py",

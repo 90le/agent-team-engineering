@@ -16,7 +16,9 @@ import io
 import json
 import os
 import platform
+import pwd
 import re
+import secrets
 import shutil
 import stat
 import subprocess
@@ -83,7 +85,10 @@ MAX_ARCHIVE_UNCOMPRESSED_BYTES = 32 * 1024 * 1024
 MAX_ARCHIVE_MEMBERS = 128
 MAX_ARCHIVE_FILENAME_BYTES = 1024
 MAX_REVIEW_PATCH_BYTES = 16 * 1024 * 1024
+ANONYMOUS_WORKER = ROOT / "tools" / "anonymous_release_worker.py"
+ANONYMOUS_SETPRIV = Path("/usr/bin/setpriv")
 ANONYMOUS_COMMANDS = (
+    "setpriv random unregistered UID; no groups/capabilities; no-new-privileges; verify credential-parent /proc isolation",
     "git clone --no-local --no-checkout https://github.com/90le/agent-team-engineering.git <temporary>",
     "git verify annotated tag object and peeled commit",
     "git checkout --detach <peeled-tag-commit>; verify clean exact HEAD",
@@ -92,18 +97,6 @@ ANONYMOUS_COMMANDS = (
     "host plan; preview; confirm; apply; verify; uninstall-preview; uninstall; replay",
     "native writer-authority-validate",
 )
-ANONYMOUS_PATH = os.pathsep.join(
-    dict.fromkeys(
-        (
-            str(Path(sys.executable).resolve().parent),
-            "/usr/local/bin",
-            "/usr/bin",
-            "/bin",
-        )
-    )
-)
-
-
 class ReleasePublicationError(RuntimeError):
     pass
 
@@ -1858,23 +1851,65 @@ def verify_live_external_scm_artifacts(
     return {"status": "PASS", "evidence": evidence}
 
 
-def _anonymous_environment(home: Path) -> dict[str, str]:
-    """Return a literal allowlist; no caller process value is consulted."""
+def _anonymous_worker_identity() -> tuple[int, int]:
+    """Choose an ephemeral numeric identity with no local account mapping."""
 
-    return {
-        "HOME": str(home),
-        "PATH": ANONYMOUS_PATH,
-        "LANG": "C.UTF-8",
-        "LC_ALL": "C.UTF-8",
-        "PYTHONNOUSERSITE": "1",
-        "PYTHONDONTWRITEBYTECODE": "1",
-        "GIT_CONFIG_NOSYSTEM": "1",
-        "GIT_CONFIG_GLOBAL": os.devnull,
-        "GIT_CONFIG_SYSTEM": os.devnull,
-        "GIT_TERMINAL_PROMPT": "0",
-        "GCM_INTERACTIVE": "Never",
-        "SSH_ASKPASS_REQUIRE": "never",
-    }
+    if sys.platform != "linux" or os.geteuid() != 0:
+        raise ReleasePublicationError(
+            "anonymous verification requires a root Linux finalizer that can drop to an isolated UID"
+        )
+    for _ in range(64):
+        candidate = 200_000 + secrets.randbelow(800_000)
+        try:
+            pwd.getpwuid(candidate)
+        except KeyError:
+            return candidate, candidate
+    raise ReleasePublicationError("cannot allocate an unregistered anonymous worker UID")
+
+
+def _anonymous_worker_command(
+    uid: int,
+    gid: int,
+    workspace: Path,
+    release: str,
+    expected_tag_object: str,
+    expected_commit: str,
+    verified_at: str,
+) -> list[str]:
+    """Build the no-capability, no-new-privileges credential boundary."""
+
+    if not ANONYMOUS_SETPRIV.is_file() or not os.access(ANONYMOUS_SETPRIV, os.X_OK):
+        raise ReleasePublicationError("/usr/bin/setpriv is required for anonymous verification")
+    if not ANONYMOUS_WORKER.is_file() or ANONYMOUS_WORKER.is_symlink():
+        raise ReleasePublicationError("anonymous release worker is missing or unsafe")
+    return [
+        str(ANONYMOUS_SETPRIV),
+        "--reuid",
+        str(uid),
+        "--regid",
+        str(gid),
+        "--clear-groups",
+        "--inh-caps=-all",
+        "--ambient-caps=-all",
+        "--bounding-set=-all",
+        "--no-new-privs",
+        "--pdeathsig",
+        "SIGKILL",
+        str(Path(sys.executable).resolve()),
+        str(ANONYMOUS_WORKER),
+        "--release",
+        release,
+        "--tag-object",
+        expected_tag_object,
+        "--commit",
+        expected_commit,
+        "--workspace",
+        str(workspace),
+        "--credential-parent-pid",
+        str(os.getpid()),
+        "--verified-at",
+        verified_at,
+    ]
 
 
 def run_anonymous_exact_tag_install(
@@ -1884,98 +1919,76 @@ def run_anonymous_exact_tag_install(
     *,
     observed_at: datetime | None = None,
 ) -> dict[str, Any]:
-    source_url = f"{GITHUB_WEB}/{REPOSITORY}.git"
-    with tempfile.TemporaryDirectory() as temporary:
-        temporary_root = Path(temporary)
-        anonymous_home = temporary_root / "home"
-        anonymous_home.mkdir(mode=0o700)
-        environment = _anonymous_environment(anonymous_home)
-        source = temporary_root / "source"
-        installed = temporary_root / "installed"
-        team = temporary_root / "team"
-        projection = temporary_root / "projection"
-        plan = temporary_root / "host-plan.json"
-        commands: list[list[str]] = [
-            ["git", "clone", "--quiet", "--no-local", "--no-checkout", source_url, str(source)],
-            ["git", "rev-parse", f"refs/tags/{release}"],
-            ["git", "cat-file", "-t", f"refs/tags/{release}"],
-            ["git", "rev-parse", f"{release}^{{}}"],
-        ]
-        results = [_run(command, source if source.exists() else temporary_root, environment) for command in commands]
-        if results[1] != expected_tag_object or results[2] != "tag" or results[3] != expected_commit:
-            raise ReleasePublicationError("anonymous clone tag identity differs from accepted release")
-        _run(["git", "-c", "advice.detachedHead=false", "checkout", "--detach", expected_commit], source, environment)
-        if (
-            _run(["git", "rev-parse", "HEAD"], source, environment) != expected_commit
-            or _run(["git", "status", "--porcelain"], source, environment)
-        ):
-            raise ReleasePublicationError("anonymous working tree is not the clean peeled tag commit")
-        workflow = [
-            [sys.executable, "tools/agent_team.py", "factory", "install", "--output", str(installed)],
-            [sys.executable, str(installed / "tools/agent_team.py"), "factory", "verify", "--root", str(installed)],
-            [sys.executable, str(installed / "tools/agent_team.py"), "doctor"],
-            [str(installed / "agent-team"), "create", "--design", str(installed / "examples/context-first/team-design.json"), "--output", str(team)],
-            [str(installed / "agent-team"), "context", "validate", "--root", str(team)],
-            [str(installed / "agent-team"), "host", "plan", "--team", str(team), "--target", "generic-ai", "--destination", str(projection), "--output", str(plan)],
-            [str(installed / "agent-team"), "host", "preview", "--plan", str(plan)],
-        ]
-        for command in workflow:
-            _run(command, source, environment)
-        plan_document = loads_strict(plan.read_text(encoding="utf-8"))
-        digest = plan_document.get("proposal_digest") if isinstance(plan_document, dict) else None
-        if not isinstance(digest, str) or DIGEST.fullmatch(digest) is None:
-            raise ReleasePublicationError("anonymous host plan lacks an exact digest")
-        remainder = [
-            [str(installed / "agent-team"), "host", "confirm", "--plan", str(plan), "--digest", digest, "--approved-by", "Anonymous Release Verifier"],
-            [str(installed / "agent-team"), "host", "apply", "--plan", str(plan)],
-            [str(installed / "agent-team"), "host", "verify", "--root", str(projection)],
-            [str(installed / "agent-team"), "host", "uninstall-preview", "--root", str(projection)],
-            [str(installed / "agent-team"), "host", "uninstall", "--root", str(projection), "--digest", digest],
-            [str(installed / "agent-team"), "host", "uninstall-preview", "--root", str(projection)],
-            [str(installed / "agent-team"), "host", "uninstall", "--root", str(projection), "--digest", digest],
-            [str(installed / "agent-team"), "native", "writer-authority-validate", "--topology", str(installed / "examples/v08-contracts/valid/writer-topology.json"), "--plan", str(installed / "examples/v08-contracts/valid/plan-revision.json"), "--approval", str(installed / "examples/v08-contracts/valid/approval-grant.json")],
-        ]
-        last = ""
-        for command in remainder:
-            last = _run(command, source, environment)
+    uid, gid = _anonymous_worker_identity()
+    container_root = Path(tempfile.mkdtemp(prefix="agent-team-v1-anonymous-"))
+    workspace = container_root / "workspace"
+    try:
+        container_root.chmod(0o711)
+        workspace.mkdir(mode=0o700)
+        os.chown(workspace, uid, gid)
+        verified_at = _now(observed_at)
+        command = _anonymous_worker_command(
+            uid,
+            gid,
+            workspace,
+            release,
+            expected_tag_object,
+            expected_commit,
+            verified_at,
+        )
+        completed = subprocess.run(
+            command,
+            cwd=ROOT,
+            env={
+                "HOME": str(workspace),
+                "PATH": "/usr/bin:/bin",
+                "LANG": "C.UTF-8",
+                "LC_ALL": "C.UTF-8",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+            },
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=1800,
+            shell=False,
+        )
+        if len(completed.stdout.encode("utf-8")) > 1024 * 1024:
+            raise ReleasePublicationError("anonymous release worker output is too large")
         try:
-            writer = loads_strict(last)
+            result = loads_strict(completed.stdout)
         except ValueError:
-            raise ReleasePublicationError("anonymous writer-authority output is invalid") from None
-        if not isinstance(writer, dict) or writer.get("status") != "VALID" or writer.get("automatic_execution") is not False or writer.get("identity_or_signature_verified") is not False:
-            raise ReleasePublicationError("anonymous writer-authority boundary differs")
-    return {
+            raise ReleasePublicationError("anonymous release worker output is invalid") from None
+    except (OSError, subprocess.SubprocessError):
+        raise ReleasePublicationError(
+            "credential-isolated anonymous release worker failed"
+        ) from None
+    finally:
+        shutil.rmtree(container_root, ignore_errors=True)
+    expected = {
         "status": "PASS",
         "workflow_url": None,
-        "source_url": source_url,
+        "source_url": f"{GITHUB_WEB}/{REPOSITORY}.git",
         "tag": release,
         "tag_object": expected_tag_object,
         "commit": expected_commit,
-        "verified_at": _now(observed_at),
+        "verified_at": verified_at,
         "commands": list(ANONYMOUS_COMMANDS),
         "unauthenticated_git_transport": True,
         "caller_credentials_inherited": False,
         "same_uid_filesystem_isolated": False,
         "write_isolation": False,
         "external_writes_verified": False,
+        "credential_process_uid_isolated": True,
+        "credential_parent_environment_readable": False,
+        "supplementary_groups_empty": True,
+        "no_new_privileges": True,
+        "capabilities_empty": True,
+        "isolation_mechanism": "linux-setpriv-random-uid-no-new-privileges",
     }
-
-
-def _run(arguments: list[str], cwd: Path, environment: dict[str, str]) -> str:
-    try:
-        return subprocess.run(
-            arguments,
-            cwd=cwd,
-            env=environment,
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=300,
-            shell=False,
-        ).stdout.strip()
-    except (OSError, subprocess.SubprocessError) as error:
-        label = " ".join(arguments[:4])
-        raise ReleasePublicationError(f"anonymous verification command failed: {label}: {error}") from None
+    if result != expected:
+        raise ReleasePublicationError("anonymous release worker boundary or result differs")
+    return result
 
 
 def build_final_release_index(
@@ -2002,6 +2015,12 @@ def build_final_release_index(
             "same_uid_filesystem_isolated": False,
             "write_isolation": False,
             "external_writes_verified": False,
+            "credential_process_uid_isolated": True,
+            "credential_parent_environment_readable": False,
+            "supplementary_groups_empty": True,
+            "no_new_privileges": True,
+            "capabilities_empty": True,
+            "isolation_mechanism": "linux-setpriv-random-uid-no-new-privileges",
         }.items()
     ):
         raise ReleasePublicationError("anonymous installation identity or boundary differs")

@@ -83,6 +83,7 @@ FINAL_COMMANDS = (
     "anonymous exact-tag install and lifecycle verification",
 )
 ANONYMOUS_COMMANDS = (
+    "setpriv random unregistered UID; no groups/capabilities; no-new-privileges; verify credential-parent /proc isolation",
     "git clone --no-local --no-checkout https://github.com/90le/agent-team-engineering.git <temporary>",
     "git verify annotated tag object and peeled commit",
     "git checkout --detach <peeled-tag-commit>; verify clean exact HEAD",
@@ -248,6 +249,12 @@ def _empty_publication(tag: str, tag_object: str, commit: str, environment: dict
             "same_uid_filesystem_isolated": None,
             "write_isolation": None,
             "external_writes_verified": None,
+            "credential_process_uid_isolated": None,
+            "credential_parent_environment_readable": None,
+            "supplementary_groups_empty": None,
+            "no_new_privileges": None,
+            "capabilities_empty": None,
+            "isolation_mechanism": None,
         },
     }
 
@@ -492,6 +499,12 @@ def validate_release_evidence(document: dict[str, Any]) -> None:
                     "same_uid_filesystem_isolated",
                     "write_isolation",
                     "external_writes_verified",
+                    "credential_process_uid_isolated",
+                    "credential_parent_environment_readable",
+                    "supplementary_groups_empty",
+                    "no_new_privileges",
+                    "capabilities_empty",
+                    "isolation_mechanism",
                 )
             )
             or anonymous_install["commands"]
@@ -593,6 +606,13 @@ def validate_release_evidence(document: dict[str, Any]) -> None:
             or anonymous_install["same_uid_filesystem_isolated"] is not False
             or anonymous_install["write_isolation"] is not False
             or anonymous_install["external_writes_verified"] is not False
+            or anonymous_install["credential_process_uid_isolated"] is not True
+            or anonymous_install["credential_parent_environment_readable"] is not False
+            or anonymous_install["supplementary_groups_empty"] is not True
+            or anonymous_install["no_new_privileges"] is not True
+            or anonymous_install["capabilities_empty"] is not True
+            or anonymous_install["isolation_mechanism"]
+            != "linux-setpriv-random-uid-no-new-privileges"
         ):
             raise ReleaseEvidenceError(
                 "final index anonymous installation boundary differs from the exact transport and process contract"

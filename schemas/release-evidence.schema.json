@@ -220,7 +220,7 @@
         "anonymous_install": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["status", "workflow_url", "source_url", "tag", "tag_object", "commit", "verified_at", "commands", "unauthenticated_git_transport", "caller_credentials_inherited", "same_uid_filesystem_isolated", "write_isolation", "external_writes_verified"],
+          "required": ["status", "workflow_url", "source_url", "tag", "tag_object", "commit", "verified_at", "commands", "unauthenticated_git_transport", "caller_credentials_inherited", "same_uid_filesystem_isolated", "write_isolation", "external_writes_verified", "credential_process_uid_isolated", "credential_parent_environment_readable", "supplementary_groups_empty", "no_new_privileges", "capabilities_empty", "isolation_mechanism"],
           "properties": {
             "status": {"enum": ["PASS", "FAIL", "NOT_RUN"]},
             "workflow_url": {"type": ["string", "null"]},
@@ -234,7 +234,13 @@
             "caller_credentials_inherited": {"enum": [false, null]},
             "same_uid_filesystem_isolated": {"enum": [false, null]},
             "write_isolation": {"enum": [false, null]},
-            "external_writes_verified": {"enum": [false, null]}
+            "external_writes_verified": {"enum": [false, null]},
+            "credential_process_uid_isolated": {"enum": [true, null]},
+            "credential_parent_environment_readable": {"enum": [false, null]},
+            "supplementary_groups_empty": {"enum": [true, null]},
+            "no_new_privileges": {"enum": [true, null]},
+            "capabilities_empty": {"enum": [true, null]},
+            "isolation_mechanism": {"enum": ["linux-setpriv-random-uid-no-new-privileges", null]}
           }
         }
       }

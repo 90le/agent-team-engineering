@@ -4,6 +4,8 @@ import hashlib
 import io
 import json
 import os
+import subprocess
+import sys
 import tempfile
 import unittest
 import urllib.error
@@ -29,7 +31,7 @@ from tools.release_publication import (
     REVIEW_WORKFLOW_COMMIT,
     RELEASE_REQUIRED_CHECKS,
     ReleasePublicationError,
-    _anonymous_environment,
+    _anonymous_worker_command,
     _require_artifact_redirect_url,
     _require_public_https_url,
     _review_diff_arguments,
@@ -45,6 +47,11 @@ from tools.release_publication import (
     verify_live_external_scm_artifacts,
     verify_publication_snapshot,
     write_final_index,
+)
+from tools.anonymous_release_worker import (
+    _anonymous_environment,
+    _execute_workflow,
+    _linux_process_boundary,
 )
 from tools import release_publication
 
@@ -1139,6 +1146,12 @@ class ReleaseEvidenceTests(unittest.TestCase):
             "same_uid_filesystem_isolated": False,
             "write_isolation": False,
             "external_writes_verified": False,
+            "credential_process_uid_isolated": True,
+            "credential_parent_environment_readable": False,
+            "supplementary_groups_empty": True,
+            "no_new_privileges": True,
+            "capabilities_empty": True,
+            "isolation_mechanism": "linux-setpriv-random-uid-no-new-privileges",
         }
         final = build_final_release_index(
             request,
@@ -1296,6 +1309,12 @@ class ReleaseEvidenceTests(unittest.TestCase):
             "same_uid_filesystem_isolated": False,
             "write_isolation": False,
             "external_writes_verified": False,
+            "credential_process_uid_isolated": True,
+            "credential_parent_environment_readable": False,
+            "supplementary_groups_empty": True,
+            "no_new_privileges": True,
+            "capabilities_empty": True,
+            "isolation_mechanism": "linux-setpriv-random-uid-no-new-privileges",
         }
         final = build_final_release_index(
             request,
@@ -1544,7 +1563,28 @@ class ReleaseEvidenceTests(unittest.TestCase):
         for key in injected:
             self.assertNotIn(key, environment)
 
-    def test_anonymous_install_detaches_to_peeled_tag_before_running_candidate(self) -> None:
+    def test_anonymous_worker_command_enforces_a_separate_no_capability_uid(self) -> None:
+        workspace = Path("/tmp/anonymous-workspace")
+        command = _anonymous_worker_command(
+            234567,
+            234567,
+            workspace,
+            "v1.0.0",
+            "a" * 40,
+            "b" * 40,
+            "2026-08-12T06:20:00Z",
+        )
+        self.assertEqual(command[0], "/usr/bin/setpriv")
+        self.assertIn("--reuid", command)
+        self.assertIn("234567", command)
+        self.assertIn("--clear-groups", command)
+        self.assertIn("--inh-caps=-all", command)
+        self.assertIn("--ambient-caps=-all", command)
+        self.assertIn("--bounding-set=-all", command)
+        self.assertIn("--no-new-privs", command)
+        self.assertIn("--credential-parent-pid", command)
+
+    def test_anonymous_worker_detaches_to_peeled_tag_before_candidate(self) -> None:
         tag_object = "a" * 40
         peeled = "b" * 40
         calls: list[list[str]] = []
@@ -1560,9 +1600,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
                 target = str(arguments[2])
                 if target.startswith("refs/tags/"):
                     return tag_object
-                if target.endswith("^{}"):
-                    return peeled
-                if target == "HEAD":
+                if target.endswith("^{}") or target == "HEAD":
                     return peeled
             if arguments[:3] == ["git", "cat-file", "-t"]:
                 return "tag"
@@ -1585,8 +1623,17 @@ class ReleaseEvidenceTests(unittest.TestCase):
                 )
             return ""
 
-        with mock.patch("tools.release_publication._run", side_effect=fake_run):
-            run_anonymous_exact_tag_install("v1.0.0", tag_object, peeled)
+        with tempfile.TemporaryDirectory() as temporary, mock.patch(
+            "tools.anonymous_release_worker._run", side_effect=fake_run
+        ):
+            result = _execute_workflow(
+                "v1.0.0",
+                tag_object,
+                peeled,
+                Path(temporary),
+                "2026-08-12T06:20:00Z",
+            )
+        self.assertEqual(result["status"], "PASS")
         clone = next(call for call in calls if call[:2] == ["git", "clone"])
         self.assertIn("--no-checkout", clone)
         self.assertNotIn("--branch", clone)
@@ -1598,13 +1645,59 @@ class ReleaseEvidenceTests(unittest.TestCase):
         first_candidate_index = next(
             index
             for index, call in enumerate(calls)
-            if call and (call[0].endswith("python") or call[0].endswith("python3"))
+            if len(call) > 1 and call[1].endswith("tools/agent_team.py")
         )
         self.assertLess(checkout_index, first_candidate_index)
         self.assertIn(
             ["git", "rev-parse", "HEAD"],
             calls[checkout_index:first_candidate_index],
         )
+
+    @unittest.skipUnless(
+        sys.platform == "linux" and os.geteuid() == 0,
+        "requires root Linux setpriv boundary",
+    )
+    def test_anonymous_worker_cannot_read_token_parent_environment(self) -> None:
+        marker = "github-token-must-remain-parent-only"
+        script = (
+            "from tools.anonymous_release_worker import _linux_process_boundary;"
+            "import json,sys;print(json.dumps(_linux_process_boundary(int(sys.argv[1])),sort_keys=True))"
+        )
+        environment = {
+            "PATH": "/usr/bin:/bin",
+            "PYTHONPATH": str(Path.cwd()),
+            "GITHUB_TOKEN": marker,
+        }
+        completed = subprocess.run(
+            [
+                "/usr/bin/setpriv",
+                "--reuid",
+                "234567",
+                "--regid",
+                "234567",
+                "--clear-groups",
+                "--inh-caps=-all",
+                "--ambient-caps=-all",
+                "--bounding-set=-all",
+                "--no-new-privs",
+                sys.executable,
+                "-c",
+                script,
+                str(os.getpid()),
+            ],
+            env=environment,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        boundary = json.loads(completed.stdout)
+        self.assertFalse(boundary["credential_parent_environment_readable"])
+        self.assertTrue(boundary["credential_process_uid_isolated"])
+        self.assertTrue(boundary["supplementary_groups_empty"])
+        self.assertTrue(boundary["no_new_privileges"])
+        self.assertTrue(boundary["capabilities_empty"])
+        self.assertNotIn(marker, completed.stdout)
 
 
 if __name__ == "__main__":

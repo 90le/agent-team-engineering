@@ -202,6 +202,7 @@
     "schemas/task-lease.schema.json",
     "docs/09-control-plane/persistence-and-recovery.md",
     "tools/release_audit.py",
+    "tools/anonymous_release_worker.py",
     "tools/release_evidence.py",
     "tools/release_publication.py",
     ".github/workflows/disposable-runner.yml",
