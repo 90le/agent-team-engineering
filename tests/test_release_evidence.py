@@ -1258,6 +1258,61 @@ class ReleaseEvidenceTests(unittest.TestCase):
             with self.assertRaises(ReleasePublicationError):
                 write_final_index(final, output)
 
+    def test_final_index_concurrent_destination_is_preserved(self) -> None:
+        request = self._request()
+        tag_evidence, contents = self._tag_evidence()
+        archive = self._archive(tag_evidence, contents)
+        snapshot = self._snapshot(request)
+        snapshot["artifacts"]["artifacts"][0]["digest"] = (
+            "sha256:" + hashlib.sha256(archive).hexdigest()
+        )
+        publication = verify_publication_snapshot(request, snapshot)
+        tag_evidence, _ = verify_downloaded_artifact(
+            archive,
+            publication,
+            request,
+            downloaded_at=datetime(2026, 8, 12, 6, 10, tzinfo=timezone.utc),
+        )
+        anonymous = {
+            "status": "PASS",
+            "workflow_url": None,
+            "source_url": "https://github.com/90le/agent-team-engineering.git",
+            "tag": "v1.0.0",
+            "tag_object": "a" * 40,
+            "commit": "b" * 40,
+            "verified_at": "2026-08-12T06:20:00Z",
+            "commands": list(ANONYMOUS_COMMANDS),
+            "unauthenticated_git_transport": True,
+            "caller_credentials_inherited": False,
+            "same_uid_filesystem_isolated": False,
+            "write_isolation": False,
+            "external_writes_verified": False,
+        }
+        final = build_final_release_index(
+            request,
+            publication,
+            tag_evidence,
+            anonymous,
+            self._live_scm_fixture(),
+            generated_at=datetime(2026, 8, 12, 6, 21, tzinfo=timezone.utc),
+        )
+        real_link = os.link
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "v1.0.0-final-release-index.json"
+            foreign = b"foreign concurrent owner\n"
+
+            def race_link(source: object, destination: object, **kwargs: object) -> None:
+                Path(destination).write_bytes(foreign)
+                real_link(source, destination, **kwargs)
+
+            with mock.patch(
+                "tools.release_publication.os.link", side_effect=race_link
+            ), self.assertRaisesRegex(
+                ReleasePublicationError, "appeared during publication"
+            ):
+                write_final_index(final, output)
+            self.assertEqual(output.read_bytes(), foreign)
+
     def test_request_requires_exact_urls_and_no_unknown_fields(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "request.json"

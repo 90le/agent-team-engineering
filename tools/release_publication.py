@@ -2125,9 +2125,29 @@ def write_final_index(document: dict[str, Any], output: Path) -> None:
         handle.flush()
         os.fsync(handle.fileno())
     try:
-        os.replace(stage, output)
+        # A hard-link publishes the already-fsynced bytes while preserving the
+        # kernel's O_EXCL-style no-overwrite guarantee.  os.replace() cannot be
+        # used here: a file created after the preflight check would be silently
+        # destroyed.
+        try:
+            os.link(stage, output, follow_symlinks=False)
+        except FileExistsError:
+            raise ReleasePublicationError(
+                "final release index output appeared during publication"
+            ) from None
+        directory_fd = os.open(
+            output.parent,
+            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+        )
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+        stage.unlink()
+        stage = None
     except BaseException:
-        stage.unlink(missing_ok=True)
+        if stage is not None:
+            stage.unlink(missing_ok=True)
         raise
 
 

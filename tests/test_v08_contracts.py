@@ -8,6 +8,7 @@ from pathlib import Path
 from core.contract_migration import MigrationError, migrate_work_item_v1
 from core.contracts import (
     CONTRACT_SCHEMAS,
+    PLAN_ACTION_TO_TOPOLOGY_ACTIONS,
     ContractViolation,
     approval_scope_digest,
     canonical_json,
@@ -419,6 +420,7 @@ class V08ContractTests(unittest.TestCase):
         for unsafe_root in (
             ".circleci",
             ".claude-plugin",
+            ".buildkite",
             ".devcontainer",
             ".dockerignore",
             ".gitattributes",
@@ -429,6 +431,8 @@ class V08ContractTests(unittest.TestCase):
             ".husky",
             ".mailmap",
             ".pre-commit-config.yaml",
+            ".teamcity",
+            ".travis.yml",
             "AGENTS.md/child",
             "AI-INSTRUCTIONS.md",
             "capability-package.json",
@@ -436,8 +440,13 @@ class V08ContractTests(unittest.TestCase):
             "docs",
             "docs/CODEOWNERS/child",
             "factory-package.json",
+            "Jenkinsfile",
             "Makefile",
+            "policies",
             "pyproject.toml",
+            "ROLES",
+            "skills",
+            "team-packs",
             "VERSION",
         ):
             with self.subTest(unsafe_root=unsafe_root):
@@ -470,6 +479,60 @@ class V08ContractTests(unittest.TestCase):
                 self.assertIn(
                     "$.topology.writers[0].ownership_roots[0]",
                     {issue.path for issue in authority_issues},
+                )
+
+    def test_writer_authority_closes_plan_actions_against_topology_capabilities(self) -> None:
+        topology = self._load("writer_topology")
+        plan = self._load("plan_revision")
+        approval = self._load("approval_grant")
+        self.assertEqual(validate_writer_authority(topology, plan, approval), [])
+
+        plan_schema = json.loads(
+            (ROOT / CONTRACT_SCHEMAS["plan_revision"]).read_text(encoding="utf-8")
+        )
+        schema_actions = set(
+            plan_schema["properties"]["allowed_actions"]["items"]["enum"]
+        )
+        self.assertEqual(schema_actions, set(PLAN_ACTION_TO_TOPOLOGY_ACTIONS))
+        actors = [
+            *topology["writers"],
+            topology["integrator"],
+            *topology["assurance_roles"],
+        ]
+        granted = {
+            action for actor in actors for action in actor["allowed_actions"]
+        }
+        forbidden = {
+            action for actor in actors for action in actor["forbidden_actions"]
+        }
+        for action, required in PLAN_ACTION_TO_TOPOLOGY_ACTIONS.items():
+            with self.subTest(mapped_action=action):
+                self.assertLessEqual(required, granted)
+                self.assertFalse(required & forbidden)
+
+        for forbidden_action in (
+            "approval.issue",
+            "default-branch.merge",
+            "release.publish",
+            "production.deploy",
+        ):
+            with self.subTest(forbidden_action=forbidden_action):
+                changed_plan = copy.deepcopy(plan)
+                changed_approval = copy.deepcopy(approval)
+                changed_plan["allowed_actions"].append(forbidden_action)
+                changed_plan["plan_digest"] = plan_revision_digest(changed_plan)
+                changed_approval["allowed_actions"] = changed_plan["allowed_actions"]
+                changed_approval["plan_digest"] = changed_plan["plan_digest"]
+                changed_approval["scope_digest"] = approval_scope_digest(changed_approval)
+                issues = validate_writer_authority(
+                    topology, changed_plan, changed_approval
+                )
+                self.assertTrue(issues)
+                self.assertTrue(
+                    any(
+                        issue.path.startswith("$.plan.allowed_actions")
+                        for issue in issues
+                    )
                 )
 
     def test_writer_authority_rejects_cross_platform_allowed_path_escape(self) -> None:

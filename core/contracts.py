@@ -23,6 +23,19 @@ ROOT = Path(__file__).resolve().parents[1]
 CONTRACT_VERSION = "1.1.0"
 MAX_CONTRACT_BYTES = 1_000_000
 
+# PlanRevision uses a host-neutral action vocabulary while WriterTopology uses
+# actor-level capabilities.  This closed mapping is the only bridge between
+# those two authority layers; an approved plan action must resolve to a
+# capability that the bound topology actually grants.
+PLAN_ACTION_TO_TOPOLOGY_ACTIONS: dict[str, frozenset[str]] = {
+    "repository.read": frozenset({"repository.read"}),
+    "workspace.write": frozenset({"owned-paths.write"}),
+    "test.run": frozenset({"tests.run"}),
+    "commit.create": frozenset({"commit.create"}),
+    "draft-pr.create": frozenset({"draft-pr.create"}),
+    "ci.read": frozenset({"evidence.read"}),
+}
+
 CONTRACT_SCHEMAS: dict[str, str] = {
     "team_spec": "schemas/team-spec.schema.json",
     "role_contract": "schemas/role-contract.schema.json",
@@ -455,6 +468,7 @@ def _validate_writer_topology(document: dict[str, Any]) -> list[ContractIssue]:
     reserved_writer_roots = {
         ".agent-team",
         ".agents",
+        ".buildkite",
         ".claude",
         ".claude-plugin",
         ".circleci",
@@ -466,8 +480,14 @@ def _validate_writer_topology(document: dict[str, Any]) -> list[ContractIssue]:
         ".hermes",
         ".husky",
         ".openclaw",
+        ".teamcity",
+        "policies",
+        "roles",
+        "skills",
+        "team-packs",
     }
     reserved_root_files = {
+        ".travis.yml",
         ".gitattributes",
         ".dockerignore",
         ".git-blame-ignore-revs",
@@ -483,6 +503,10 @@ def _validate_writer_topology(document: dict[str, Any]) -> list[ContractIssue]:
         "ai-bootstrap.md",
         "ai-start.md",
         "architecture.md",
+        "appveyor.yml",
+        "azure-pipelines.yml",
+        "bitrise.yml",
+        "buildkite.yml",
         "capability-package.json",
         "claude.md",
         "codeowners",
@@ -490,6 +514,7 @@ def _validate_writer_topology(document: dict[str, Any]) -> list[ContractIssue]:
         "constitution.md",
         "context-map.md",
         "factory-package.json",
+        "jenkinsfile",
         "license",
         "license.md",
         "notice",
@@ -1014,6 +1039,56 @@ def validate_writer_authority(
                 "contains roles outside the approved topology: " + ", ".join(unknown_roles),
             )
         )
+
+    topology_actors = [
+        *topology["writers"],
+        topology["integrator"],
+        *topology["assurance_roles"],
+    ]
+    topology_allowed = {
+        str(action)
+        for actor in topology_actors
+        for action in actor.get("allowed_actions", [])
+    }
+    topology_forbidden = {
+        str(action)
+        for actor in topology_actors
+        for action in actor.get("forbidden_actions", [])
+    }
+    plan_actions = {str(action) for action in plan.get("allowed_actions", [])}
+    for action in sorted(plan_actions):
+        required = PLAN_ACTION_TO_TOPOLOGY_ACTIONS.get(action)
+        if required is None or not required <= topology_allowed:
+            issues.append(
+                _issue(
+                    "$.plan.allowed_actions",
+                    f"action is not granted by the bound WriterTopology: {action}",
+                )
+            )
+            continue
+        denied = sorted(required & topology_forbidden)
+        if action in topology_forbidden or denied:
+            issues.append(
+                _issue(
+                    "$.plan.allowed_actions",
+                    "action conflicts with bound WriterTopology prohibitions: "
+                    + action,
+                )
+            )
+    default_effect_actions = {
+        "default-branch.merge": "automatic_merge",
+        "release.publish": "automatic_release",
+        "production.deploy": "automatic_deploy",
+    }
+    default_effects = topology.get("default_effects", {})
+    for action, effect in default_effect_actions.items():
+        if action in plan_actions and default_effects.get(effect) is not True:
+            issues.append(
+                _issue(
+                    "$.plan.allowed_actions",
+                    f"action is disabled by WriterTopology default_effects: {action}",
+                )
+            )
 
     roots_by_writer = {
         str(writer["actor_id"]): [

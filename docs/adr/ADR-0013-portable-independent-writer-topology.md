@@ -40,7 +40,8 @@ The topology contract requires:
 
 - at least two distinct source-writing identities;
 - normalized, non-overlapping repository subtrees for each writer;
-- no ordinary writer ownership of root SCM/CI controls or Factory/host governance namespaces such as `.gitmodules`, `.gitattributes`, `.gitignore`, `.github`, `.gitlab`, `.circleci`, `.claude-plugin`, `factory-package.json`, `VERSION`, `CODEOWNERS`, or `AGENTS.md`; standard nested `docs/CODEOWNERS` is reserved as well, and cross-cutting control files require a separately approved integrator policy in a future contract;
+- no ordinary writer ownership of root SCM/CI controls or Factory/host governance namespaces such as `.gitmodules`, `.gitattributes`, `.gitignore`, `.github`, `.gitlab`, `.circleci`, `.buildkite`, `.claude-plugin`, `Jenkinsfile`, `factory-package.json`, `VERSION`, `CODEOWNERS`, `AGENTS.md`, `ROLES/`, `skills/`, `policies/`, or `team-packs/`; standard nested `docs/CODEOWNERS` is reserved as well, and cross-cutting control files require a separately approved integrator policy in a future contract;
+- every PlanRevision action must resolve through the fixed portable-action mapping to an action granted by the exact bound WriterTopology; any unknown, forbidden, merge, release, deployment, or approval action fails closed even after a coherent topology/plan/approval re-sign;
 - every topology-bound PlanRevision task carries its own path list; a writer task is constrained to that writer's roots, a non-writer task has no source path authority, and the plan-wide path list is exactly the task-level union;
 - path authority comparisons preserve exact Git path case while overlap detection remains case-insensitive for portable safety; Windows device aliases such as `CON`, `NUL`, `COM1`, and their extension forms are rejected in every component;
 - worktree and branch templates containing both work-item and writer identities;
