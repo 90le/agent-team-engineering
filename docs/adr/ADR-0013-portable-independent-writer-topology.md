@@ -42,6 +42,7 @@ The topology contract requires:
 - normalized, non-overlapping repository subtrees for each writer;
 - no ordinary writer ownership of root SCM/CI controls or Factory/host governance namespaces such as `.gitmodules`, `.gitattributes`, `.gitignore`, `.github`, `.gitlab`, `.circleci`, `.claude-plugin`, `factory-package.json`, `VERSION`, `CODEOWNERS`, or `AGENTS.md`; standard nested `docs/CODEOWNERS` is reserved as well, and cross-cutting control files require a separately approved integrator policy in a future contract;
 - every topology-bound PlanRevision task carries its own path list; a writer task is constrained to that writer's roots, a non-writer task has no source path authority, and the plan-wide path list is exactly the task-level union;
+- path authority comparisons preserve exact Git path case while overlap detection remains case-insensitive for portable safety; Windows device aliases such as `CON`, `NUL`, `COM1`, and their extension forms are rejected in every component;
 - worktree and branch templates containing both work-item and writer identities;
 - an integrator identity distinct from every writer;
 - exactly one read-only tester and one read-only reviewer, both distinct from writers and integrator and unable to review their own work;

@@ -34,6 +34,8 @@ from tools.release_publication import (
     _review_archive_contents,
     _github_download,
     _github_run_artifacts,
+    _review_input_bytes,
+    _review_rubric_bytes,
     run_anonymous_exact_tag_install,
     build_final_release_index,
     load_finalization_request,
@@ -301,6 +303,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
         }
 
     def _technical_review_fixture(self, request: dict) -> dict:
+        patch_digest = "sha256:" + "2" * 64
         document = {
             "schema_version": "1.0.0",
             "evidence_kind": "INDEPENDENT_AI_TECHNICAL_REVIEW",
@@ -312,8 +315,8 @@ class ReleaseEvidenceTests(unittest.TestCase):
             "reviewer_runtime": request["technical_review"]["reviewer_runtime"],
             "agent_id": REVIEW_AGENT_ID,
             "session_id": "openclaw-review-session-1",
-            "prompt_sha256": "sha256:" + "1" * 64,
-            "patch_sha256": "sha256:" + "2" * 64,
+            "prompt_sha256": "sha256:" + "0" * 64,
+            "patch_sha256": patch_digest,
             "decision": "PASS",
             "findings": [],
             "authenticated_human": False,
@@ -330,6 +333,12 @@ class ReleaseEvidenceTests(unittest.TestCase):
             "review_input_sha256": "sha256:" + "3" * 64,
             "deterministic_gates_passed": True,
         }
+        document["prompt_sha256"] = "sha256:" + hashlib.sha256(
+            _review_rubric_bytes("c" * 40, "d" * 40, patch_digest)
+        ).hexdigest()
+        document["review_input_sha256"] = "sha256:" + hashlib.sha256(
+            _review_input_bytes(document)
+        ).hexdigest()
         content = (json.dumps(document, indent=2, sort_keys=True) + "\n").encode()
         checksum = hashlib.sha256(content).hexdigest() + "  independent-ai-review.json\n"
         output = io.BytesIO()
@@ -369,6 +378,10 @@ class ReleaseEvidenceTests(unittest.TestCase):
             },
             "technical_review_archive": archive,
             "pull_head_git_commit": {"tree": {"sha": "d" * 40}},
+            "technical_review_material": {
+                "head_tree": "d" * 40,
+                "patch_sha256": patch_digest,
+            },
         }
 
     def _archive(self, tag_evidence: dict, contents: dict[str, bytes]) -> bytes:
@@ -686,6 +699,46 @@ class ReleaseEvidenceTests(unittest.TestCase):
         )
         forged_runtime = self._snapshot(forged_runtime_request)
         cases.append(("runtime", forged_runtime_request, forged_runtime))
+
+        stale_patch = deepcopy(snapshot)
+        with zipfile.ZipFile(
+            io.BytesIO(stale_patch["technical_review_archive"])
+        ) as bundle:
+            stale_review = json.loads(bundle.read("independent-ai-review.json"))
+        stale_review["patch_sha256"] = "sha256:" + "9" * 64
+        stale_review["prompt_sha256"] = "sha256:" + hashlib.sha256(
+            _review_rubric_bytes(
+                "c" * 40,
+                "d" * 40,
+                stale_review["patch_sha256"],
+            )
+        ).hexdigest()
+        stale_review["review_input_sha256"] = "sha256:" + hashlib.sha256(
+            _review_input_bytes(stale_review)
+        ).hexdigest()
+        stale_review_bytes = (
+            json.dumps(stale_review, indent=2, sort_keys=True) + "\n"
+        ).encode()
+        stale_checksum = (
+            hashlib.sha256(stale_review_bytes).hexdigest()
+            + "  independent-ai-review.json\n"
+        )
+        stale_buffer = io.BytesIO()
+        with zipfile.ZipFile(
+            stale_buffer, "w", compression=zipfile.ZIP_STORED
+        ) as bundle:
+            bundle.writestr("independent-ai-review.json", stale_review_bytes)
+            bundle.writestr("independent-ai-review.sha256", stale_checksum)
+        stale_archive = stale_buffer.getvalue()
+        stale_patch["technical_review_archive"] = stale_archive
+        stale_patch["technical_review_artifacts"]["artifacts"][0]["digest"] = (
+            "sha256:" + hashlib.sha256(stale_archive).hexdigest()
+        )
+        stale_request = deepcopy(request)
+        stale_request["technical_review"]["evidence_sha256"] = (
+            "sha256:" + hashlib.sha256(stale_review_bytes).hexdigest()
+        )
+        cases.append(("stale-patch-with-coherent-self-digests", stale_request, stale_patch))
 
         for label, altered_request, altered_snapshot in cases:
             with self.subTest(label=label), self.assertRaises(ReleasePublicationError):

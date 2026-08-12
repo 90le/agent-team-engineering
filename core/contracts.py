@@ -198,6 +198,11 @@ def _normalized_repository_path(value: Any) -> str | None:
     portable = value[:-1] if value.endswith("/") else value
     path = Path(portable)
     components = path.parts
+    windows_devices = {"con", "prn", "aux", "nul"} | {
+        f"{prefix}{number}"
+        for prefix in ("com", "lpt")
+        for number in range(1, 10)
+    }
     if (
         portable == "."
         or path.is_absolute()
@@ -205,6 +210,10 @@ def _normalized_repository_path(value: Any) -> str | None:
         or path.as_posix() != portable
         or any(component in {"", ".", ".."} for component in components)
         or any(component != component.rstrip(" .") for component in components)
+        or any(
+            component.split(".", 1)[0].casefold() in windows_devices
+            for component in components
+        )
         or any(
             unicodedata.category(character)[0] == "C"
             or unicodedata.category(character) in {"Zl", "Zp"}
@@ -1008,7 +1017,7 @@ def validate_writer_authority(
 
     roots_by_writer = {
         str(writer["actor_id"]): [
-            normalized.rstrip("/").casefold()
+            normalized.rstrip("/")
             for root in writer["ownership_roots"]
             if (normalized := _normalized_repository_path(root)) is not None
         ]
@@ -1045,7 +1054,7 @@ def validate_writer_authority(
             )
         for path_index, raw_path in enumerate(task_paths):
             normalized = _normalized_repository_path(raw_path)
-            candidate = normalized.rstrip("/").casefold() if normalized is not None else ""
+            candidate = normalized.rstrip("/") if normalized is not None else ""
             if normalized is None or not any(
                 candidate == root or candidate.startswith(root + "/")
                 for root in writer_roots
@@ -1061,7 +1070,7 @@ def validate_writer_authority(
     global_path_set: set[str] = set()
     for index, raw_path in enumerate(plan.get("allowed_paths", [])):
         normalized = _normalized_repository_path(raw_path)
-        candidate = normalized.rstrip("/").casefold() if normalized is not None else ""
+        candidate = normalized.rstrip("/") if normalized is not None else ""
         if normalized is None or not any(
             candidate == root or candidate.startswith(root + "/") for root in roots
         ):

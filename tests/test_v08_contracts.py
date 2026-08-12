@@ -212,6 +212,27 @@ class V08ContractTests(unittest.TestCase):
             "$.plan.tasks[0].allowed_paths[0]",
             {issue.path for issue in cross_writer_issues},
         )
+
+        # Git paths are case-sensitive authority identities. A case-only path
+        # change cannot borrow another spelling of an owned root.
+        case_changed_plan = copy.deepcopy(plan)
+        case_changed_approval = copy.deepcopy(approval)
+        case_changed_plan["tasks"][0]["allowed_paths"][0] = "Apps/web/secret"
+        case_changed_plan["allowed_paths"][0] = "Apps/web/secret"
+        case_changed_plan["plan_digest"] = plan_revision_digest(case_changed_plan)
+        case_changed_approval["allowed_paths"] = case_changed_plan["allowed_paths"]
+        case_changed_approval["plan_digest"] = case_changed_plan["plan_digest"]
+        case_changed_approval["scope_digest"] = approval_scope_digest(
+            case_changed_approval
+        )
+        self.assertEqual(validate_contract("plan_revision", case_changed_plan), [])
+        case_issues = validate_writer_authority(
+            topology, case_changed_plan, case_changed_approval
+        )
+        self.assertIn(
+            "$.plan.tasks[0].allowed_paths[0]",
+            {issue.path for issue in case_issues},
+        )
         self.assertIn(
             "$.plan.tasks[1].allowed_paths[0]",
             {issue.path for issue in cross_writer_issues},
@@ -457,6 +478,10 @@ class V08ContractTests(unittest.TestCase):
             "apps/web/..\\..\\AGENTS.md",
             "apps/web/../.github",
             "C:/apps/web",
+            "CON",
+            "apps/web/NUL.txt",
+            "services/api/COM1.log",
+            "packages/ui/lPt9.cache",
         ):
             with self.subTest(unsafe_path=unsafe_path):
                 topology = self._load("writer_topology")
