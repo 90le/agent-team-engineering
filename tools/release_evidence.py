@@ -12,9 +12,11 @@ import hashlib
 import json
 import os
 import platform
+import re
 import subprocess
 import sys
 import tempfile
+import urllib.parse
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
@@ -56,7 +58,8 @@ GATE_IDS = (
     "supply-chain",
     "public-documentation",
     "pull-request",
-    "independent-review",
+    "technical-review",
+    "owner-approval",
     "merged-main",
     "annotated-tag",
     "tag-workflow",
@@ -66,6 +69,27 @@ GATE_IDS = (
 )
 LOCAL_GATE_IDS = GATE_IDS[:12]
 POST_TAG_GATE_IDS = GATE_IDS[12:]
+REVIEW_WORKFLOW_COMMIT = "5dd269b0015b576bad3b85cc358d75d8ed205ed6"
+REVIEW_RUNTIME = "openclaw/relay/gpt-5.6-sol"
+RELEASE_OWNER_LOGIN = "90le"
+RELEASE_OWNER_ID = 68719118
+DIGEST = re.compile(r"^sha256:[a-f0-9]{64}$")
+COMMIT = re.compile(r"^[a-f0-9]{40}$")
+FINAL_COMMANDS = (
+    "GitHub REST read-only publication verification",
+    "download and verify release-evidence artifact",
+    "verify SHA256SUMS and bundled evidence",
+    "anonymous exact-tag install and lifecycle verification",
+)
+ANONYMOUS_COMMANDS = (
+    "git clone --no-local --no-checkout https://github.com/90le/agent-team-engineering.git <temporary>",
+    "git verify annotated tag object and peeled commit",
+    "git checkout --detach <peeled-tag-commit>; verify clean exact HEAD",
+    "factory install; factory verify; doctor",
+    "create and validate portable team",
+    "host plan; preview; confirm; apply; verify; uninstall-preview; uninstall; replay",
+    "native writer-authority-validate",
+)
 
 
 class ReleaseEvidenceError(RuntimeError):
@@ -128,17 +152,36 @@ def _empty_publication(tag: str, tag_object: str, commit: str, environment: dict
             "number": None,
             "url": None,
             "head_commit": None,
-            "checks_url": None,
+            "checks": [],
+            "merged_at": None,
         },
-        "independent_review": {
+        "technical_review": {
             "status": "NOT_RUN",
+            "head_commit": None,
+            "workflow_commit": None,
+            "reviewer_kind": None,
+            "reviewer_runtime": None,
+            "evidence_url": None,
+            "evidence_sha256": None,
+            "decision": "NOT_RUN",
+            "authenticated_human": False,
+            "generated_at": None,
+            "completed_at": None,
+        },
+        "owner_approval": {
+            "status": "NOT_RUN",
+            "head_commit": None,
             "reviewer": None,
+            "reviewer_kind": None,
             "url": None,
+            "decision": "NOT_RUN",
+            "submitted_at": None,
         },
         "merged_main": {
             "status": "NOT_RUN",
+            "ref": None,
             "commit": None,
-            "workflow_url": None,
+            "checks": [],
         },
         "annotated_tag": {
             "status": "PASS",
@@ -146,6 +189,11 @@ def _empty_publication(tag: str, tag_object: str, commit: str, environment: dict
             "object_type": "tag",
             "object_id": tag_object,
             "peeled_commit": commit,
+            "tagger_name": None,
+            "tagger_email": None,
+            "tagged_at": None,
+            "signature_verified": None,
+            "signature_reason": None,
         },
         "tag_workflow": {
             "status": "NOT_RUN",
@@ -153,6 +201,9 @@ def _empty_publication(tag: str, tag_object: str, commit: str, environment: dict
             "run_id": run_id,
             "run_attempt": run_attempt,
             "url": run_url,
+            "actor": None,
+            "actor_id": None,
+            "completed_at": None,
         },
         "evidence_artifact": {
             "status": "NOT_RUN",
@@ -176,6 +227,9 @@ def _empty_publication(tag: str, tag_object: str, commit: str, environment: dict
             "tag": None,
             "draft": None,
             "prerelease": None,
+            "author": None,
+            "author_id": None,
+            "published_at": None,
         },
         "anonymous_install": {
             "status": "NOT_RUN",
@@ -186,9 +240,94 @@ def _empty_publication(tag: str, tag_object: str, commit: str, environment: dict
             "commit": None,
             "verified_at": None,
             "commands": [],
-            "maintainer_credentials_available": None,
-            "external_writes": None,
+            "unauthenticated_git_transport": None,
+            "caller_credentials_inherited": None,
+            "same_uid_filesystem_isolated": None,
+            "write_isolation": None,
+            "external_writes_verified": None,
         },
+    }
+
+
+def _valid_app_id(value: Any) -> bool:
+    """Accept an exact App, explicit any-App rule, or legacy unbound context."""
+
+    return value is None or (
+        isinstance(value, int) and not isinstance(value, bool) and (value == -1 or value > 0)
+    )
+
+
+def _evidence_time(value: Any, label: str) -> datetime:
+    if not isinstance(value, str):
+        raise ReleaseEvidenceError(f"{label} time is missing")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        raise ReleaseEvidenceError(f"{label} time is invalid") from None
+    if parsed.tzinfo is None:
+        raise ReleaseEvidenceError(f"{label} time lacks timezone")
+    return parsed
+
+
+def _https_evidence_url(value: Any, label: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise ReleaseEvidenceError(f"{label} URL is missing")
+    parsed = urllib.parse.urlsplit(value)
+    try:
+        port = parsed.port
+    except ValueError:
+        raise ReleaseEvidenceError(f"{label} URL has an invalid port") from None
+    if (
+        parsed.scheme != "https"
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or port not in {None, 443}
+        or parsed.fragment
+    ):
+        raise ReleaseEvidenceError(f"{label} URL is not exact HTTPS evidence")
+    return value
+
+
+def _digest(value: Any, label: str) -> str:
+    if not isinstance(value, str) or DIGEST.fullmatch(value) is None:
+        raise ReleaseEvidenceError(f"{label} digest is missing or invalid")
+    return value
+
+
+def _retention_days(created: datetime, expires: datetime) -> int:
+    """Recompute the GitHub artifact retention value recorded by the finalizer."""
+
+    seconds = (expires - created).total_seconds()
+    if seconds <= 0:
+        raise ReleaseEvidenceError("release evidence artifact expiry must follow creation")
+    return max(1, int(round(seconds / 86400)))
+
+
+def _expected_local_gate_evidence(
+    asset_map: dict[str, dict[str, Any]],
+) -> dict[str, list[str]]:
+    candidate = asset_map["v10-candidate-conformance"]
+    candidate_ref = f"{candidate['path']}@{candidate['sha256']}"
+    return {
+        "repository-validation": ["tools/verify.sh", candidate_ref],
+        "unit-tests": ["tools/verify.sh", candidate_ref],
+        "writer-authority": [candidate_ref],
+        "host-lifecycle": [candidate_ref],
+        "instance-migration": [candidate_ref],
+        "skills-plugins": [candidate_ref],
+        "isolated-hosts": [candidate_ref],
+        "cold-start": [candidate_ref],
+        "release-smoke": ["tools/release-smoke.sh", candidate_ref],
+        "external-scm": [
+            f"{asset_map['external-scm-first-run']['path']}@{asset_map['external-scm-first-run']['sha256']}",
+            f"{asset_map['external-scm-replay']['path']}@{asset_map['external-scm-replay']['sha256']}",
+        ],
+        "supply-chain": [
+            f"{asset_map['sbom']['path']}@{asset_map['sbom']['sha256']}",
+            f"{asset_map['source-provenance']['path']}@{asset_map['source-provenance']['sha256']}",
+        ],
+        "public-documentation": ["./agent-team validate"],
     }
 
 
@@ -227,27 +366,7 @@ def _default_local_gate_evidence(assets: list[dict[str, Any]]) -> dict[str, list
     }
     if set(local["external_scm"].get("evidence_files", [])) != expected_scm:
         raise ReleaseEvidenceError("candidate external SCM evidence paths are incomplete")
-    candidate_ref = f"{candidate_record['path']}@{candidate_record['sha256']}"
-    return {
-        "repository-validation": ["tools/verify.sh", candidate_ref],
-        "unit-tests": ["tools/verify.sh", candidate_ref],
-        "writer-authority": [candidate_ref],
-        "host-lifecycle": [candidate_ref],
-        "instance-migration": [candidate_ref],
-        "skills-plugins": [candidate_ref],
-        "isolated-hosts": [candidate_ref],
-        "cold-start": [candidate_ref],
-        "release-smoke": ["tools/release-smoke.sh", candidate_ref],
-        "external-scm": [
-            f"{by_kind['external-scm-first-run']['path']}@{by_kind['external-scm-first-run']['sha256']}",
-            f"{by_kind['external-scm-replay']['path']}@{by_kind['external-scm-replay']['sha256']}",
-        ],
-        "supply-chain": [
-            f"{by_kind['sbom']['path']}@{by_kind['sbom']['sha256']}",
-            f"{by_kind['source-provenance']['path']}@{by_kind['source-provenance']['sha256']}",
-        ],
-        "public-documentation": ["./agent-team validate"],
-    }
+    return _expected_local_gate_evidence(by_kind)
 
 
 def validate_release_evidence(document: dict[str, Any]) -> None:
@@ -273,6 +392,11 @@ def validate_release_evidence(document: dict[str, Any]) -> None:
             raise ReleaseEvidenceError(f"release evidence asset identity differs: {kind}")
 
     publication = document["publication"]
+    pull_request = publication["pull_request"]
+    technical_review = publication["technical_review"]
+    owner_approval = publication["owner_approval"]
+    merged_main = publication["merged_main"]
+    anonymous_install = publication["anonymous_install"]
     tag_record = publication["annotated_tag"]
     if (
         tag_record["name"] != document["tag"]
@@ -293,9 +417,81 @@ def validate_release_evidence(document: dict[str, Any]) -> None:
             raise ReleaseEvidenceError("tag workflow cannot self-report post-tag gates")
         if publication["tag_workflow"]["status"] != "NOT_RUN":
             raise ReleaseEvidenceError("a running tag workflow cannot self-report completion")
-        for key in ("pull_request", "independent_review", "merged_main", "evidence_artifact", "github_release", "anonymous_install"):
+        for key in ("pull_request", "technical_review", "owner_approval", "merged_main", "evidence_artifact", "github_release", "anonymous_install"):
             if publication[key]["status"] != "NOT_RUN":
                 raise ReleaseEvidenceError(f"tag workflow cannot self-report {key}")
+        if pull_request["checks"] or merged_main["checks"]:
+            raise ReleaseEvidenceError("tag workflow cannot self-report pull request or merged-main checks")
+        if (
+            any(
+                pull_request[field] is not None
+                for field in ("number", "url", "head_commit", "merged_at")
+            )
+            or any(
+                technical_review[field] is not None
+                for field in (
+                    "head_commit",
+                    "workflow_commit",
+                    "reviewer_kind",
+                    "reviewer_runtime",
+                    "evidence_url",
+                    "evidence_sha256",
+                    "generated_at",
+                    "completed_at",
+                )
+            )
+            or technical_review["decision"] != "NOT_RUN"
+            or technical_review["authenticated_human"] is not False
+            or any(
+                owner_approval[field] is not None
+                for field in (
+                    "head_commit",
+                    "reviewer",
+                    "reviewer_kind",
+                    "url",
+                    "submitted_at",
+                )
+            )
+            or owner_approval["decision"] != "NOT_RUN"
+            or merged_main["ref"] is not None
+            or merged_main["commit"] is not None
+            or any(
+                tag_record[field] is not None
+                for field in (
+                    "tagger_name",
+                    "tagger_email",
+                    "tagged_at",
+                    "signature_verified",
+                    "signature_reason",
+                )
+            )
+            or any(
+                publication["tag_workflow"][field] is not None
+                for field in ("actor", "actor_id", "completed_at")
+            )
+            or any(
+                publication["github_release"][field] is not None
+                for field in ("author", "author_id", "published_at")
+            )
+            or any(
+                anonymous_install[field] is not None
+                for field in (
+                    "workflow_url",
+                    "source_url",
+                    "tag",
+                    "tag_object",
+                    "commit",
+                    "verified_at",
+                    "unauthenticated_git_transport",
+                    "caller_credentials_inherited",
+                    "same_uid_filesystem_isolated",
+                    "write_isolation",
+                    "external_writes_verified",
+                )
+            )
+            or anonymous_install["commands"]
+        ):
+            raise ReleaseEvidenceError("tag workflow cannot self-report review, owner, or anonymous-install facts")
     else:
         if document["status"] != "ACCEPTED" or document["release_status"] != "RELEASED":
             raise ReleaseEvidenceError("final release index must be ACCEPTED and RELEASED")
@@ -308,6 +504,274 @@ def validate_release_evidence(document: dict[str, Any]) -> None:
                 raise ReleaseEvidenceError(f"final publication evidence is incomplete: {key}")
         if publication["evidence_artifact"]["download_status"] != "PASS":
             raise ReleaseEvidenceError("final index requires an actually downloaded evidence artifact")
+        if [record["command"] for record in document["commands"]] != list(FINAL_COMMANDS):
+            raise ReleaseEvidenceError("final index command evidence differs")
+        expected_pr_url = (
+            f"https://github.com/90le/agent-team-engineering/pull/{pull_request['number']}"
+        )
+        if (
+            not isinstance(pull_request["number"], int)
+            or pull_request["url"] != expected_pr_url
+            or COMMIT.fullmatch(str(pull_request["head_commit"])) is None
+        ):
+            raise ReleaseEvidenceError("final index pull-request identity differs")
+        technical_url = _https_evidence_url(
+            technical_review["evidence_url"], "technical review"
+        )
+        if re.fullmatch(
+            r"https://github\.com/90le/agent-team-v10-review-private/actions/runs/[1-9][0-9]*",
+            technical_url,
+        ) is None:
+            raise ReleaseEvidenceError("technical review run URL differs")
+        _digest(technical_review["evidence_sha256"], "technical review")
+        owner_url = owner_approval["url"]
+        if not isinstance(owner_url, str) or re.fullmatch(
+            rf"{re.escape(expected_pr_url)}#pullrequestreview-[1-9][0-9]*",
+            owner_url,
+        ) is None:
+            raise ReleaseEvidenceError("owner approval URL differs from pull request")
+        tag_workflow = publication["tag_workflow"]
+        tag_run_url = _https_evidence_url(tag_workflow["url"], "tag workflow")
+        if (
+            not isinstance(tag_workflow["run_id"], str)
+            or not tag_workflow["run_id"].isdigit()
+            or tag_workflow["run_attempt"] != "1"
+            or tag_run_url
+            != f"https://github.com/90le/agent-team-engineering/actions/runs/{tag_workflow['run_id']}"
+        ):
+            raise ReleaseEvidenceError("tag workflow identity differs")
+        artifact = publication["evidence_artifact"]
+        artifact_id = artifact["id"]
+        artifact_base = (
+            "https://api.github.com/repos/90le/agent-team-engineering/"
+            f"actions/artifacts/{artifact_id}"
+        )
+        artifact_digests = (
+            "digest",
+            "downloaded_archive_digest",
+            "tag_evidence_sha256",
+            "checksums_sha256",
+        )
+        if (
+            not isinstance(artifact_id, int)
+            or isinstance(artifact_id, bool)
+            or artifact_id < 1
+            or artifact["name"] != f"release-evidence-{document['tag']}"
+            or artifact["url"] != artifact_base
+            or artifact["archive_download_url"] != f"{artifact_base}/zip"
+            or any(
+                not isinstance(artifact.get(field), str)
+                or DIGEST.fullmatch(artifact[field]) is None
+                for field in artifact_digests
+            )
+            or artifact["digest"] != artifact["downloaded_archive_digest"]
+            or not isinstance(artifact["retention_days"], int)
+            or isinstance(artifact["retention_days"], bool)
+            or artifact["retention_days"] < 1
+        ):
+            raise ReleaseEvidenceError("final index release-evidence artifact differs")
+        github_release = publication["github_release"]
+        expected_release_url = (
+            "https://github.com/90le/agent-team-engineering/releases/tag/"
+            + document["tag"]
+        )
+        if (
+            github_release["url"] != expected_release_url
+            or github_release["tag"] != document["tag"]
+            or github_release["draft"] is not False
+            or github_release["prerelease"] is not False
+        ):
+            raise ReleaseEvidenceError("final index GitHub Release identity differs")
+        if (
+            anonymous_install["unauthenticated_git_transport"] is not True
+            or anonymous_install["caller_credentials_inherited"] is not False
+            or anonymous_install["same_uid_filesystem_isolated"] is not False
+            or anonymous_install["write_isolation"] is not False
+            or anonymous_install["external_writes_verified"] is not False
+        ):
+            raise ReleaseEvidenceError(
+                "final index anonymous installation boundary differs from the exact transport and process contract"
+            )
+        if (
+            anonymous_install["workflow_url"] is not None
+            or anonymous_install["source_url"]
+            != "https://github.com/90le/agent-team-engineering.git"
+            or anonymous_install["tag"] != document["tag"]
+            or anonymous_install["tag_object"] != document["tag_object"]
+            or anonymous_install["commit"] != document["commit"]
+            or tuple(anonymous_install["commands"]) != ANONYMOUS_COMMANDS
+            or not anonymous_install["verified_at"]
+        ):
+            raise ReleaseEvidenceError("final index anonymous-install identity differs")
+        check_sets: dict[str, set[tuple[str, int | None]]] = {}
+        for label, checks in (
+            ("pull request", pull_request["checks"]),
+            ("merged main", merged_main["checks"]),
+        ):
+            names = [record["name"] for record in checks]
+            urls = [record["url"] for record in checks]
+            if (
+                not checks
+                or any(not _valid_app_id(record["app_id"]) for record in checks)
+                or any(not record.get("completed_at") for record in checks)
+                or any(
+                    not isinstance(record.get("url"), str)
+                    or not record["url"].startswith("https://")
+                    for record in checks
+                )
+                or len(set(names)) != len(checks)
+                or len(set(urls)) != len(checks)
+            ):
+                raise ReleaseEvidenceError(f"final index requires the exact unique {label} required-check set")
+            check_sets[label] = {
+                (record["name"], record["app_id"]) for record in checks
+            }
+        if check_sets["pull request"] != check_sets["merged main"]:
+            raise ReleaseEvidenceError("pull-request and merged-main required-check identities differ")
+        if (
+            merged_main["ref"] != "refs/heads/main"
+            or merged_main["commit"] != document["commit"]
+        ):
+            raise ReleaseEvidenceError("merged-main checks do not bind the accepted commit")
+        if (
+            tag_record["object_type"] != "tag"
+            or COMMIT.fullmatch(str(tag_record["object_id"])) is None
+            or COMMIT.fullmatch(str(tag_record["peeled_commit"])) is None
+        ):
+            raise ReleaseEvidenceError("annotated tag object identity is invalid")
+        head_commit = pull_request["head_commit"]
+        if (
+            not head_commit
+            or not pull_request["merged_at"]
+            or technical_review["head_commit"] != head_commit
+            or technical_review["workflow_commit"] != REVIEW_WORKFLOW_COMMIT
+            or technical_review["reviewer_kind"] != "independent-ai"
+            or technical_review["reviewer_runtime"] != REVIEW_RUNTIME
+            or not technical_review["evidence_url"]
+            or not technical_review["evidence_sha256"]
+            or technical_review["decision"] != "PASS"
+            or technical_review["authenticated_human"] is not False
+            or not technical_review["generated_at"]
+            or not technical_review["completed_at"]
+        ):
+            raise ReleaseEvidenceError("final index lacks exact-head external technical review evidence")
+        if (
+            owner_approval["head_commit"] != head_commit
+            or owner_approval["reviewer"] != RELEASE_OWNER_LOGIN
+            or owner_approval["reviewer_kind"] != "github-user"
+            or not owner_approval["url"]
+            or owner_approval["decision"] != "APPROVED"
+            or not owner_approval["submitted_at"]
+        ):
+            raise ReleaseEvidenceError("final index lacks exact-head GitHub User owner approval")
+        if (
+            not tag_record["tagger_name"]
+            or not tag_record["tagger_email"]
+            or not tag_record["tagged_at"]
+            or not isinstance(tag_record["signature_verified"], bool)
+            or not tag_record["signature_reason"]
+            or publication["tag_workflow"]["actor"] != RELEASE_OWNER_LOGIN
+            or publication["tag_workflow"]["actor_id"] != RELEASE_OWNER_ID
+            or not publication["tag_workflow"]["completed_at"]
+            or publication["github_release"]["author"] != RELEASE_OWNER_LOGIN
+            or publication["github_release"]["author_id"] != RELEASE_OWNER_ID
+            or not publication["github_release"]["published_at"]
+        ):
+            raise ReleaseEvidenceError("final index lacks the trusted release-owner identity chain")
+        expected_gate_evidence = _expected_local_gate_evidence(asset_map)
+        expected_gate_evidence.update(
+            {
+                "pull-request": [
+                    pull_request["url"],
+                    *(
+                        f"{record['url']}@{record['completed_at']}"
+                        for record in pull_request["checks"]
+                    ),
+                ],
+                "technical-review": [
+                    technical_review["evidence_url"],
+                    technical_review["evidence_sha256"],
+                ],
+                "owner-approval": [owner_approval["url"]],
+                "merged-main": [
+                    *(
+                        f"{record['url']}@{record['completed_at']}"
+                        for record in merged_main["checks"]
+                    ),
+                    document["commit"],
+                ],
+                "annotated-tag": [
+                    f"refs/tags/{document['tag']}@{document['tag_object']}",
+                    document["commit"],
+                ],
+                "tag-workflow": [tag_workflow["url"]],
+                "evidence-artifact-download": [
+                    artifact["url"],
+                    artifact["downloaded_archive_digest"],
+                ],
+                "github-release": [github_release["url"]],
+                "anonymous-install": [
+                    anonymous_install["source_url"],
+                    anonymous_install["verified_at"],
+                ],
+            }
+        )
+        if any(
+            gate_map[gate_id]["evidence"] != expected_gate_evidence[gate_id]
+            for gate_id in GATE_IDS
+        ):
+            raise ReleaseEvidenceError("final index gate evidence mapping differs")
+        merged_at = _evidence_time(pull_request["merged_at"], "pull request merge")
+        technical_generated_at = _evidence_time(
+            technical_review["generated_at"], "technical review generation"
+        )
+        technical_completed_at = _evidence_time(
+            technical_review["completed_at"], "technical review completion"
+        )
+        owner_submitted_at = _evidence_time(
+            owner_approval["submitted_at"], "owner approval"
+        )
+        tagged_at = _evidence_time(tag_record["tagged_at"], "annotated tag")
+        tag_workflow_completed_at = _evidence_time(
+            publication["tag_workflow"]["completed_at"], "tag workflow completion"
+        )
+        release_published_at = _evidence_time(
+            publication["github_release"]["published_at"], "GitHub Release publication"
+        )
+        artifact_created_at = _evidence_time(
+            artifact["created_at"], "release evidence artifact creation"
+        )
+        artifact_expires_at = _evidence_time(
+            artifact["expires_at"], "release evidence artifact expiry"
+        )
+        downloaded_at = _evidence_time(
+            artifact["downloaded_at"], "release evidence artifact download"
+        )
+        anonymous_verified_at = _evidence_time(
+            anonymous_install["verified_at"], "anonymous exact-tag verification"
+        )
+        generated_at = _evidence_time(document["generated_at"], "final index generation")
+        pull_check_times = [
+            _evidence_time(record["completed_at"], "pull request required check")
+            for record in pull_request["checks"]
+        ]
+        main_check_times = [
+            _evidence_time(record["completed_at"], "merged main required check")
+            for record in merged_main["checks"]
+        ]
+        if not (
+            technical_generated_at <= technical_completed_at <= merged_at
+            and all(value <= merged_at for value in pull_check_times)
+            and owner_submitted_at <= merged_at <= tagged_at
+            and all(merged_at <= value <= tagged_at for value in main_check_times)
+            and tagged_at <= tag_workflow_completed_at <= release_published_at
+            and tagged_at <= artifact_created_at <= tag_workflow_completed_at
+            and artifact_created_at <= downloaded_at < artifact_expires_at
+            and artifact["retention_days"]
+            == _retention_days(artifact_created_at, artifact_expires_at)
+            and release_published_at <= downloaded_at <= anonymous_verified_at <= generated_at
+        ):
+            raise ReleaseEvidenceError("final release chronology differs from the authority sequence")
 
 
 def build_release_evidence(
@@ -364,7 +828,7 @@ def build_release_evidence(
     )
     document = {
         "$schema": "schemas/release-evidence.schema.json",
-        "schema_version": "2.0.0",
+        "schema_version": "2.1.0",
         "evidence_kind": "TAG_WORKFLOW_EVIDENCE",
         "status": "PARTIAL",
         "release_status": "NOT_PUBLISHED",
@@ -388,6 +852,9 @@ def build_release_evidence(
             "production_credentials_read": False,
             "tagged_source_modified": False,
             "github_api_writes": False,
+            "standalone_tamper_evident": False,
+            "cryptographically_authenticated": False,
+            "authenticity_verification": "REQUERY_GITHUB_AND_REVERIFY_ORIGINAL_ARTIFACTS",
         },
     }
     validate_release_evidence(document)

@@ -55,6 +55,7 @@ EXTERNAL_EVIDENCE_BASELINE_TAG = "v0.9.0"
 EXTERNAL_EVIDENCE_BASELINE_COMMIT = "a286cfadbfb6f387a4f1fb94c244f57d4dd089e6"
 EXTERNAL_EVIDENCE_PROTECTED_PATHS = frozenset(
     {
+        ".github/workflows/release-verify.yml",
         "adapters/github/adapter.json",
         "contracts/core-contracts.json",
         "contracts/native-reference-workflow.json",
@@ -67,6 +68,8 @@ EXTERNAL_EVIDENCE_PROTECTED_PATHS = frozenset(
         "core/reference_adapters.py",
         "core/schema_validation.py",
         "core/security.py",
+        "docs/16-release/v1.0-acceptance.md",
+        "factory-package.json",
         "policies/adapter-authority.json",
         "schemas/adapter-authority-policy.schema.json",
         "schemas/approval-grant.schema.json",
@@ -74,13 +77,16 @@ EXTERNAL_EVIDENCE_PROTECTED_PATHS = frozenset(
         "schemas/github-change-set.schema.json",
         "schemas/github-scm-conformance-report.schema.json",
         "schemas/plan-revision.schema.json",
+        "schemas/release-evidence.schema.json",
         "schemas/team-spec.schema.json",
         "schemas/v10-release-candidate-conformance.schema.json",
         "schemas/writer-topology.schema.json",
         "examples/github-scm-conformance/workflow.yml",
         "tools/github_scm_conformance.py",
+        "tools/release_evidence.py",
         "tools/release_publication.py",
         "tools/release_audit.py",
+        "skills/verify-release/SKILL.md",
     }
 )
 COMMIT_ID = re.compile(r"^[a-f0-9]{40}$")

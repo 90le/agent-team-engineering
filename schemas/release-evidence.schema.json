@@ -1,13 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:agent-team:schema:release-evidence:2.0.0",
+  "$id": "urn:agent-team:schema:release-evidence:2.1.0",
   "title": "Tag-workflow evidence and post-publication final release index",
   "type": "object",
   "additionalProperties": false,
   "required": ["$schema", "schema_version", "evidence_kind", "status", "release_status", "release", "repository", "tag", "tag_object", "commit", "generated_at", "environment", "commands", "assets", "publication", "gates", "boundaries"],
   "properties": {
     "$schema": {"const": "schemas/release-evidence.schema.json"},
-    "schema_version": {"const": "2.0.0"},
+    "schema_version": {"const": "2.1.0"},
     "evidence_kind": {"enum": ["TAG_WORKFLOW_EVIDENCE", "FINAL_RELEASE_INDEX"]},
     "status": {"enum": ["PARTIAL", "ACCEPTED"]},
     "release_status": {"enum": ["NOT_PUBLISHED", "RELEASED"]},
@@ -61,62 +61,122 @@
     "publication": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["pull_request", "independent_review", "merged_main", "annotated_tag", "tag_workflow", "evidence_artifact", "github_release", "anonymous_install"],
+      "required": ["pull_request", "technical_review", "owner_approval", "merged_main", "annotated_tag", "tag_workflow", "evidence_artifact", "github_release", "anonymous_install"],
       "properties": {
         "pull_request": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["status", "number", "url", "head_commit", "checks_url"],
+          "required": ["status", "number", "url", "head_commit", "checks", "merged_at"],
           "properties": {
             "status": {"enum": ["PASS", "FAIL", "NOT_RUN"]},
             "number": {"type": ["integer", "null"], "minimum": 1},
             "url": {"type": ["string", "null"]},
-            "head_commit": {"type": ["string", "null"]},
-            "checks_url": {"type": ["string", "null"]}
+            "head_commit": {"type": ["string", "null"], "pattern": "^[a-f0-9]{40}$"},
+            "merged_at": {"type": ["string", "null"], "format": "date-time"},
+            "checks": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name", "url", "app_id", "completed_at"],
+                "properties": {
+                  "name": {"type": "string", "minLength": 1},
+                  "url": {"type": "string", "pattern": "^https://[^@/]+(?:/.*)?$"},
+                  "app_id": {"type": ["integer", "null"], "minimum": -1},
+                  "completed_at": {"type": "string", "format": "date-time"}
+                }
+              }
+            }
           }
         },
-        "independent_review": {
+        "technical_review": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["status", "reviewer", "url"],
+          "required": ["status", "head_commit", "workflow_commit", "reviewer_kind", "reviewer_runtime", "evidence_url", "evidence_sha256", "decision", "authenticated_human", "generated_at", "completed_at"],
           "properties": {
             "status": {"enum": ["PASS", "FAIL", "NOT_RUN"]},
-            "reviewer": {"type": ["string", "null"]},
-            "url": {"type": ["string", "null"]}
+            "head_commit": {"type": ["string", "null"], "pattern": "^[a-f0-9]{40}$"},
+            "workflow_commit": {"type": ["string", "null"], "pattern": "^[a-f0-9]{40}$"},
+            "reviewer_kind": {"enum": ["independent-ai", null]},
+            "reviewer_runtime": {"type": ["string", "null"], "minLength": 1},
+            "evidence_url": {"type": ["string", "null"], "pattern": "^https://github\\.com/90le/agent-team-v10-review-private/actions/runs/[0-9]+$"},
+            "evidence_sha256": {"type": ["string", "null"], "pattern": "^sha256:[a-f0-9]{64}$"},
+            "decision": {"enum": ["PASS", "FAIL", "NOT_RUN"]},
+            "authenticated_human": {"const": false},
+            "generated_at": {"type": ["string", "null"], "format": "date-time"},
+            "completed_at": {"type": ["string", "null"], "format": "date-time"}
+          }
+        },
+        "owner_approval": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "head_commit", "reviewer", "reviewer_kind", "url", "decision", "submitted_at"],
+          "properties": {
+            "status": {"enum": ["PASS", "FAIL", "NOT_RUN"]},
+            "head_commit": {"type": ["string", "null"], "pattern": "^[a-f0-9]{40}$"},
+            "reviewer": {"type": ["string", "null"], "minLength": 1},
+            "reviewer_kind": {"enum": ["github-user", null]},
+            "url": {"type": ["string", "null"], "pattern": "^https://github\\.com/90le/agent-team-engineering/pull/[0-9]+#pullrequestreview-[0-9]+$"},
+            "decision": {"enum": ["APPROVED", "CHANGES_REQUESTED", "DISMISSED", "NOT_RUN"]},
+            "submitted_at": {"type": ["string", "null"], "format": "date-time"}
           }
         },
         "merged_main": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["status", "commit", "workflow_url"],
+          "required": ["status", "ref", "commit", "checks"],
           "properties": {
             "status": {"enum": ["PASS", "FAIL", "NOT_RUN"]},
-            "commit": {"type": ["string", "null"]},
-            "workflow_url": {"type": ["string", "null"]}
+            "ref": {"enum": ["refs/heads/main", null]},
+            "commit": {"type": ["string", "null"], "pattern": "^[a-f0-9]{40}$"},
+            "checks": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name", "url", "app_id", "completed_at"],
+                "properties": {
+                  "name": {"type": "string", "minLength": 1},
+                  "url": {"type": "string", "pattern": "^https://[^@/]+(?:/.*)?$"},
+                  "app_id": {"type": ["integer", "null"], "minimum": -1},
+                  "completed_at": {"type": "string", "format": "date-time"}
+                }
+              }
+            }
           }
         },
         "annotated_tag": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["status", "name", "object_type", "object_id", "peeled_commit"],
+          "required": ["status", "name", "object_type", "object_id", "peeled_commit", "tagger_name", "tagger_email", "tagged_at", "signature_verified", "signature_reason"],
           "properties": {
             "status": {"enum": ["PASS", "FAIL", "NOT_RUN"]},
             "name": {"type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$"},
             "object_type": {"type": ["string", "null"]},
             "object_id": {"type": ["string", "null"]},
-            "peeled_commit": {"type": ["string", "null"]}
+            "peeled_commit": {"type": ["string", "null"]},
+            "tagger_name": {"type": ["string", "null"]},
+            "tagger_email": {"type": ["string", "null"]},
+            "tagged_at": {"type": ["string", "null"], "format": "date-time"},
+            "signature_verified": {"type": ["boolean", "null"]},
+            "signature_reason": {"type": ["string", "null"]}
           }
         },
         "tag_workflow": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["status", "provider", "run_id", "run_attempt", "url"],
+          "required": ["status", "provider", "run_id", "run_attempt", "url", "actor", "actor_id", "completed_at"],
           "properties": {
             "status": {"enum": ["PASS", "FAIL", "NOT_RUN"]},
             "provider": {"const": "github.actions"},
             "run_id": {"type": ["string", "null"]},
             "run_attempt": {"type": ["string", "null"]},
-            "url": {"type": ["string", "null"]}
+            "url": {"type": ["string", "null"]},
+            "actor": {"type": ["string", "null"]},
+            "actor_id": {"type": ["integer", "null"], "minimum": 1},
+            "completed_at": {"type": ["string", "null"], "format": "date-time"}
           }
         },
         "evidence_artifact": {
@@ -143,19 +203,22 @@
         "github_release": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["status", "url", "tag", "draft", "prerelease"],
+          "required": ["status", "url", "tag", "draft", "prerelease", "author", "author_id", "published_at"],
           "properties": {
             "status": {"enum": ["PASS", "FAIL", "NOT_RUN"]},
             "url": {"type": ["string", "null"]},
             "tag": {"type": ["string", "null"]},
             "draft": {"type": ["boolean", "null"]},
-            "prerelease": {"type": ["boolean", "null"]}
+            "prerelease": {"type": ["boolean", "null"]},
+            "author": {"type": ["string", "null"]},
+            "author_id": {"type": ["integer", "null"], "minimum": 1},
+            "published_at": {"type": ["string", "null"], "format": "date-time"}
           }
         },
         "anonymous_install": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["status", "workflow_url", "source_url", "tag", "tag_object", "commit", "verified_at", "commands", "maintainer_credentials_available", "external_writes"],
+          "required": ["status", "workflow_url", "source_url", "tag", "tag_object", "commit", "verified_at", "commands", "unauthenticated_git_transport", "caller_credentials_inherited", "same_uid_filesystem_isolated", "write_isolation", "external_writes_verified"],
           "properties": {
             "status": {"enum": ["PASS", "FAIL", "NOT_RUN"]},
             "workflow_url": {"type": ["string", "null"]},
@@ -165,16 +228,19 @@
             "commit": {"type": ["string", "null"]},
             "verified_at": {"type": ["string", "null"]},
             "commands": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
-            "maintainer_credentials_available": {"type": ["boolean", "null"]},
-            "external_writes": {"type": ["boolean", "null"]}
+            "unauthenticated_git_transport": {"enum": [true, null]},
+            "caller_credentials_inherited": {"enum": [false, null]},
+            "same_uid_filesystem_isolated": {"enum": [false, null]},
+            "write_isolation": {"enum": [false, null]},
+            "external_writes_verified": {"enum": [false, null]}
           }
         }
       }
     },
     "gates": {
       "type": "array",
-      "minItems": 20,
-      "maxItems": 20,
+      "minItems": 21,
+      "maxItems": 21,
       "uniqueItems": true,
       "items": {
         "type": "object",
@@ -190,13 +256,16 @@
     "boundaries": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["automatic_merge", "automatic_deploy", "production_credentials_read", "tagged_source_modified", "github_api_writes"],
+      "required": ["automatic_merge", "automatic_deploy", "production_credentials_read", "tagged_source_modified", "github_api_writes", "standalone_tamper_evident", "cryptographically_authenticated", "authenticity_verification"],
       "properties": {
         "automatic_merge": {"const": false},
         "automatic_deploy": {"const": false},
         "production_credentials_read": {"const": false},
         "tagged_source_modified": {"const": false},
-        "github_api_writes": {"const": false}
+        "github_api_writes": {"const": false},
+        "standalone_tamper_evident": {"const": false},
+        "cryptographically_authenticated": {"const": false},
+        "authenticity_verification": {"const": "REQUERY_GITHUB_AND_REVERIFY_ORIGINAL_ARTIFACTS"}
       }
     }
   }

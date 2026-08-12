@@ -363,6 +363,88 @@ class V08ContractTests(unittest.TestCase):
         self.assertTrue(validate_contract("approval_grant", approval))
         self.assertTrue(validate_writer_authority(topology, plan, approval))
 
+    def test_writer_authority_rejects_scm_and_governance_roots_after_full_resigning(self) -> None:
+        """Semantic safety survives a coherent three-document digest rewrite."""
+
+        for unsafe_root in (
+            ".circleci",
+            ".claude-plugin",
+            ".devcontainer",
+            ".dockerignore",
+            ".gitattributes",
+            ".gitignore",
+            ".gitlab",
+            ".gitlab-ci.yml",
+            ".gitmodules",
+            ".husky",
+            ".mailmap",
+            ".pre-commit-config.yaml",
+            "AGENTS.md/child",
+            "AI-INSTRUCTIONS.md",
+            "capability-package.json",
+            "CODEOWNERS",
+            "docs",
+            "docs/CODEOWNERS/child",
+            "factory-package.json",
+            "Makefile",
+            "pyproject.toml",
+            "VERSION",
+        ):
+            with self.subTest(unsafe_root=unsafe_root):
+                topology = self._load("writer_topology")
+                plan = self._load("plan_revision")
+                approval = self._load("approval_grant")
+
+                topology["writers"][0]["ownership_roots"] = [unsafe_root]
+                topology["topology_digest"] = writer_topology_digest(topology)
+                binding = {
+                    "topology_id": topology["topology_id"],
+                    "topology_version": topology["topology_version"],
+                    "topology_digest": topology["topology_digest"],
+                }
+                allowed_paths = [unsafe_root.rstrip("/") + "/"]
+                plan["writer_topology"] = binding
+                plan["allowed_paths"] = allowed_paths
+                plan["plan_digest"] = plan_revision_digest(plan)
+                approval["writer_topology"] = binding
+                approval["allowed_paths"] = allowed_paths
+                approval["plan_digest"] = plan["plan_digest"]
+                approval["scope_digest"] = approval_scope_digest(approval)
+
+                topology_issues = validate_contract("writer_topology", topology)
+                authority_issues = validate_writer_authority(topology, plan, approval)
+                self.assertIn(
+                    "$.writers[0].ownership_roots[0]",
+                    {issue.path for issue in topology_issues},
+                )
+                self.assertIn(
+                    "$.topology.writers[0].ownership_roots[0]",
+                    {issue.path for issue in authority_issues},
+                )
+
+    def test_writer_authority_rejects_cross_platform_allowed_path_escape(self) -> None:
+        for unsafe_path in (
+            "apps/web/..\\..\\.github",
+            "apps/web/..\\..\\AGENTS.md",
+            "apps/web/../.github",
+            "C:/apps/web",
+        ):
+            with self.subTest(unsafe_path=unsafe_path):
+                topology = self._load("writer_topology")
+                plan = self._load("plan_revision")
+                approval = self._load("approval_grant")
+                plan["allowed_paths"] = [unsafe_path]
+                plan["plan_digest"] = plan_revision_digest(plan)
+                approval["allowed_paths"] = [unsafe_path]
+                approval["plan_digest"] = plan["plan_digest"]
+                approval["scope_digest"] = approval_scope_digest(approval)
+                self.assertIn(
+                    "$.allowed_paths[0]",
+                    {issue.path for issue in validate_contract("plan_revision", plan)},
+                )
+                authority_issues = validate_writer_authority(topology, plan, approval)
+                self.assertTrue(authority_issues)
+
 
 if __name__ == "__main__":
     unittest.main()

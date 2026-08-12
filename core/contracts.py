@@ -178,6 +178,43 @@ def _parse_time(value: str, path: str, issues: list[ContractIssue]) -> datetime 
         return None
 
 
+def _normalized_repository_path(value: Any) -> str | None:
+    """Return one portable POSIX repository path, or fail closed.
+
+    Contract paths can be consumed on Windows even when validated on Linux, so
+    backslashes, drive prefixes, Unicode drift and platform aliases are never
+    accepted as alternate spellings.
+    """
+
+    if not isinstance(value, str) or not value:
+        return None
+    normalized = unicodedata.normalize("NFC", value)
+    if normalized != value or "\\" in value or ":" in value or value.endswith("//"):
+        return None
+    # PlanRevision has historically represented writable subtrees with one
+    # trailing slash.  Validate the underlying portable path and return its
+    # canonical no-slash form so authority comparisons cannot distinguish two
+    # spellings of the same subtree.
+    portable = value[:-1] if value.endswith("/") else value
+    path = Path(portable)
+    components = path.parts
+    if (
+        portable == "."
+        or path.is_absolute()
+        or not components
+        or path.as_posix() != portable
+        or any(component in {"", ".", ".."} for component in components)
+        or any(component != component.rstrip(" .") for component in components)
+        or any(
+            unicodedata.category(character)[0] == "C"
+            or unicodedata.category(character) in {"Zl", "Zp"}
+            for character in portable
+        )
+    ):
+        return None
+    return portable
+
+
 def _validate_role(document: dict[str, Any]) -> list[ContractIssue]:
     allowed = set(document.get("allowed_actions", []))
     forbidden = set(document.get("forbidden_actions", []))
@@ -277,7 +314,7 @@ def _validate_plan(document: dict[str, Any]) -> list[ContractIssue]:
     if any(visit(task_id) for task_id in sorted(graph) if task_id not in visited):
         issues.append(_issue("$.tasks", "task dependency graph contains a cycle"))
     for index, path in enumerate(document.get("allowed_paths", [])):
-        if path.startswith("/") or ".." in Path(path).parts:
+        if _normalized_repository_path(path) is None:
             issues.append(_issue(f"$.allowed_paths[{index}]", "must be a repository-relative safe path"))
     return issues
 
@@ -315,6 +352,14 @@ def _validate_approval(document: dict[str, Any]) -> list[ContractIssue]:
         issues.append(_issue("$.expires_at", "must be later than issued_at"))
     if document.get("merge_allowed") is not False or document.get("deploy_allowed") is not False:
         issues.append(_issue("$", "v0.8 grants cannot allow merge or deployment"))
+    for index, path in enumerate(document.get("allowed_paths", [])):
+        if _normalized_repository_path(path) is None:
+            issues.append(
+                _issue(
+                    f"$.allowed_paths[{index}]",
+                    "must be a repository-relative safe path",
+                )
+            )
     return issues
 
 
@@ -384,23 +429,54 @@ def _validate_writer_topology(document: dict[str, Any]) -> list[ContractIssue]:
         ".agent-team",
         ".agents",
         ".claude",
+        ".claude-plugin",
+        ".circleci",
         ".codex",
+        ".devcontainer",
         ".git",
         ".github",
+        ".gitlab",
         ".hermes",
+        ".husky",
         ".openclaw",
     }
     reserved_root_files = {
+        ".gitattributes",
+        ".dockerignore",
+        ".git-blame-ignore-revs",
+        ".gitconfig",
+        ".gitignore",
+        ".gitlab-ci.yml",
+        ".gitmodules",
+        ".mailmap",
+        ".pre-commit-config.yaml",
+        ".pre-commit-hooks.yaml",
         "agents.md",
+        "ai-instructions.md",
         "ai-bootstrap.md",
         "ai-start.md",
         "architecture.md",
+        "capability-package.json",
         "claude.md",
+        "codeowners",
+        "contributing.md",
         "constitution.md",
         "context-map.md",
+        "factory-package.json",
+        "license",
+        "license.md",
+        "notice",
+        "notice.md",
+        "makefile",
+        "pyproject.toml",
         "project-context.md",
+        "readme.md",
         "security.md",
         "team.md",
+        "version",
+    }
+    reserved_nested_governance_paths = {
+        ("docs", "codeowners"),
     }
     for index, writer in enumerate(writers):
         actor = str(writer.get("actor_id", ""))
@@ -436,25 +512,9 @@ def _validate_writer_topology(document: dict[str, Any]) -> list[ContractIssue]:
             )
         for root_index, root_value in enumerate(writer.get("ownership_roots", [])):
             root = str(root_value)
-            path = Path(root)
-            unicode_normalized = unicodedata.normalize("NFC", root)
-            components = path.parts
-            if (
-                not root
-                or root == "."
-                or path.is_absolute()
-                or ".." in path.parts
-                or path.as_posix() != root
-                or unicode_normalized != root
-                or "\\" in root
-                or ":" in root
-                or any(
-                    unicodedata.category(character)[0] == "C"
-                    or unicodedata.category(character) in {"Zl", "Zp"}
-                    for character in root
-                )
-                or any(component != component.rstrip(" .") for component in components)
-            ):
+            unicode_normalized = _normalized_repository_path(root)
+            components = Path(root).parts
+            if unicode_normalized is None:
                 issues.append(
                     _issue(
                         f"$.writers[{index}].ownership_roots[{root_index}]",
@@ -462,8 +522,23 @@ def _validate_writer_topology(document: dict[str, Any]) -> list[ContractIssue]:
                     )
                 )
             first_component = components[0].rstrip(" .").casefold() if components else ""
-            if first_component in reserved_writer_roots or (
-                len(components) == 1 and first_component in reserved_root_files
+            folded_components = tuple(
+                component.rstrip(" .").casefold() for component in components
+            )
+            if (
+                first_component in reserved_writer_roots
+                or first_component in reserved_root_files
+                or any(
+                    (
+                        len(folded_components) <= len(reserved_path)
+                        and folded_components == reserved_path[: len(folded_components)]
+                    )
+                    or (
+                        len(folded_components) > len(reserved_path)
+                        and folded_components[: len(reserved_path)] == reserved_path
+                    )
+                    for reserved_path in reserved_nested_governance_paths
+                )
             ):
                 issues.append(
                     _issue(
@@ -472,7 +547,12 @@ def _validate_writer_topology(document: dict[str, Any]) -> list[ContractIssue]:
                     )
                 )
             owned_roots.append(
-                (actor, unicode_normalized.casefold().rstrip("/"), index, root_index)
+                (
+                    actor,
+                    (unicode_normalized or root).casefold().rstrip("/"),
+                    index,
+                    root_index,
+                )
             )
     for left_index, left in enumerate(owned_roots):
         for right in owned_roots[left_index + 1 :]:
@@ -909,13 +989,17 @@ def validate_writer_authority(
         )
 
     roots = [
-        str(root).rstrip("/").casefold()
+        normalized.rstrip("/").casefold()
         for writer in topology["writers"]
         for root in writer["ownership_roots"]
+        if (normalized := _normalized_repository_path(root)) is not None
     ]
     for index, raw_path in enumerate(plan.get("allowed_paths", [])):
-        candidate = str(raw_path).rstrip("/").casefold()
-        if not any(candidate == root or candidate.startswith(root + "/") for root in roots):
+        normalized = _normalized_repository_path(raw_path)
+        candidate = normalized.rstrip("/").casefold() if normalized is not None else ""
+        if normalized is None or not any(
+            candidate == root or candidate.startswith(root + "/") for root in roots
+        ):
             issues.append(
                 _issue(
                     f"$.plan.allowed_paths[{index}]",

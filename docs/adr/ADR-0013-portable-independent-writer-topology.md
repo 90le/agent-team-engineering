@@ -40,6 +40,7 @@ The topology contract requires:
 
 - at least two distinct source-writing identities;
 - normalized, non-overlapping repository subtrees for each writer;
+- no ordinary writer ownership of root SCM/CI controls or Factory/host governance namespaces such as `.gitmodules`, `.gitattributes`, `.gitignore`, `.github`, `.gitlab`, `.circleci`, `.claude-plugin`, `factory-package.json`, `VERSION`, `CODEOWNERS`, or `AGENTS.md`; standard nested `docs/CODEOWNERS` is reserved as well, and cross-cutting control files require a separately approved integrator policy in a future contract;
 - worktree and branch templates containing both work-item and writer identities;
 - an integrator identity distinct from every writer;
 - exactly one read-only tester and one read-only reviewer, both distinct from writers and integrator and unable to review their own work;

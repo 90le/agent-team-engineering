@@ -69,11 +69,11 @@
     "unit_tests": {
       "status": "PASS",
       "command": "python3 -m unittest discover -s tests -v",
-      "count": 327
+      "count": 344
     },
     "writer_authority": {
       "status": "PASS",
-      "test_count": 12,
+      "test_count": 14,
       "topology_digest": "sha256:b4b3e8ad868889082a871e3ecc7588b00ced58a0555da299061c0aae758de0dd",
       "plan_digest": "sha256:e8b43d51e503d3cd453627aa0249775a301e1ae14336ef866eb1cfd6980ede7a",
       "approval_scope_digest": "sha256:57137766d7f2c13c1b5eaecba648a67deab6d888400b609cfb1b210dc90c3b00",
@@ -115,12 +115,9 @@
       "command": "tools/release-smoke.sh"
     },
     "external_scm": {
-      "status": "PASS",
-      "live_runs": 2,
-      "evidence_files": [
-        "acceptance/github-scm-v10-first-run.json",
-        "acceptance/github-scm-v10-replay.json"
-      ]
+      "status": "NOT_RUN",
+      "live_runs": 0,
+      "evidence_files": []
     }
   },
   "supply_chain": {
@@ -146,9 +143,9 @@
     "automatic_deploy": false,
     "identity_or_signature_verified_offline": false,
     "independent_writer_execution": false,
-    "dedicated_scm_identity_used": true,
-    "ephemeral_scm_token_used": true,
-    "external_scm_write_scope": "GRANTED_DEDICATED_TEST_ONLY"
+    "dedicated_scm_identity_used": false,
+    "ephemeral_scm_token_used": false,
+    "external_scm_write_scope": "NONE"
   },
   "remote_gates": {
     "pull_request_ci": "NOT_RUN_IN_SOURCE",
