@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import copy
 import json
+import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest import mock
 
 from tools.release_audit import (
     EXTERNAL_EVIDENCE_PROTECTED_PATHS,
@@ -244,6 +246,31 @@ class ReleaseAssetTests(unittest.TestCase):
             wrong_provenance[field] = value
             with self.subTest(field=field), self.assertRaises(ReleaseAuditError):
                 _validate_release_identity(sbom, wrong_provenance, "1.0.0")
+
+    def test_release_identity_scans_yaml_workflows_too(self) -> None:
+        sbom = json.loads(
+            (ROOT / "sbom/agent-team-engineering.spdx.json").read_text(encoding="utf-8")
+        )
+        provenance = json.loads(
+            (ROOT / "supply-chain/source-provenance.json").read_text(encoding="utf-8")
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            workflows = root / ".github/workflows"
+            workflows.mkdir(parents=True)
+            example = root / "examples/github-scm-conformance"
+            example.mkdir(parents=True)
+            (example / "workflow.yml").write_text("jobs: {}\n", encoding="utf-8")
+            (workflows / "unrecorded.yaml").write_text(
+                "jobs:\n  audit:\n    steps:\n      - uses: actions/cache@"
+                + "1" * 40
+                + "\n",
+                encoding="utf-8",
+            )
+            with mock.patch("tools.release_audit.ROOT", root), self.assertRaises(
+                ReleaseAuditError
+            ):
+                _validate_release_identity(sbom, provenance, "1.0.0")
 
 
 if __name__ == "__main__":

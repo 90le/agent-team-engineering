@@ -16,6 +16,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest import mock
 
+from core.json_support import loads_strict
+from core.schema_validation import validate_schema
+
 from tools.release_evidence import (
     EVIDENCE_ASSETS,
     LOCAL_GATE_IDS,
@@ -75,7 +78,15 @@ class ReleaseEvidenceTests(unittest.TestCase):
         head = "b" * 40
         self.assertEqual(
             _review_diff_arguments(base, head),
-            ["git", "diff", "--no-ext-diff", "--unified=0", base, head],
+            [
+                "git",
+                "diff",
+                "--no-ext-diff",
+                "--binary",
+                "--unified=0",
+                base,
+                head,
+            ],
         )
 
     def _asset_fixture(self) -> tuple[list[dict], dict[str, bytes]]:
@@ -466,6 +477,35 @@ class ReleaseEvidenceTests(unittest.TestCase):
         )
         with self.assertRaises(ReleaseEvidenceError):
             validate_release_evidence(document)
+
+    def test_release_evidence_schema_binds_kind_status_and_gate_outcomes(self) -> None:
+        schema = loads_strict(
+            (Path(__file__).resolve().parents[1] / "schemas/release-evidence.schema.json")
+            .read_text(encoding="utf-8")
+        )
+        tag_document, _ = self._tag_evidence()
+        self.assertEqual(validate_schema(tag_document, schema), [])
+        for field, value in (
+            ("status", "ACCEPTED"),
+            ("release_status", "RELEASED"),
+        ):
+            altered = deepcopy(tag_document)
+            altered[field] = value
+            with self.subTest(kind="tag", field=field):
+                self.assertTrue(validate_schema(altered, schema))
+        altered = deepcopy(tag_document)
+        altered["gates"][-1]["status"] = "PASS"
+        self.assertTrue(validate_schema(altered, schema))
+
+        final = deepcopy(tag_document)
+        final["evidence_kind"] = "FINAL_RELEASE_INDEX"
+        final["status"] = "ACCEPTED"
+        final["release_status"] = "RELEASED"
+        for gate in final["gates"]:
+            gate["status"] = "PASS"
+        self.assertEqual(validate_schema(final, schema), [])
+        final["gates"][0]["status"] = "NOT_RUN"
+        self.assertTrue(validate_schema(final, schema))
 
     def test_tag_evidence_rejects_hidden_future_publication_identities(self) -> None:
         document, _ = self._tag_evidence()

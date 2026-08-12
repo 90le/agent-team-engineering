@@ -64,6 +64,7 @@ def validate_schema(value: Any, schema: dict[str, Any], path: str = "$") -> list
         "properties",
         "additionalProperties",
         "items",
+        "prefixItems",
         "enum",
         "const",
         "pattern",
@@ -159,6 +160,17 @@ def validate_schema(value: Any, schema: dict[str, Any], path: str = "$") -> list
         if isinstance(item_schema, dict):
             for index, item in enumerate(value):
                 issues.extend(validate_schema(item, item_schema, f"{path}[{index}]"))
+        prefix_schemas = schema.get("prefixItems")
+        if prefix_schemas is not None:
+            if not isinstance(prefix_schemas, list) or not all(
+                isinstance(candidate, dict) for candidate in prefix_schemas
+            ):
+                issues.append(SchemaIssue(path, "prefixItems must contain schema objects"))
+            else:
+                for index, child_schema in enumerate(prefix_schemas[: len(value)]):
+                    issues.extend(
+                        validate_schema(value[index], child_schema, f"{path}[{index}]")
+                    )
 
     if isinstance(value, dict):
         required = schema.get("required", [])

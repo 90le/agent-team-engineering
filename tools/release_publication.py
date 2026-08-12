@@ -71,7 +71,7 @@ ARTIFACT_REDIRECT_HOST_SUFFIXES = (
 REPOSITORY = "90le/agent-team-engineering"
 REVIEW_REPOSITORY = "90le/agent-team-v10-review-private"
 REVIEW_BASE_COMMIT = "a286cfadbfb6f387a4f1fb94c244f57d4dd089e6"
-REVIEW_WORKFLOW_COMMIT = "3e4de527cf6a721c16f3b4c93527ca3b3ae99a66"
+REVIEW_WORKFLOW_COMMIT = "36ade630b4706f280fda4e4b043bd2c821016040"
 REVIEW_AGENT_ID = "ate-3df2c143-independent-reviewer"
 REVIEW_RUNTIME = "openclaw/relay/gpt-5.6-sol"
 RELEASE_REQUIRED_CHECKS = (
@@ -144,7 +144,7 @@ def _review_diff_arguments(base: str, head: str) -> list[str]:
 
     _require_commit(base, "technical review base")
     _require_commit(head, "technical review head")
-    return ["git", "diff", "--no-ext-diff", "--unified=0", base, head]
+    return ["git", "diff", "--no-ext-diff", "--binary", "--unified=0", base, head]
 
 
 def _review_rubric_bytes(head: str, tree: str, patch_digest: str) -> bytes:

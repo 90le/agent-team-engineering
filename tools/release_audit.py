@@ -194,9 +194,13 @@ def _validate_release_identity(
     }
     if len(observed_actions) != len(action_records) or observed_actions != EXPECTED_ACTIONS:
         raise ReleaseAuditError("source provenance GitHub Action pins differ")
-    workflow_paths = sorted((ROOT / ".github/workflows").glob("*.yml")) + [
-        ROOT / "examples/github-scm-conformance/workflow.yml"
-    ]
+    workflow_root = ROOT / ".github/workflows"
+    workflow_paths = sorted(
+        {
+            *workflow_root.glob("*.yml"),
+            *workflow_root.glob("*.yaml"),
+        }
+    ) + [ROOT / "examples/github-scm-conformance/workflow.yml"]
     uses: set[tuple[str, str]] = set()
     for workflow_path in workflow_paths:
         for repository, revision in ACTION_USE.findall(

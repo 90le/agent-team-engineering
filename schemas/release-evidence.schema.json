@@ -3,6 +3,80 @@
   "$id": "urn:agent-team:schema:release-evidence:2.1.0",
   "title": "Tag-workflow evidence and post-publication final release index",
   "type": "object",
+  "oneOf": [
+    {
+      "required": ["evidence_kind", "status", "release_status", "gates"],
+      "properties": {
+        "evidence_kind": {"const": "TAG_WORKFLOW_EVIDENCE"},
+        "status": {"const": "PARTIAL"},
+        "release_status": {"const": "NOT_PUBLISHED"},
+        "gates": {
+          "type": "array",
+          "minItems": 21,
+          "maxItems": 21,
+          "prefixItems": [
+            {"properties": {"id": {"const": "repository-validation"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "unit-tests"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "writer-authority"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "host-lifecycle"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "instance-migration"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "skills-plugins"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "isolated-hosts"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "cold-start"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "release-smoke"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "external-scm"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "supply-chain"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "public-documentation"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "pull-request"}, "status": {"const": "NOT_RUN"}}},
+            {"properties": {"id": {"const": "technical-review"}, "status": {"const": "NOT_RUN"}}},
+            {"properties": {"id": {"const": "owner-approval"}, "status": {"const": "NOT_RUN"}}},
+            {"properties": {"id": {"const": "merged-main"}, "status": {"const": "NOT_RUN"}}},
+            {"properties": {"id": {"const": "annotated-tag"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "tag-workflow"}, "status": {"const": "NOT_RUN"}}},
+            {"properties": {"id": {"const": "evidence-artifact-download"}, "status": {"const": "NOT_RUN"}}},
+            {"properties": {"id": {"const": "github-release"}, "status": {"const": "NOT_RUN"}}},
+            {"properties": {"id": {"const": "anonymous-install"}, "status": {"const": "NOT_RUN"}}}
+          ]
+        }
+      }
+    },
+    {
+      "required": ["evidence_kind", "status", "release_status", "gates"],
+      "properties": {
+        "evidence_kind": {"const": "FINAL_RELEASE_INDEX"},
+        "status": {"const": "ACCEPTED"},
+        "release_status": {"const": "RELEASED"},
+        "gates": {
+          "type": "array",
+          "minItems": 21,
+          "maxItems": 21,
+          "prefixItems": [
+            {"properties": {"id": {"const": "repository-validation"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "unit-tests"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "writer-authority"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "host-lifecycle"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "instance-migration"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "skills-plugins"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "isolated-hosts"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "cold-start"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "release-smoke"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "external-scm"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "supply-chain"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "public-documentation"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "pull-request"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "technical-review"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "owner-approval"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "merged-main"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "annotated-tag"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "tag-workflow"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "evidence-artifact-download"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "github-release"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "anonymous-install"}, "status": {"const": "PASS"}}}
+          ]
+        }
+      }
+    }
+  ],
   "additionalProperties": false,
   "required": ["$schema", "schema_version", "evidence_kind", "status", "release_status", "release", "repository", "tag", "tag_object", "commit", "generated_at", "environment", "commands", "assets", "publication", "gates", "boundaries"],
   "properties": {

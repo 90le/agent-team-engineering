@@ -77,6 +77,15 @@ class PortableSchemaValidationTests(unittest.TestCase):
         self.assertTrue(validate_schema({"version": "1.0", "binding": None}, schema))
         self.assertTrue(validate_schema({"version": "1.1"}, schema))
 
+        tuple_schema = {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "prefixItems": [{"const": "PASS"}, {"const": "NOT_RUN"}],
+        }
+        self.assertEqual(validate_schema(["PASS", "NOT_RUN"], tuple_schema), [])
+        self.assertTrue(validate_schema(["PASS", "PASS"], tuple_schema))
+
 
 if __name__ == "__main__":
     unittest.main()
