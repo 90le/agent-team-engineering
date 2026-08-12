@@ -395,6 +395,10 @@ class ReleaseEvidenceTests(unittest.TestCase):
         self.assertEqual(document["publication"]["tag_workflow"]["status"], "NOT_RUN")
         self.assertEqual(document["publication"]["github_release"]["status"], "NOT_RUN")
         self.assertEqual(document["publication"]["anonymous_install"]["status"], "NOT_RUN")
+        self.assertEqual(
+            document["commands"][-1]["command"],
+            "python3 tools/release_evidence.py --output artifacts/release-evidence.json --checksums artifacts/SHA256SUMS",
+        )
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "release-evidence.json"
             checksums = Path(temporary) / "SHA256SUMS"
@@ -707,6 +711,38 @@ class ReleaseEvidenceTests(unittest.TestCase):
         )
         with self.assertRaises(ReleasePublicationError):
             verify_publication_snapshot(blocking_request, blocking)
+
+        # The sealed document's generated_at belongs to the external OpenClaw
+        # review. It cannot claim that the review happened after the later
+        # sealing workflow had already started.
+        late_external = deepcopy(snapshot)
+        with zipfile.ZipFile(
+            io.BytesIO(late_external["technical_review_archive"])
+        ) as bundle:
+            late_review = json.loads(bundle.read("independent-ai-review.json"))
+        late_review["generated_at"] = "2026-08-12T03:03:00Z"
+        late_review_bytes = (
+            json.dumps(late_review, indent=2, sort_keys=True) + "\n"
+        ).encode()
+        late_checksum = (
+            hashlib.sha256(late_review_bytes).hexdigest()
+            + "  independent-ai-review.json\n"
+        )
+        rebuilt = io.BytesIO()
+        with zipfile.ZipFile(rebuilt, "w", compression=zipfile.ZIP_STORED) as bundle:
+            bundle.writestr("independent-ai-review.json", late_review_bytes)
+            bundle.writestr("independent-ai-review.sha256", late_checksum)
+        late_archive = rebuilt.getvalue()
+        late_external["technical_review_archive"] = late_archive
+        late_external["technical_review_artifacts"]["artifacts"][0]["digest"] = (
+            "sha256:" + hashlib.sha256(late_archive).hexdigest()
+        )
+        late_request = deepcopy(request)
+        late_request["technical_review"]["evidence_sha256"] = (
+            "sha256:" + hashlib.sha256(late_review_bytes).hexdigest()
+        )
+        with self.assertRaises(ReleasePublicationError):
+            verify_publication_snapshot(late_request, late_external)
 
     def test_every_premerge_authority_fact_precedes_merge(self) -> None:
         request = self._request()

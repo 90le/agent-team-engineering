@@ -27,9 +27,7 @@ jobs:
           tools/release-smoke.sh
       - name: Generate immutable tag-workflow evidence
         run: |
-          python3 tools/release_evidence.py \
-            --output artifacts/release-evidence.json \
-            --checksums artifacts/SHA256SUMS
+          python3 tools/release_evidence.py --output artifacts/release-evidence.json --checksums artifacts/SHA256SUMS
           python3 - <<'PY'
           import json
           from pathlib import Path

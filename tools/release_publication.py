@@ -1110,15 +1110,23 @@ def _verify_technical_review(
     ):
         raise ReleasePublicationError("technical review identity or decision differs")
     try:
-        generated_at = _parse_datetime(str(document.get("generated_at")))
+        external_review_generated_at = _parse_datetime(
+            str(document.get("generated_at"))
+        )
         run_created_at = _parse_datetime(str(run.get("created_at")))
         run_started_at = _parse_datetime(str(run.get("run_started_at")))
         run_completed_at = _parse_datetime(str(run.get("updated_at")))
         artifact_created_at = _parse_datetime(str(record.get("created_at")))
     except ReleasePublicationError:
         raise ReleasePublicationError("technical review chronology is invalid") from None
+    # ``generated_at`` belongs to the external, read-only OpenClaw review input.
+    # The private workflow starts later, validates that input, and seals it.
     if not (
-        generated_at <= run_created_at <= run_started_at <= artifact_created_at <= run_completed_at
+        external_review_generated_at
+        <= run_created_at
+        <= run_started_at
+        <= artifact_created_at
+        <= run_completed_at
     ):
         raise ReleasePublicationError("technical review chronology is inconsistent")
     findings = document.get("findings")

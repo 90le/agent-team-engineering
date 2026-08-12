@@ -347,6 +347,7 @@ def _claude_files(document: dict[str, Any]) -> dict[str, str]:
 
 
 OPENCLAW_CONTROL_PLANE_DENIES = (
+    "browser",
     "group:automation",
     "group:messaging",
     "group:nodes",

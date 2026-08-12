@@ -195,6 +195,7 @@ class ContextTeamCompilerTests(unittest.TestCase):
             self.assertNotIn("group:runtime", frontend["tools"]["deny"])
             self.assertNotIn("write", frontend["tools"]["deny"])
             for agent in openclaw_fragment["agents"]["list"]:
+                self.assertIn("browser", agent["tools"]["deny"])
                 for denied_group in (
                     "group:automation",
                     "group:messaging",

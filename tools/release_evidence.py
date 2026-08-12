@@ -42,7 +42,7 @@ VERIFIED_COMMANDS = (
     "tools/verify.sh",
     "python3 tools/release_audit.py --since-tag v0.9.0 --require-external-evidence",
     "tools/release-smoke.sh",
-    "python3 tools/release_evidence.py",
+    "python3 tools/release_evidence.py --output artifacts/release-evidence.json --checksums artifacts/SHA256SUMS",
 )
 GATE_IDS = (
     "repository-validation",

@@ -123,6 +123,7 @@ class TeamCompilerTests(unittest.TestCase):
                 self.assertEqual(agent["sandbox"], {"mode": "all", "scope": "agent"})
                 self.assertNotIn("sandbox", agent["tools"])
                 self.assertFalse(agent["tools"]["elevated"]["enabled"])
+                self.assertIn("browser", agent["tools"]["deny"])
             self.assertIn("exec", qa["tools"]["deny"])
             self.assertIn("group:runtime", qa["tools"]["deny"])
             for agent in agents:
