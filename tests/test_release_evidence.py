@@ -1799,6 +1799,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
             "import json,sys;print(json.dumps(_linux_process_boundary(int(sys.argv[1])),sort_keys=True))"
         )
         import_root = Path(__file__).resolve().parents[1]
+        mounted_import_root = Path("/opt/agent-team-boundary-test")
         environment = {
             "PATH": "/usr/bin:/bin",
             "PYTHONPATH": str(import_root),
@@ -1825,6 +1826,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
                     "--property=TimeoutStopSec=5s",
                     "--property=OOMPolicy=kill",
                     "--property=NoNewPrivileges=yes",
+                    f"--property=BindReadOnlyPaths={import_root}:{mounted_import_root}",
                     "--property=TemporaryFileSystem=/tmp:rw,size=512M,mode=0700,uid=234567,gid=234567",
                     "/usr/bin/setpriv",
                     "--reuid",
@@ -1838,7 +1840,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
                     "--no-new-privs",
                     "/usr/bin/env",
                     "-i",
-                    f"PYTHONPATH={import_root}",
+                    f"PYTHONPATH={mounted_import_root}",
                     "PATH=/usr/bin:/bin",
                     "LANG=C.UTF-8",
                     "LC_ALL=C.UTF-8",
