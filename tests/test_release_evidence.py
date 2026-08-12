@@ -55,6 +55,7 @@ from tools.release_publication import (
 )
 from tools.anonymous_release_worker import (
     _anonymous_environment,
+    _candidate_sandbox_command,
     _execute_workflow,
     _linux_process_boundary,
 )
@@ -537,7 +538,10 @@ class ReleaseEvidenceTests(unittest.TestCase):
         final["release_status"] = "RELEASED"
         for gate in final["gates"]:
             gate["status"] = "PASS"
-        self.assertEqual(validate_schema(final, schema), [])
+        # A tag-workflow document cannot become a valid final index merely by
+        # relabeling its outer status and gates; final publication identities
+        # must be populated and PASS in the Schema itself.
+        self.assertTrue(validate_schema(final, schema))
         final["gates"][0]["status"] = "NOT_RUN"
         self.assertTrue(validate_schema(final, schema))
 
@@ -1252,15 +1256,17 @@ class ReleaseEvidenceTests(unittest.TestCase):
             "commands": list(ANONYMOUS_COMMANDS),
             "unauthenticated_git_transport": True,
             "caller_credentials_inherited": False,
-            "same_uid_filesystem_isolated": False,
-            "write_isolation": False,
-            "external_writes_verified": False,
+            "same_uid_filesystem_isolated": True,
+            "write_isolation": True,
+            "external_writes_verified": True,
+            "candidate_network_isolated": True,
+            "candidate_runtime_read_only": True,
             "credential_process_uid_isolated": True,
             "credential_parent_environment_readable": False,
             "supplementary_groups_empty": True,
             "no_new_privileges": True,
             "capabilities_empty": True,
-            "isolation_mechanism": "linux-systemd-cgroup-setpriv-random-uid-v1",
+            "isolation_mechanism": "linux-systemd-cgroup-setpriv-bubblewrap-v1",
             "resource_isolation": {
                 "cgroup_v2": True,
                 "process_tree_cgroup_isolated": True,
@@ -1432,15 +1438,17 @@ class ReleaseEvidenceTests(unittest.TestCase):
             "commands": list(ANONYMOUS_COMMANDS),
             "unauthenticated_git_transport": True,
             "caller_credentials_inherited": False,
-            "same_uid_filesystem_isolated": False,
-            "write_isolation": False,
-            "external_writes_verified": False,
+            "same_uid_filesystem_isolated": True,
+            "write_isolation": True,
+            "external_writes_verified": True,
+            "candidate_network_isolated": True,
+            "candidate_runtime_read_only": True,
             "credential_process_uid_isolated": True,
             "credential_parent_environment_readable": False,
             "supplementary_groups_empty": True,
             "no_new_privileges": True,
             "capabilities_empty": True,
-            "isolation_mechanism": "linux-systemd-cgroup-setpriv-random-uid-v1",
+            "isolation_mechanism": "linux-systemd-cgroup-setpriv-bubblewrap-v1",
             "resource_isolation": {
                 "cgroup_v2": True,
                 "process_tree_cgroup_isolated": True,
@@ -1516,6 +1524,33 @@ class ReleaseEvidenceTests(unittest.TestCase):
             self.assertFalse((redirected / output.name).exists())
             self.assertFalse((moved / output.name).exists())
             self.assertEqual(list(moved.glob(f".{output.name}.*")), [])
+
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "v1.0.0-final-release-index.json"
+            foreign = b"foreign replacement after publication\n"
+            original_assert = release_publication._assert_output_parent_binding
+            calls = 0
+
+            def replace_published_inode(
+                path: Path,
+                expected: tuple[int, int],
+            ) -> None:
+                nonlocal calls
+                calls += 1
+                original_assert(path, expected)
+                if calls == 2:
+                    output.unlink()
+                    output.write_bytes(foreign)
+
+            with mock.patch(
+                "tools.release_publication._assert_output_parent_binding",
+                side_effect=replace_published_inode,
+            ), self.assertRaisesRegex(
+                ReleasePublicationError,
+                "output identity changed",
+            ):
+                write_final_index(final, output)
+            self.assertEqual(output.read_bytes(), foreign)
 
     def test_request_requires_exact_urls_and_no_unknown_fields(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -1852,8 +1887,19 @@ class ReleaseEvidenceTests(unittest.TestCase):
                 )
             return ""
 
-        with tempfile.TemporaryDirectory() as temporary, mock.patch(
+        def fake_candidate(
+            arguments: list[str],
+            cwd: Path,
+            workspace: Path,
+            environment: dict[str, str],
+        ) -> str:
+            return fake_run(arguments, cwd, environment)
+
+        with tempfile.TemporaryDirectory(dir="/tmp") as temporary, mock.patch(
             "tools.anonymous_release_worker._run", side_effect=fake_run
+        ), mock.patch(
+            "tools.anonymous_release_worker._run_candidate",
+            side_effect=fake_candidate,
         ):
             result = _execute_workflow(
                 "v1.0.0",
@@ -1880,6 +1926,68 @@ class ReleaseEvidenceTests(unittest.TestCase):
         self.assertIn(
             ["git", "rev-parse", "HEAD"],
             calls[checkout_index:first_candidate_index],
+        )
+
+    def test_candidate_sandbox_hides_host_and_disables_network(self) -> None:
+        with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
+            workspace = Path(temporary).resolve()
+            command = _candidate_sandbox_command(
+                ["/usr/bin/python3", "-c", "print('ok')"],
+                workspace,
+                workspace,
+                _anonymous_environment(workspace),
+            )
+        self.assertIn("--unshare-all", command)
+        self.assertIn("--unshare-user", command)
+        self.assertNotIn("--share-net", command)
+        self.assertIn("--disable-userns", command)
+        self.assertIn("--ro-bind", command)
+        self.assertNotIn("/root", command)
+        self.assertNotIn("/srv", command)
+
+    @unittest.skipUnless(
+        sys.platform == "linux" and os.geteuid() == 0 and Path("/usr/bin/bwrap").is_file(),
+        "requires root Linux bubblewrap",
+    )
+    def test_candidate_sandbox_really_hides_host_write_paths_and_network(self) -> None:
+        probe = (
+            "import json,pathlib,socket;"
+            "r={'root_visible':pathlib.Path('/root').exists(),"
+            "'srv_visible':pathlib.Path('/srv').exists(),"
+            "'etc_visible':pathlib.Path('/etc').exists()};"
+            "\ntry:pathlib.Path('/usr/agent-team-write-probe').write_text('x')"
+            "\nexcept OSError:r['usr_writable']=False"
+            "\nelse:r['usr_writable']=True"
+            "\ntry:socket.create_connection(('1.1.1.1',443),timeout=1)"
+            "\nexcept OSError:r['network_available']=False"
+            "\nelse:r['network_available']=True"
+            "\nprint(json.dumps(r,sort_keys=True))"
+        )
+        with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
+            workspace = Path(temporary).resolve()
+            command = _candidate_sandbox_command(
+                ["/usr/bin/python3", "-c", probe],
+                workspace,
+                workspace,
+                _anonymous_environment(workspace),
+            )
+            completed = subprocess.run(
+                command,
+                cwd=workspace,
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+        self.assertEqual(
+            json.loads(completed.stdout),
+            {
+                "etc_visible": False,
+                "network_available": False,
+                "root_visible": False,
+                "srv_visible": False,
+                "usr_writable": False,
+            },
         )
 
     @unittest.skipUnless(
@@ -1957,7 +2065,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
         self.assertTrue(boundary["capabilities_empty"])
         self.assertEqual(
             boundary["isolation_mechanism"],
-            "linux-systemd-cgroup-setpriv-random-uid-v1",
+            "linux-systemd-cgroup-setpriv-bubblewrap-v1",
         )
         self.assertEqual(
             boundary["resource_isolation"],

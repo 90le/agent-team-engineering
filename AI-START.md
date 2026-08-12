@@ -207,12 +207,12 @@ Before removing a projection, preview the exact scope without mutation:
 ./agent-team host uninstall-preview --root /path/to/managed-projection
 ```
 
-- `ACTIVE`: show every `filesystem_deletes` and `filesystem_creates` entry, the `transient_files` scratch, retained files, and `directories_removed: false`; explain that the same scratch may be created and deleted within the operation and must be absent on success. Obtain a separate human process confirmation, then call `host uninstall` with the exact proposal digest. The CLI does not store or authenticate that approval.
-- `UNINSTALLING`: an earlier confirmed removal was interrupted. Its `filesystem_deletes`, `filesystem_creates`, and `transient_files` likewise include the metadata scratch; validate the remaining scope and resume `host uninstall` directly with the exact digest.
+- `ACTIVE`: show every `filesystem_deletes` and `filesystem_creates` entry, every `transient_files` path, retained files, and `directories_removed: false`; explain that the fixed metadata scratch and each per-file quarantine stage may be created and deleted within the operation and must be absent on success. Obtain a separate human process confirmation, then call `host uninstall` with the exact proposal digest. The CLI does not store or authenticate that approval.
+- `UNINSTALLING`: an earlier confirmed removal was interrupted. Its `filesystem_deletes`, `filesystem_creates`, and `transient_files` identify the remaining metadata/quarantine stages; validate the remaining scope and resume `host uninstall` directly with the exact digest.
 - `ALREADY_UNINSTALLED`: all three scope lists are empty. Replay `host uninstall` with the tombstone's exact digest only when an idempotent status check is useful; it performs no new deletion.
 - `LEGACY_UNBOUND`: all three scope lists are empty. Do not call destructive uninstall; reconcile the old v0.9 files and ownership manually.
 
-Uninstall rechecks unchanged owned files, transitions through `UNINSTALLING`, and retains the persistent empty guard plus digest-bound tombstone for replay. Successful completion leaves the metadata scratch absent. It never removes directories, so empty directories may remain. POSIX `fcntl` serializes only cooperating local Factory processes; it does not protect against root, the kernel, the filesystem, storage failure, or another privileged writer.
+Uninstall binds each installed file's digest, size, device and inode, hard-links that exact inode to its declared quarantine stage, and durably advances through `UNINSTALLING`. A byte-identical file recreated at the original path is preserved. It retains the persistent empty guard plus digest-bound tombstone for replay, and successful completion leaves all metadata/quarantine scratch absent. It never removes directories, so empty directories may remain. POSIX `fcntl` serializes only cooperating local Factory processes; it does not protect against root, the kernel, the filesystem, storage failure, or another privileged writer.
 
 Native registration or activation inside a real host is a third, host-specific integration decision. Do not perform it under either prior confirmation.
 

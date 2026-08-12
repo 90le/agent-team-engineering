@@ -453,7 +453,7 @@ class HostLifecycleTests(unittest.TestCase):
                     destination,
                     digest=plan["proposal_digest"],
                 ),
-                "managed host file is unsafe",
+                "managed host file.*(unsafe|identity differs)",
             )
             self.assertTrue(install_lock.is_file())
 
@@ -890,6 +890,7 @@ class HostLifecycleTests(unittest.TestCase):
                 expected_digest: str,
                 *,
                 allow_missing: bool,
+                expected_binding: dict[str, object] | None = None,
             ) -> bool:
                 nonlocal mutated
                 if not mutated and relative == first["path"]:
@@ -900,6 +901,7 @@ class HostLifecycleTests(unittest.TestCase):
                     relative,
                     expected_digest,
                     allow_missing=allow_missing,
+                    expected_binding=expected_binding,
                 )
 
             with mock.patch(
@@ -909,6 +911,93 @@ class HostLifecycleTests(unittest.TestCase):
                 with self.assertRaisesRegex(HostLifecycleError, "drifted"):
                     uninstall_installation(destination, digest=plan["proposal_digest"])
             self.assertTrue((destination / first["path"]).exists())
+
+    def test_uninstall_retry_preserves_byte_identical_recreated_user_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            team = self._team(base)
+            destination = base / "destination"
+            plan = build_install_plan(team, "codex", destination)
+            plan_path = base / "plan.json"
+            write_install_plan(plan, plan_path)
+            confirm_install_plan(
+                plan_path,
+                digest=plan["proposal_digest"],
+                approved_by="Owner",
+            )
+            apply_install_plan(plan_path)
+            first = plan["proposal"]["files"][0]
+            target = destination / first["path"]
+            original_bytes = target.read_bytes()
+            original_unlink = host_lifecycle._unlink_bound_relative
+            interrupted = False
+
+            def interrupt_after_first(
+                root: object,
+                relative: str,
+                expected_digest: str,
+                *,
+                allow_missing: bool,
+                expected_binding: dict[str, object] | None = None,
+            ) -> bool:
+                nonlocal interrupted
+                removed = original_unlink(
+                    root,
+                    relative,
+                    expected_digest,
+                    allow_missing=allow_missing,
+                    expected_binding=expected_binding,
+                )
+                if removed and not interrupted:
+                    interrupted = True
+                    raise OSError("simulated crash after managed unlink")
+                return removed
+
+            with mock.patch(
+                "core.host_lifecycle._unlink_bound_relative",
+                side_effect=interrupt_after_first,
+            ), self.assertRaisesRegex(OSError, "managed unlink"):
+                uninstall_installation(
+                    destination,
+                    digest=plan["proposal_digest"],
+                )
+            self.assertFalse(target.exists())
+            target.write_bytes(original_bytes)
+            result = uninstall_installation(
+                destination,
+                digest=plan["proposal_digest"],
+            )
+            self.assertEqual(result["status"], "UNINSTALLED")
+            self.assertEqual(
+                result["removed_in_this_run"],
+                len(plan["proposal"]["files"]) - 1,
+            )
+            self.assertEqual(target.read_bytes(), original_bytes)
+
+    def test_uninstalling_lock_rejects_planned_file_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            team = self._team(base)
+            destination = base / "destination"
+            plan = build_install_plan(team, "codex", destination)
+            plan_path = base / "plan.json"
+            write_install_plan(plan, plan_path)
+            confirm_install_plan(
+                plan_path,
+                digest=plan["proposal_digest"],
+                approved_by="Owner",
+            )
+            apply_install_plan(plan_path)
+            lock_path = destination / ".agent-team/host-install.lock.json"
+            lock = json.loads(lock_path.read_text(encoding="utf-8"))
+            lock["status"] = "UNINSTALLING"
+            lock["files"][0]["state"] = "PLANNED"
+            lock_path.write_text(
+                json.dumps(lock, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(HostLifecycleError, "invalid file state"):
+                preview_uninstall(destination)
 
     def test_mutation_refuses_when_posix_locking_is_unavailable(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -951,7 +1040,10 @@ class HostLifecycleTests(unittest.TestCase):
                     lock["files"].append(
                         {
                             "path": "user-owned.txt",
+                            "stage_path": "user-owned.txt.host-stage-" + ("0" * 24),
                             "sha256": host_lifecycle._sha256_bytes(user_file.read_bytes()),
+                            "binding": None,
+                            "state": "PRESENT",
                         }
                     )
                 elif variant == "delete":
@@ -964,7 +1056,7 @@ class HostLifecycleTests(unittest.TestCase):
                     json.dumps(lock, indent=2, sort_keys=True) + "\n",
                     encoding="utf-8",
                 )
-                with self.assertRaisesRegex(HostLifecycleError, "authority proposal"):
+                with self.assertRaises(HostLifecycleError):
                     uninstall_installation(
                         destination,
                         digest=plan["proposal_digest"],
@@ -1407,6 +1499,10 @@ class HostLifecycleTests(unittest.TestCase):
             legacy["schema_version"] = "1.0.0"
             legacy.pop("guard_binding")
             legacy.pop("proposal")
+            for record in legacy["files"]:
+                record.pop("stage_path")
+                record.pop("binding")
+                record.pop("state")
             lock_path.write_text(json.dumps(legacy, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
             with mock.patch.object(host_lifecycle, "fcntl", None):

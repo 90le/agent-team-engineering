@@ -134,7 +134,7 @@ Host plan schema `1.1.0` 把完整 `proposal` 绑定进确认摘要；install-lo
 
 尚未执行的 v0.9 plan schema `1.0.0` 必须重新 `plan → preview → confirm`；不得沿用旧批准。v0.9 install lock 缺少 proposal-bound ownership：`host verify` 只能输出 `LEGACY_UNBOUND` 的只读核验，自动破坏性卸载明确禁用，只能人工对账。
 
-`host uninstall-preview --root <destination>` 是零变更的准确作用域预览。`ACTIVE`/`UNINSTALLING` 的 `filesystem_deletes` 和 `filesystem_creates` 都明列唯一 scratch，`transient_files` 也标记该路径；它可在操作中创建并删除，成功后不存在。`ACTIVE` 需要人类在 CLI 外完成流程确认，再使用准确 proposal digest 执行 `uninstall`；CLI 不保存、也不验证该认证批准。`UNINSTALLING` 表示已开始的操作，可用同摘要直接恢复；`ALREADY_UNINSTALLED` 与 `LEGACY_UNBOUND` 的上述三个列表都为空，前者可用同摘要幂等重放，后者只允许人工对账。卸载按 `ACTIVE → UNINSTALLING → UNINSTALLED` 只删除立即重检且未漂移的受管文件，保留持久空 guard 与摘要绑定 tombstone，并且永远不删除目录，因此可能留下空目录。
+`host uninstall-preview --root <destination>` 是零变更的准确作用域预览。`ACTIVE`/`UNINSTALLING` 的 `filesystem_deletes`、`filesystem_creates` 与 `transient_files` 明列固定元数据 scratch 和每个受管文件可能使用的 quarantine stage；成功后这些临时路径都不存在。`ACTIVE` 需要人类在 CLI 外完成流程确认，再使用准确 proposal digest 执行 `uninstall`；CLI 不保存、也不验证该认证批准。`UNINSTALLING` 表示已开始的操作，可用同摘要直接恢复；`ALREADY_UNINSTALLED` 与 `LEGACY_UNBOUND` 的上述三个列表都为空，前者可用同摘要幂等重放，后者只允许人工对账。v1 lock 绑定每个文件的摘要、大小、设备和 inode；卸载先把这个准确 inode 硬链接到声明的 quarantine stage，再持久推进删除状态，所以在原路径重建的字节相同用户文件也会保留。它保留持久空 guard 与摘要绑定 tombstone，并且永远不删除目录，因此可能留下空目录。
 
 `host verify --root <destination>` 对 v1 安装加入同一 POSIX `fcntl` 互斥边界并验证全部受管文件。这个 guard 只串行遵守协议的本地 Factory 进程；不抵抗 root、内核、文件系统、存储故障或非协作特权写入。
 

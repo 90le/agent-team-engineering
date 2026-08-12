@@ -309,10 +309,11 @@ class FactoryCliTests(unittest.TestCase):
                 ".agent-team/.host-lifecycle.json.stage",
                 removal["filesystem_creates"],
             )
-            self.assertEqual(
-                removal["transient_files"],
-                [".agent-team/.host-lifecycle.json.stage"],
-            )
+            plan_document = json.loads(plan.read_text(encoding="utf-8"))
+            projected_stage = plan_document["proposal"]["files"][0]["stage_path"]
+            self.assertIn(projected_stage, removal["filesystem_deletes"])
+            self.assertIn(projected_stage, removal["filesystem_creates"])
+            self.assertIn(projected_stage, removal["transient_files"])
             uninstalled = run_root_cli(
                 "host",
                 "uninstall",

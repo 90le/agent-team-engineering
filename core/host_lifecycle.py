@@ -380,6 +380,18 @@ def _file_binding(content: bytes, metadata: os.stat_result) -> dict[str, Any]:
     }
 
 
+def _metadata_matches_binding(
+    metadata: os.stat_result,
+    binding: dict[str, Any],
+) -> bool:
+    """Match only the inode identity; content is checked before owned unlink."""
+
+    return (metadata.st_dev, metadata.st_ino) == (
+        binding["device"],
+        binding["inode"],
+    )
+
+
 def _directory_binding(path: Path) -> dict[str, int]:
     flags = (
         os.O_RDONLY
@@ -1156,6 +1168,7 @@ def _lock_document(
     plan: dict[str, Any],
     status: str,
     guard_binding: dict[str, Any],
+    file_bindings: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     proposal = plan["proposal"]
     return {
@@ -1168,7 +1181,17 @@ def _lock_document(
         "guard_binding": guard_binding,
         "proposal": proposal,
         "files": [
-            {"path": record["path"], "sha256": record["sha256"]}
+            {
+                "path": record["path"],
+                "stage_path": record["stage_path"],
+                "sha256": record["sha256"],
+                "binding": (
+                    file_bindings.get(record["path"])
+                    if file_bindings is not None
+                    else None
+                ),
+                "state": "PRESENT" if file_bindings is not None else "PLANNED",
+            }
             for record in proposal["files"]
         ],
     }
@@ -1359,11 +1382,42 @@ def _load_install_lock(
         if _digest(proposal) != lock["proposal_digest"]:
             raise HostLifecycleError("host installation lock authority digest is invalid")
         expected_files = [
-            {"path": record["path"], "sha256": record["sha256"]}
+            (record["path"], record["stage_path"], record["sha256"])
             for record in proposal["files"]
         ]
-        if lock["files"] != expected_files:
+        actual_files = [
+            (record["path"], record["stage_path"], record["sha256"])
+            for record in lock["files"]
+        ]
+        if actual_files != expected_files:
             raise HostLifecycleError("host installation lock files differ from its authority proposal")
+        if lock["status"] == "APPLYING":
+            if any(
+                record["binding"] is not None or record["state"] != "PLANNED"
+                for record in lock["files"]
+            ):
+                raise HostLifecycleError(
+                    "applying host installation lock cannot claim installed file identities"
+                )
+        else:
+            for record in lock["files"]:
+                binding = record["binding"]
+                if not isinstance(binding, dict) or binding["sha256"] != record["sha256"]:
+                    raise HostLifecycleError(
+                        "active host installation lock lacks an exact installed file identity"
+                    )
+                if lock["status"] == "ACTIVE" and record["state"] != "PRESENT":
+                    raise HostLifecycleError(
+                        "active host installation lock cannot claim removed files"
+                    )
+                if lock["status"] == "UNINSTALLING" and record["state"] not in {
+                    "PRESENT",
+                    "QUARANTINED",
+                    "REMOVED",
+                }:
+                    raise HostLifecycleError(
+                        "uninstalling host installation lock has an invalid file state"
+                    )
         if (
             lock["team_id"] != proposal["team"]["team_id"]
             or lock["host"] != proposal["host"]["id"]
@@ -1492,6 +1546,76 @@ def _unlink_bound_relative(
     return True
 
 
+def _quarantine_bound_relative(
+    root: RootHandle,
+    relative: str,
+    quarantine_relative: str,
+    expected_binding: dict[str, Any],
+) -> None:
+    """Hard-link one exact managed inode to its declared recovery path."""
+
+    target = Path(relative)
+    quarantine = Path(quarantine_relative)
+    if target.parent != quarantine.parent:
+        raise HostLifecycleError("managed quarantine path differs from its target")
+    try:
+        with _parent_directory_fd(root, relative, create=False) as (parent, name):
+            quarantine_name = quarantine.name
+            descriptor = os.open(name, _nonblocking_read_flags(), dir_fd=parent)
+            try:
+                metadata = os.fstat(descriptor)
+                content = _read_descriptor_bytes(descriptor)
+                if (
+                    not stat.S_ISREG(metadata.st_mode)
+                    or _file_binding(content, metadata) != expected_binding
+                ):
+                    raise HostLifecycleError(
+                        f"managed host file identity differs from the installed baseline: {relative}"
+                    )
+                try:
+                    quarantine_metadata = os.stat(
+                        quarantine_name,
+                        dir_fd=parent,
+                        follow_symlinks=False,
+                    )
+                except FileNotFoundError:
+                    os.link(
+                        name,
+                        quarantine_name,
+                        src_dir_fd=parent,
+                        dst_dir_fd=parent,
+                        follow_symlinks=False,
+                    )
+                    os.fsync(parent)
+                    quarantine_metadata = os.stat(
+                        quarantine_name,
+                        dir_fd=parent,
+                        follow_symlinks=False,
+                    )
+                if not stat.S_ISREG(quarantine_metadata.st_mode):
+                    raise HostLifecycleError(
+                        f"managed quarantine path is unsafe: {quarantine_relative}"
+                    )
+                current = os.stat(name, dir_fd=parent, follow_symlinks=False)
+                if (
+                    (current.st_dev, current.st_ino)
+                    != (metadata.st_dev, metadata.st_ino)
+                    or (quarantine_metadata.st_dev, quarantine_metadata.st_ino)
+                    != (metadata.st_dev, metadata.st_ino)
+                ):
+                    raise HostLifecycleError(
+                        f"managed host file identity changed before quarantine: {relative}"
+                    )
+            finally:
+                os.close(descriptor)
+    except HostLifecycleError:
+        raise
+    except OSError as exc:
+        raise HostLifecycleError(
+            f"cannot quarantine managed host file {relative}: {exc}"
+        ) from exc
+
+
 def _verify_installation_locked(
     root: Path,
     storage_root: RootHandle | None = None,
@@ -1510,12 +1634,16 @@ def _verify_installation_locked(
         if _tombstone_binding(root, handle) is not None:
             raise HostLifecycleError("active host installation has an unexpected uninstall tombstone")
     for record in lock["files"]:
-        _read_bound_relative(
+        content, metadata = _read_bound_relative(
             handle,
             record["path"],
             record["sha256"],
             label="managed host file",
         )
+        if not legacy and _file_binding(content, metadata) != record["binding"]:
+            raise HostLifecycleError(
+                f"managed host file identity differs from the installed baseline: {record['path']}"
+            )
     if not legacy:
         for record in lock["proposal"]["files"]:
             if _relative_present(handle, record["stage_path"]):
@@ -1623,21 +1751,87 @@ def preview_uninstall(destination: Path) -> dict[str, Any]:
         lock = _load_install_lock(root, handle)
         if lock["guard_binding"] != operation["guard_binding"]:
             raise HostLifecycleError("host lifecycle guard differs from the install authority")
+        filesystem_deletes: list[str] = []
+        filesystem_creates: list[str] = []
+        transient_files: list[str] = [METADATA_STAGE_RELATIVE]
         if lock["status"] == "ACTIVE":
             _verify_installation_locked(
                 root,
                 handle,
                 allow_metadata_recovery_stage=True,
             )
+            for record in lock["files"]:
+                filesystem_deletes.extend((record["path"], record["stage_path"]))
+                filesystem_creates.append(record["stage_path"])
+                transient_files.append(record["stage_path"])
         elif lock["status"] == "UNINSTALLING":
             for record in lock["files"]:
-                if _relative_present(handle, record["path"]):
-                    _read_bound_relative(
+                state = record["state"]
+                target_present = _relative_present(handle, record["path"])
+                quarantine_present = _relative_present(handle, record["stage_path"])
+                if state == "REMOVED":
+                    if quarantine_present:
+                        content, metadata = _read_bound_relative(
+                            handle,
+                            record["stage_path"],
+                            record["sha256"],
+                            label="managed quarantine file",
+                        )
+                        if _file_binding(content, metadata) != record["binding"]:
+                            raise HostLifecycleError(
+                                "managed quarantine file identity differs from the installed baseline: "
+                                + record["stage_path"]
+                            )
+                        filesystem_deletes.append(record["stage_path"])
+                        transient_files.append(record["stage_path"])
+                    continue
+                if quarantine_present:
+                    content, metadata = _read_bound_relative(
+                        handle,
+                        record["stage_path"],
+                        record["sha256"],
+                        label="managed quarantine file",
+                    )
+                    if _file_binding(content, metadata) != record["binding"]:
+                        raise HostLifecycleError(
+                            "managed quarantine file identity differs from the installed baseline: "
+                            + record["stage_path"]
+                        )
+                    filesystem_deletes.append(record["stage_path"])
+                    transient_files.append(record["stage_path"])
+                elif state == "QUARANTINED":
+                    raise HostLifecycleError(
+                        "managed quarantine file is missing: " + record["stage_path"]
+                    )
+                else:
+                    filesystem_creates.append(record["stage_path"])
+                    filesystem_deletes.append(record["stage_path"])
+                    transient_files.append(record["stage_path"])
+                if target_present and state == "PRESENT":
+                    content, metadata = _read_bound_relative(
                         handle,
                         record["path"],
                         record["sha256"],
                         label="remaining managed host file",
                     )
+                    if _file_binding(content, metadata) != record["binding"]:
+                        raise HostLifecycleError(
+                            "remaining managed host file identity differs from the installed baseline: "
+                            + record["path"]
+                        )
+                    filesystem_deletes.append(record["path"])
+                elif state == "PRESENT":
+                    raise HostLifecycleError(
+                        "managed host file disappeared before quarantine: "
+                        + record["path"]
+                    )
+                elif target_present:
+                    metadata = _relative_stat(handle, record["path"])
+                    if metadata is not None and _metadata_matches_binding(
+                        metadata,
+                        record["binding"],
+                    ):
+                        filesystem_deletes.append(record["path"])
         else:
             raise HostLifecycleError("host installation is not uninstallable in its current state")
         expected_tombstone = _tombstone_document(lock)
@@ -1650,15 +1844,14 @@ def preview_uninstall(destination: Path) -> dict[str, Any]:
             "team_id": lock["team_id"],
             "host": lock["host"],
             "proposal_digest": lock["proposal_digest"],
-            "filesystem_deletes": [
-                record["path"] for record in lock["files"]
-            ]
+            "filesystem_deletes": list(dict.fromkeys(filesystem_deletes))
             + [INSTALL_LOCK_RELATIVE, METADATA_STAGE_RELATIVE],
-            "filesystem_creates": [
+            "filesystem_creates": list(dict.fromkeys(filesystem_creates))
+            + [
                 UNINSTALL_TOMBSTONE_RELATIVE,
                 METADATA_STAGE_RELATIVE,
             ],
-            "transient_files": [METADATA_STAGE_RELATIVE],
+            "transient_files": list(dict.fromkeys(transient_files)),
             "retained_files": _lifecycle_contract(root)["retained_files_after_uninstall"],
             "directories_removed": False,
             "requires_human_process_confirmation": lock["status"] == "ACTIVE",
@@ -1851,11 +2044,25 @@ def apply_install_plan(path: Path) -> dict[str, Any]:
                 resuming=resuming,
             )
             _assert_directory_binding(resolved, root_binding)
+        installed_bindings: dict[str, dict[str, Any]] = {}
+        for record in proposal["files"]:
+            content, metadata = _read_bound_relative(
+                handle,
+                record["path"],
+                record["sha256"],
+                label="installed host file",
+            )
+            installed_bindings[record["path"]] = _file_binding(content, metadata)
         applying_document = _lock_document(plan, "APPLYING", guard_binding)
         _atomic_json_relative(
             handle,
             INSTALL_LOCK_RELATIVE,
-            _lock_document(plan, "ACTIVE", guard_binding),
+            _lock_document(
+                plan,
+                "ACTIVE",
+                guard_binding,
+                installed_bindings,
+            ),
             expected_current_digest=_sha256_bytes(
                 _canonical(applying_document).encode("utf-8")
             ),
@@ -1951,16 +2158,72 @@ def uninstall_installation(destination: Path, *, digest: str) -> dict[str, Any]:
                 raise HostLifecycleError("host uninstall tombstone differs from this installation")
 
         removed_now = 0
-        for record in lock["files"]:
+        for record_index, record in enumerate(lock["files"]):
+            if record["state"] == "REMOVED":
+                if _relative_present(handle, record["stage_path"]):
+                    _unlink_bound_relative(
+                        handle,
+                        record["stage_path"],
+                        record["sha256"],
+                        allow_missing=False,
+                        expected_binding=record["binding"],
+                    )
+                continue
             _assert_directory_binding(root, root_binding)
-            removed_now += int(
-                _unlink_bound_relative(
+            if record["state"] == "PRESENT":
+                _quarantine_bound_relative(
                     handle,
                     record["path"],
-                    record["sha256"],
-                    allow_missing=True,
+                    record["stage_path"],
+                    record["binding"],
                 )
+                before_digest = _sha256_bytes(_canonical(lock).encode("utf-8"))
+                record = {**record, "state": "QUARANTINED"}
+                lock["files"][record_index] = record
+                _atomic_json_relative(
+                    handle,
+                    INSTALL_LOCK_RELATIVE,
+                    lock,
+                    expected_current_digest=before_digest,
+                )
+            if record["state"] != "QUARANTINED":
+                raise HostLifecycleError("managed host file removal state is invalid")
+            target_removed = False
+            if _relative_present(handle, record["path"]):
+                metadata = _relative_stat(handle, record["path"])
+                if metadata is not None and _metadata_matches_binding(
+                    metadata,
+                    record["binding"],
+                ):
+                    _unlink_bound_relative(
+                        handle,
+                        record["path"],
+                        record["sha256"],
+                        allow_missing=False,
+                        expected_binding=record["binding"],
+                    )
+                    target_removed = True
+            elif not _relative_present(handle, record["stage_path"]):
+                raise HostLifecycleError(
+                    "managed quarantine file is missing: " + record["stage_path"]
+                )
+            before_digest = _sha256_bytes(_canonical(lock).encode("utf-8"))
+            record = {**record, "state": "REMOVED"}
+            lock["files"][record_index] = record
+            _atomic_json_relative(
+                handle,
+                INSTALL_LOCK_RELATIVE,
+                lock,
+                expected_current_digest=before_digest,
             )
+            _unlink_bound_relative(
+                handle,
+                record["stage_path"],
+                record["sha256"],
+                allow_missing=False,
+                expected_binding=record["binding"],
+            )
+            removed_now += int(target_removed)
         # Run the tombstone transition even when the desired tombstone already
         # exists.  The atomic helper then removes any declared metadata stage
         # left by a crash before install-lock removal.  An unsafe stage (for

@@ -110,12 +110,14 @@ ANONYMOUS_SETPRIV = Path("/usr/bin/setpriv")
 ANONYMOUS_SYSTEMD_RUN = Path("/usr/bin/systemd-run")
 ANONYMOUS_SYSTEMCTL = Path("/usr/bin/systemctl")
 ANONYMOUS_ENV = Path("/usr/bin/env")
+ANONYMOUS_BUBBLEWRAP = Path("/usr/bin/bwrap")
 MAX_ANONYMOUS_WORKER_OUTPUT_BYTES = 1024 * 1024
 ANONYMOUS_COMMANDS = (
     "systemd transient cgroup with memory/CPU/PID/file/tmpfs limits; setpriv random unregistered UID; no groups/capabilities; no-new-privileges; verify credential-parent /proc isolation",
-    "git clone --no-local --no-checkout https://github.com/90le/agent-team-engineering.git <temporary>",
+    "trusted git clone --no-local --no-checkout https://github.com/90le/agent-team-engineering.git <private-tmp>",
     "git verify annotated tag object and peeled commit",
     "git checkout --detach <peeled-tag-commit>; verify clean exact HEAD",
+    "bubblewrap candidate phase: new user/mount/PID/network namespaces; read-only /usr runtime; private /tmp workspace only; no outbound network",
     "factory install; factory verify; doctor",
     "create and validate portable team",
     "host plan; preview; confirm; apply; verify; uninstall-preview; uninstall; replay",
@@ -2015,6 +2017,12 @@ def _anonymous_worker_command(
         )
     if not ANONYMOUS_ENV.is_file() or not os.access(ANONYMOUS_ENV, os.X_OK):
         raise ReleasePublicationError("/usr/bin/env is required for anonymous verification")
+    if not ANONYMOUS_BUBBLEWRAP.is_file() or not os.access(
+        ANONYMOUS_BUBBLEWRAP, os.X_OK
+    ):
+        raise ReleasePublicationError(
+            "/usr/bin/bwrap is required for offline candidate verification"
+        )
     if not ANONYMOUS_WORKER.is_file() or ANONYMOUS_WORKER.is_symlink():
         raise ReleasePublicationError("anonymous release worker is missing or unsafe")
     unit = f"agent-team-v1-anonymous-{secrets.token_hex(8)}"
@@ -2235,15 +2243,17 @@ def run_anonymous_exact_tag_install(
         "commands": list(ANONYMOUS_COMMANDS),
         "unauthenticated_git_transport": True,
         "caller_credentials_inherited": False,
-        "same_uid_filesystem_isolated": False,
-        "write_isolation": False,
-        "external_writes_verified": False,
+        "same_uid_filesystem_isolated": True,
+        "write_isolation": True,
+        "external_writes_verified": True,
+        "candidate_network_isolated": True,
+        "candidate_runtime_read_only": True,
         "credential_process_uid_isolated": True,
         "credential_parent_environment_readable": False,
         "supplementary_groups_empty": True,
         "no_new_privileges": True,
         "capabilities_empty": True,
-        "isolation_mechanism": "linux-systemd-cgroup-setpriv-random-uid-v1",
+        "isolation_mechanism": "linux-systemd-cgroup-setpriv-bubblewrap-v1",
         "resource_isolation": {
             "cgroup_v2": True,
             "process_tree_cgroup_isolated": True,
@@ -2282,15 +2292,17 @@ def build_final_release_index(
             "commit": request["commit"],
             "unauthenticated_git_transport": True,
             "caller_credentials_inherited": False,
-            "same_uid_filesystem_isolated": False,
-            "write_isolation": False,
-            "external_writes_verified": False,
+            "same_uid_filesystem_isolated": True,
+            "write_isolation": True,
+            "external_writes_verified": True,
+            "candidate_network_isolated": True,
+            "candidate_runtime_read_only": True,
             "credential_process_uid_isolated": True,
             "credential_parent_environment_readable": False,
             "supplementary_groups_empty": True,
             "no_new_privileges": True,
             "capabilities_empty": True,
-            "isolation_mechanism": "linux-systemd-cgroup-setpriv-random-uid-v1",
+            "isolation_mechanism": "linux-systemd-cgroup-setpriv-bubblewrap-v1",
             "resource_isolation": {
                 "cgroup_v2": True,
                 "process_tree_cgroup_isolated": True,
@@ -2447,6 +2459,23 @@ def _write_all(descriptor: int, content: bytes) -> None:
         offset += written
 
 
+def _read_bounded_descriptor(descriptor: int, size: int, label: str) -> bytes:
+    """Read one exact-size regular file without accepting appended bytes."""
+
+    chunks: list[bytes] = []
+    observed = 0
+    while observed <= size:
+        chunk = os.read(descriptor, min(65536, size + 1 - observed))
+        if not chunk:
+            break
+        chunks.append(chunk)
+        observed += len(chunk)
+    content = b"".join(chunks)
+    if len(content) != size:
+        raise ReleasePublicationError(f"{label} size differs during publication")
+    return content
+
+
 def write_final_index(document: dict[str, Any], output: Path) -> None:
     try:
         validate_release_evidence(document)
@@ -2494,7 +2523,7 @@ def write_final_index(document: dict[str, Any], output: Path) -> None:
         stage_name = f".{output.name}.{secrets.token_hex(16)}"
         stage_descriptor = os.open(
             stage_name,
-            os.O_WRONLY
+            os.O_RDWR
             | os.O_CREAT
             | os.O_EXCL
             | getattr(os, "O_NOFOLLOW", 0)
@@ -2502,11 +2531,10 @@ def write_final_index(document: dict[str, Any], output: Path) -> None:
             0o600,
             dir_fd=parent_descriptor,
         )
-        try:
-            _write_all(stage_descriptor, content)
-            os.fsync(stage_descriptor)
-        finally:
-            os.close(stage_descriptor)
+        _write_all(stage_descriptor, content)
+        os.fsync(stage_descriptor)
+        stage_metadata = os.fstat(stage_descriptor)
+        stage_binding = (stage_metadata.st_dev, stage_metadata.st_ino)
 
         _assert_output_parent_binding(parent, parent_binding)
         # A hard-link publishes the already-fsynced bytes while preserving the
@@ -2527,17 +2555,75 @@ def write_final_index(document: dict[str, Any], output: Path) -> None:
             raise ReleasePublicationError(
                 "final release index output appeared during publication"
             ) from None
-        _assert_output_parent_binding(parent, parent_binding)
-        os.fsync(parent_descriptor)
-        os.unlink(stage_name, dir_fd=parent_descriptor)
-        stage_name = None
-        os.fsync(parent_descriptor)
-        _assert_output_parent_binding(parent, parent_binding)
+        published_descriptor = os.open(
+            output.name,
+            os.O_RDONLY
+            | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NONBLOCK", 0),
+            dir_fd=parent_descriptor,
+        )
+        try:
+            published_metadata = os.fstat(published_descriptor)
+            if (
+                not stat.S_ISREG(published_metadata.st_mode)
+                or (published_metadata.st_dev, published_metadata.st_ino)
+                != stage_binding
+            ):
+                raise ReleasePublicationError(
+                    "final release index output identity changed during publication"
+                )
+            if _read_bounded_descriptor(
+                published_descriptor,
+                len(content),
+                "final release index output",
+            ) != content:
+                raise ReleasePublicationError(
+                    "final release index output bytes changed during publication"
+                )
+            _assert_output_parent_binding(parent, parent_binding)
+            os.fsync(parent_descriptor)
+            os.unlink(stage_name, dir_fd=parent_descriptor)
+            stage_name = None
+            os.fsync(parent_descriptor)
+            current = os.stat(
+                output.name,
+                dir_fd=parent_descriptor,
+                follow_symlinks=False,
+            )
+            if (
+                not stat.S_ISREG(current.st_mode)
+                or (current.st_dev, current.st_ino) != stage_binding
+            ):
+                raise ReleasePublicationError(
+                    "final release index output identity changed during publication"
+                )
+            os.lseek(published_descriptor, 0, os.SEEK_SET)
+            if _read_bounded_descriptor(
+                published_descriptor,
+                len(content),
+                "final release index output",
+            ) != content:
+                raise ReleasePublicationError(
+                    "final release index output bytes changed during publication"
+                )
+            _assert_output_parent_binding(parent, parent_binding)
+        finally:
+            os.close(published_descriptor)
     except BaseException:
         if "published" in locals() and published:
             try:
-                os.unlink(output.name, dir_fd=parent_descriptor)
-                os.fsync(parent_descriptor)
+                current = os.stat(
+                    output.name,
+                    dir_fd=parent_descriptor,
+                    follow_symlinks=False,
+                )
+                if (
+                    "stage_binding" in locals()
+                    and (current.st_dev, current.st_ino) == stage_binding
+                ):
+                    os.unlink(output.name, dir_fd=parent_descriptor)
+                    os.fsync(parent_descriptor)
             except FileNotFoundError:
                 pass
         if stage_name is not None:
@@ -2548,6 +2634,8 @@ def write_final_index(document: dict[str, Any], output: Path) -> None:
                 pass
         raise
     finally:
+        if "stage_descriptor" in locals():
+            os.close(stage_descriptor)
         os.close(parent_descriptor)
 
 

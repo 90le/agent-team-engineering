@@ -61,7 +61,7 @@ After team validation, create a separate host plan. The host preview must show s
 
 Say exactly:
 
-> This is a host-install proposal, not an authorization yet. It manages only the displayed destination, projected files, deterministic file stages, and lifecycle metadata. Apply may create and remove the displayed plan-bound empty intent; apply/uninstall may rebuild and remove only the fixed metadata scratch. Successful apply leaves both transient paths absent, and similarly named or pre-existing hidden files are preserved and rejected. Persistent deletion is limited to the exact prior tombstone shown by this proposal. Uninstall retains the displayed empty guard and digest-bound tombstone, removes no directories, and may leave empty directories. It does not grant the generated roles any tool or account authority.
+> This is a host-install proposal, not an authorization yet. It manages only the displayed destination, projected files, deterministic file stages, and lifecycle metadata. Apply may create/remove the displayed plan-bound empty intent and rebuild/remove the fixed metadata scratch. During uninstall, each managed file may use its declared stage as an inode-bound quarantine link; all such paths are previewed and absent on success. Similarly named or pre-existing hidden files are preserved and rejected. Persistent deletion is limited to the exact prior tombstone shown by this proposal. Uninstall retains the displayed empty guard and digest-bound tombstone, removes no directories, and may leave empty directories. It does not grant the generated roles any tool or account authority.
 
 If any material field or prior lifecycle baseline changes, regenerate the plan and obtain a new confirmation. An unexecuted v0.9 plan must always go through a fresh `plan → preview → confirm`; never carry its approval into schema `1.1.0`.
 
@@ -94,8 +94,8 @@ Always begin with the read-only scope preview:
 
 Then respond according to the reported state:
 
-- `ACTIVE`: enumerate every delete/create/retained path and `transient_files`. Explain that both `filesystem_deletes` and `filesystem_creates` include the fixed metadata scratch, which uninstall may create and delete and must leave absent on success. State that directories are never removed, ask for a separate human process confirmation, and only then use `host uninstall --digest <exact-proposal-digest>`. Be explicit that the CLI does not persist or authenticate that approval.
-- `UNINSTALLING`: explain that a previously started removal is incomplete and that its delete/create lists and `transient_files` likewise include the metadata scratch; recheck the preview and resume directly with the same exact digest.
+- `ACTIVE`: enumerate every delete/create/retained path and `transient_files`. Explain that the fixed metadata scratch and every per-file quarantine stage may be created/deleted and must be absent on success. State that directories are never removed, ask for a separate human process confirmation, and only then use `host uninstall --digest <exact-proposal-digest>`. Be explicit that the CLI does not persist or authenticate that approval.
+- `UNINSTALLING`: explain that a previously started removal is incomplete and that its three scope lists identify the metadata/quarantine stages still possible; recheck the preview and resume directly with the same exact digest.
 - `ALREADY_UNINSTALLED`: explain that the tombstone proves the exact completed digest, all three scope lists are empty, and replay is optional and idempotent.
 - `LEGACY_UNBOUND`: report empty delete/create/transient lists, read-only verification only, automatic destructive uninstall disabled, and the need for manual ownership reconciliation. Do not manufacture a v1 ownership record.
 

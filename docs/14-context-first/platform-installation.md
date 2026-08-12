@@ -115,7 +115,7 @@ To remove a current projection, first inspect its exact scope without mutation:
 ./agent-team host uninstall-preview --root /path/to/managed-projection
 ```
 
-For `ACTIVE`, review every `filesystem_deletes`, `filesystem_creates`, `transient_files`, and retained path plus `directories_removed: false`. Both filesystem lists include `.agent-team/.host-lifecycle.json.stage`, and `transient_files` identifies that same scratch: uninstall may create and delete it, and success leaves it absent. Obtain a separate human process confirmation; the CLI does not persist or authenticate that approval. Then use the exact proposal digest:
+For `ACTIVE`, review every `filesystem_deletes`, `filesystem_creates`, `transient_files`, and retained path plus `directories_removed: false`. The lists identify `.agent-team/.host-lifecycle.json.stage` and every proposal-declared per-file quarantine stage: uninstall may create/delete them, and success leaves all absent. Obtain a separate human process confirmation; the CLI does not persist or authenticate that approval. Then use the exact proposal digest:
 
 ```bash
 ./agent-team host uninstall \
@@ -123,7 +123,7 @@ For `ACTIVE`, review every `filesystem_deletes`, `filesystem_creates`, `transien
   --digest sha256:<exact-install-digest>
 ```
 
-For `UNINSTALLING`, the delete/create lists and `transient_files` likewise include the scratch; resume directly with the same digest. For `ALREADY_UNINSTALLED`, all three lists are empty and same-digest replay is optional and idempotent. `LEGACY_UNBOUND` also has empty lists; never automatically uninstall it, and reconcile ownership manually. Uninstall refuses drift, removes only immediately rechecked Factory-owned files, manages only the fixed metadata scratch, never removes directories, and preserves unrelated content. The persistent empty guard and digest-bound tombstone remain, the scratch is absent after success, and empty directories may remain. Its POSIX `fcntl` lock coordinates cooperating local Factory processes only, not privileged writers or filesystem/storage compromise.
+For `UNINSTALLING`, the lists identify whichever metadata/quarantine stages remain possible; resume directly with the same digest. For `ALREADY_UNINSTALLED`, all three lists are empty and same-digest replay is optional and idempotent. `LEGACY_UNBOUND` also has empty lists; never automatically uninstall it, and reconcile ownership manually. Uninstall removes only a file whose digest, size, device and inode match the install lock, first quarantines that exact inode at its declared stage, and preserves a byte-identical file recreated at the original path. It never removes directories and preserves unrelated content. The persistent empty guard and digest-bound tombstone remain, every scratch is absent after success, and empty directories may remain. Its POSIX `fcntl` lock coordinates cooperating local Factory processes only, not privileged writers or filesystem/storage compromise.
 
 ## Evidence boundary
 

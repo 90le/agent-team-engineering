@@ -36,6 +36,20 @@ PLAN_ACTION_TO_TOPOLOGY_ACTIONS: dict[str, frozenset[str]] = {
     "ci.read": frozenset({"evidence.read"}),
 }
 
+# A plan action is team-scoped, but it is never satisfied by an arbitrary
+# union of capabilities from unrelated identities.  Each portable action has
+# one exact topology source.  This keeps a writer from borrowing tester,
+# reviewer, or integrator authority (and vice versa) when a future schema adds
+# another actor capability.
+PLAN_ACTION_TO_TOPOLOGY_SOURCE: dict[str, str] = {
+    "repository.read": "assigned-task-actors",
+    "workspace.write": "all-writers",
+    "test.run": "tester",
+    "commit.create": "all-writers",
+    "draft-pr.create": "integrator",
+    "ci.read": "reviewer",
+}
+
 CONTRACT_SCHEMAS: dict[str, str] = {
     "team_spec": "schemas/team-spec.schema.json",
     "role_contract": "schemas/role-contract.schema.json",
@@ -1045,29 +1059,53 @@ def validate_writer_authority(
         topology["integrator"],
         *topology["assurance_roles"],
     ]
-    topology_allowed = {
-        str(action)
+    actors_by_id = {
+        str(actor["actor_id"]): actor
         for actor in topology_actors
-        for action in actor.get("allowed_actions", [])
     }
-    topology_forbidden = {
-        str(action)
-        for actor in topology_actors
-        for action in actor.get("forbidden_actions", [])
+    assurance_by_kind = {
+        str(actor["kind"]): actor
+        for actor in topology["assurance_roles"]
     }
+
+    def action_sources(action: str) -> list[dict[str, Any]]:
+        source = PLAN_ACTION_TO_TOPOLOGY_SOURCE.get(action)
+        if source == "assigned-task-actors":
+            return [actors_by_id[actor] for actor in sorted(task_roles) if actor in actors_by_id]
+        if source == "all-writers":
+            return list(topology["writers"])
+        if source == "integrator":
+            return [topology["integrator"]]
+        if source in {"tester", "reviewer"}:
+            actor = assurance_by_kind.get(source)
+            return [actor] if actor is not None else []
+        return []
+
     plan_actions = {str(action) for action in plan.get("allowed_actions", [])}
     for action in sorted(plan_actions):
         required = PLAN_ACTION_TO_TOPOLOGY_ACTIONS.get(action)
-        if required is None or not required <= topology_allowed:
+        sources = action_sources(action)
+        if required is None or not sources or any(
+            not required
+            <= {str(value) for value in actor.get("allowed_actions", [])}
+            for actor in sources
+        ):
             issues.append(
                 _issue(
                     "$.plan.allowed_actions",
-                    f"action is not granted by the bound WriterTopology: {action}",
+                    f"action is not granted by its exact WriterTopology identity source: {action}",
                 )
             )
             continue
-        denied = sorted(required & topology_forbidden)
-        if action in topology_forbidden or denied:
+        denied = sorted(
+            {
+                denied_action
+                for actor in sources
+                for denied_action in actor.get("forbidden_actions", [])
+                if denied_action == action or denied_action in required
+            }
+        )
+        if denied:
             issues.append(
                 _issue(
                     "$.plan.allowed_actions",

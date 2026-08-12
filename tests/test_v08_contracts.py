@@ -9,6 +9,7 @@ from core.contract_migration import MigrationError, migrate_work_item_v1
 from core.contracts import (
     CONTRACT_SCHEMAS,
     PLAN_ACTION_TO_TOPOLOGY_ACTIONS,
+    PLAN_ACTION_TO_TOPOLOGY_SOURCE,
     ContractViolation,
     approval_scope_digest,
     canonical_json,
@@ -522,6 +523,7 @@ class V08ContractTests(unittest.TestCase):
             plan_schema["properties"]["allowed_actions"]["items"]["enum"]
         )
         self.assertEqual(schema_actions, set(PLAN_ACTION_TO_TOPOLOGY_ACTIONS))
+        self.assertEqual(schema_actions, set(PLAN_ACTION_TO_TOPOLOGY_SOURCE))
         actors = [
             *topology["writers"],
             topology["integrator"],
@@ -562,6 +564,25 @@ class V08ContractTests(unittest.TestCase):
                         for issue in issues
                     )
                 )
+
+        # A capability held by an unrelated role cannot satisfy another
+        # identity's action.  The old union-based check accepted this because
+        # the reviewer owns review.write; workspace.write is writer-scoped.
+        original_required = PLAN_ACTION_TO_TOPOLOGY_ACTIONS["workspace.write"]
+        PLAN_ACTION_TO_TOPOLOGY_ACTIONS["workspace.write"] = frozenset(
+            {"review.write"}
+        )
+        try:
+            borrowed = validate_writer_authority(topology, plan, approval)
+        finally:
+            PLAN_ACTION_TO_TOPOLOGY_ACTIONS["workspace.write"] = original_required
+        self.assertTrue(
+            any(
+                issue.path == "$.plan.allowed_actions"
+                and "exact WriterTopology identity source" in issue.message
+                for issue in borrowed
+            )
+        )
 
     def test_writer_authority_rejects_cross_platform_allowed_path_escape(self) -> None:
         for unsafe_path in (

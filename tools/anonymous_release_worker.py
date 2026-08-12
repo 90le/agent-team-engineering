@@ -22,9 +22,10 @@ DIGEST = re.compile(r"^sha256:[a-f0-9]{64}$")
 SOURCE_URL = "https://github.com/90le/agent-team-engineering.git"
 ANONYMOUS_COMMANDS = (
     "systemd transient cgroup with memory/CPU/PID/file/tmpfs limits; setpriv random unregistered UID; no groups/capabilities; no-new-privileges; verify credential-parent /proc isolation",
-    "git clone --no-local --no-checkout https://github.com/90le/agent-team-engineering.git <temporary>",
+    "trusted git clone --no-local --no-checkout https://github.com/90le/agent-team-engineering.git <private-tmp>",
     "git verify annotated tag object and peeled commit",
     "git checkout --detach <peeled-tag-commit>; verify clean exact HEAD",
+    "bubblewrap candidate phase: new user/mount/PID/network namespaces; read-only /usr runtime; private /tmp workspace only; no outbound network",
     "factory install; factory verify; doctor",
     "create and validate portable team",
     "host plan; preview; confirm; apply; verify; uninstall-preview; uninstall; replay",
@@ -39,6 +40,7 @@ EXPECTED_CPU_QUOTA_US = 200_000
 EXPECTED_CPU_PERIOD_US = 100_000
 EXPECTED_FILE_SIZE_LIMIT_BYTES = 16 * 1024 * 1024
 EXPECTED_TMPFS_BYTES = 512 * 1024 * 1024
+BUBBLEWRAP = Path("/usr/bin/bwrap")
 
 
 class AnonymousWorkerError(RuntimeError):
@@ -143,6 +145,74 @@ def _run(arguments: list[str], cwd: Path, environment: dict[str, str]) -> str:
             raise AnonymousWorkerError(
                 "anonymous verification command output is not UTF-8"
             ) from None
+
+
+def _candidate_sandbox_command(
+    arguments: list[str],
+    cwd: Path,
+    workspace: Path,
+    environment: dict[str, str],
+) -> list[str]:
+    """Expose candidate code only to a read-only runtime and private /tmp."""
+
+    if not BUBBLEWRAP.is_file() or not os.access(BUBBLEWRAP, os.X_OK):
+        raise AnonymousWorkerError("bubblewrap is required for offline candidate execution")
+    resolved_workspace = workspace.resolve()
+    resolved_cwd = cwd.resolve()
+    if resolved_workspace.parent != Path("/tmp") or (
+        resolved_cwd != resolved_workspace
+        and resolved_workspace not in resolved_cwd.parents
+    ):
+        raise AnonymousWorkerError("candidate sandbox path escapes the private workspace")
+    command = [
+        str(BUBBLEWRAP),
+        "--unshare-all",
+        "--unshare-user",
+        "--disable-userns",
+        "--die-with-parent",
+        "--new-session",
+        "--cap-drop",
+        "ALL",
+        "--ro-bind",
+        "/usr",
+        "/usr",
+        "--symlink",
+        "usr/bin",
+        "/bin",
+        "--symlink",
+        "usr/lib",
+        "/lib",
+        "--symlink",
+        "usr/lib64",
+        "/lib64",
+        "--proc",
+        "/proc",
+        "--dev",
+        "/dev",
+        "--bind",
+        "/tmp",
+        "/tmp",
+        "--chdir",
+        str(resolved_cwd),
+        "--clearenv",
+    ]
+    for key in sorted(environment):
+        command.extend(("--setenv", key, environment[key]))
+    command.extend(("--", *arguments))
+    return command
+
+
+def _run_candidate(
+    arguments: list[str],
+    cwd: Path,
+    workspace: Path,
+    environment: dict[str, str],
+) -> str:
+    return _run(
+        _candidate_sandbox_command(arguments, cwd, workspace, environment),
+        cwd,
+        environment,
+    )
 
 
 def _read_exact_integer(path: Path, label: str) -> int:
@@ -282,7 +352,7 @@ def _linux_process_boundary(credential_parent_pid: int) -> dict[str, Any]:
         "supplementary_groups_empty": True,
         "no_new_privileges": True,
         "capabilities_empty": True,
-        "isolation_mechanism": "linux-systemd-cgroup-setpriv-random-uid-v1",
+        "isolation_mechanism": "linux-systemd-cgroup-setpriv-bubblewrap-v1",
         **_resource_boundary(),
     }
 
@@ -397,7 +467,7 @@ def _execute_workflow(
         [str(installed / "agent-team"), "host", "preview", "--plan", str(plan)],
     ]
     for command in workflow:
-        _run(command, source, environment)
+        _run_candidate(command, source, workspace, environment)
     try:
         plan_document = _loads_strict(plan.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -466,7 +536,7 @@ def _execute_workflow(
     ]
     last = ""
     for command in remainder:
-        last = _run(command, source, environment)
+        last = _run_candidate(command, source, workspace, environment)
     try:
         writer = _loads_strict(last)
     except ValueError:
@@ -491,9 +561,11 @@ def _execute_workflow(
         "commands": list(ANONYMOUS_COMMANDS),
         "unauthenticated_git_transport": True,
         "caller_credentials_inherited": False,
-        "same_uid_filesystem_isolated": False,
-        "write_isolation": False,
-        "external_writes_verified": False,
+        "same_uid_filesystem_isolated": True,
+        "write_isolation": True,
+        "external_writes_verified": True,
+        "candidate_network_isolated": True,
+        "candidate_runtime_read_only": True,
     }
 
 

@@ -30,10 +30,23 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["path", "sha256"],
+        "required": ["path", "stage_path", "sha256", "binding", "state"],
         "properties": {
           "path": {"type": "string", "minLength": 1},
-          "sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+          "stage_path": {"type": "string", "minLength": 1},
+          "sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+          "binding": {
+            "type": ["object", "null"],
+            "additionalProperties": false,
+            "required": ["sha256", "size", "device", "inode"],
+            "properties": {
+              "sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+              "size": {"type": "integer", "minimum": 0},
+              "device": {"type": "integer", "minimum": 0},
+              "inode": {"type": "integer", "minimum": 1}
+            }
+          },
+          "state": {"enum": ["PLANNED", "PRESENT", "QUARANTINED", "REMOVED"]}
         }
       }
     }
