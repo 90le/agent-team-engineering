@@ -32,6 +32,7 @@ from tools.release_publication import (
     _anonymous_environment,
     _require_artifact_redirect_url,
     _require_public_https_url,
+    _review_diff_arguments,
     _review_archive_contents,
     _github_download,
     _github_run_artifacts,
@@ -60,6 +61,14 @@ class ReleaseEvidenceTests(unittest.TestCase):
             "GITHUB_RUN_ATTEMPT": "1",
             "RUNNER_OS": "Linux",
         }
+
+    def test_technical_review_diff_has_no_path_filter(self) -> None:
+        base = "a" * 40
+        head = "b" * 40
+        self.assertEqual(
+            _review_diff_arguments(base, head),
+            ["git", "diff", "--no-ext-diff", "--unified=0", base, head],
+        )
 
     def _asset_fixture(self) -> tuple[list[dict], dict[str, bytes]]:
         contents = {

@@ -69,7 +69,7 @@
     "unit_tests": {
       "status": "PASS",
       "command": "python3 -m unittest discover -s tests -v",
-      "count": 351
+      "count": 352
     },
     "writer_authority": {
       "status": "PASS",
