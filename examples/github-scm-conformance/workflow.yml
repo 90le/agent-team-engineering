@@ -1,4 +1,4 @@
-name: Agent Team v0.8 SCM Conformance
+name: Agent Team v1.0 SCM Conformance
 
 on:
   workflow_dispatch:
@@ -22,7 +22,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: agent-team-v08-scm-conformance
+  group: agent-team-v10-scm-conformance
   cancel-in-progress: false
 
 jobs:
@@ -33,6 +33,7 @@ jobs:
       - name: Checkout dedicated evidence repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.base_commit }}
           path: evidence-repository
           persist-credentials: false
       - name: Checkout exact public framework commit
@@ -49,18 +50,21 @@ jobs:
         env:
           RUNNER_ENVIRONMENT: ${{ runner.environment }}
           APPROVED_PLAN_DIGEST: ${{ inputs.approved_plan_digest }}
+          APPROVED_BASE_COMMIT: ${{ inputs.base_commit }}
+          APPROVED_FRAMEWORK_COMMIT: ${{ inputs.framework_commit }}
+          APPROVED_FRAMEWORK_REPOSITORY: 90le/agent-team-engineering
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           python3 framework/tools/github_scm_conformance.py \
             --repository "${GITHUB_REPOSITORY}" \
-            --repository-id repo.conformance.github.v08 \
+            --repository-id repo.conformance.github.v10 \
             --base-commit "${{ inputs.base_commit }}" \
             --framework-commit "${{ inputs.framework_commit }}" \
             --expected-actor-id REPLACE_WITH_NUMERIC_OWNER_ID \
             --output "artifacts/github-scm-conformance.json"
       - name: Upload sanitized report
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: github-scm-conformance-${{ github.run_id }}-${{ github.run_attempt }}
           path: artifacts/github-scm-conformance.json

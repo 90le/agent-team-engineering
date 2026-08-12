@@ -17,6 +17,8 @@ from core.contracts import (
     plan_revision_digest,
     require_contract,
     validate_contract,
+    validate_writer_authority,
+    writer_topology_digest,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -35,6 +37,7 @@ EXAMPLES = {
     "adapter_descriptor": "adapter-descriptor.json",
     "command_envelope": "command-envelope.json",
     "event_envelope": "event-envelope.json",
+    "writer_topology": "writer-topology.json",
 }
 
 
@@ -159,6 +162,206 @@ class V08ContractTests(unittest.TestCase):
     def test_digest_rejects_non_json_numbers(self) -> None:
         with self.assertRaises(ValueError):
             digest_value({"cost": float("nan")})
+
+    def test_writer_topology_is_design_only_and_explicitly_degrades_per_host(self) -> None:
+        topology = self._load("writer_topology")
+        plan = self._load("plan_revision")
+        approval = self._load("approval_grant")
+        self.assertEqual(writer_topology_digest(topology), topology["topology_digest"])
+        self.assertEqual(validate_writer_authority(topology, plan, approval), [])
+        self.assertEqual(topology["status"], "DESIGN_ONLY")
+        self.assertFalse(topology["default_effects"]["automatic_merge"])
+        self.assertFalse(topology["default_effects"]["automatic_release"])
+        self.assertFalse(topology["default_effects"]["automatic_deploy"])
+        records = {record["host"]: record for record in topology["host_degradation"]}
+        self.assertEqual(
+            set(records),
+            {"claude", "codex", "generic-ai", "hermes", "multica", "openclaw"},
+        )
+        self.assertTrue(all(not record["topology_enforced"] for record in records.values()))
+        self.assertTrue(all(not record["automatic_execution"] for record in records.values()))
+
+        changed = copy.deepcopy(topology)
+        changed["writers"][0]["ownership_roots"] = ["apps/admin", "packages/ui"]
+        changed["topology_digest"] = writer_topology_digest(changed)
+        self.assertEqual(validate_contract("writer_topology", changed), [])
+        authority_issues = validate_writer_authority(changed, plan, approval)
+        self.assertIn("$.plan.writer_topology", {issue.path for issue in authority_issues})
+
+    def test_writer_topology_semantic_bypass_matrix_fails_with_recomputed_digest(self) -> None:
+        def writer_scope(document: dict) -> None:
+            document["writers"][0]["allowed_actions"].append("outside-owned-paths.write")
+
+        def assurance_write(document: dict) -> None:
+            document["assurance_roles"][1]["allowed_actions"].extend(
+                ["review-own-work", "source.write"]
+            )
+
+        def worktree_escape(document: dict) -> None:
+            document["writers"][1]["worktree_template"] = (
+                ".agent-team/worktrees/{work_item_id}/{writer_id}/.."
+            )
+
+        def mutable_base(document: dict) -> None:
+            document["repository"]["base_ref"] = "main"
+
+        def approval_without_input(document: dict) -> None:
+            document["phases"][0]["requires"] = []
+
+        def phase_reorder(document: dict) -> None:
+            document["phases"][1], document["phases"][2] = (
+                document["phases"][2],
+                document["phases"][1],
+            )
+            document["phases"][1]["sequence"] = 2
+            document["phases"][2]["sequence"] = 3
+
+        def draft_without_evidence(document: dict) -> None:
+            document["phases"][-1]["requires"] = []
+
+        def dangerous_final_effect(document: dict) -> None:
+            document["phases"][-1]["produces"].extend(
+                ["default-branch-merged", "production-deployed", "release-published"]
+            )
+
+        def overstated_multica(document: dict) -> None:
+            record = next(
+                item for item in document["host_degradation"] if item["host"] == "multica"
+            )
+            record["support_tier"] = "native-install-verified"
+            record["projection"] = "native-team-files-no-multiwriter-runtime"
+
+        def fictional_host_only(document: dict) -> None:
+            document["host_degradation"] = [
+                {
+                    "host": "fictional",
+                    "support_tier": "portable",
+                    "projection": "portable-documents-only",
+                    "topology_enforced": False,
+                    "automatic_execution": False,
+                    "limitations": ["No evidence."],
+                }
+            ]
+
+        def random_retry_nonce(document: dict) -> None:
+            document["recovery"]["idempotency_fields"].append("random_nonce")
+
+        def casefold_ownership_overlap(document: dict) -> None:
+            document["writers"][1]["ownership_roots"][0] = "Apps/Web/components"
+
+        def shared_identity(document: dict) -> None:
+            document["assurance_roles"][0]["actor_id"] = document["writers"][0][
+                "actor_id"
+            ]
+            document["assurance_roles"][0]["role_ref"] = "role.frontend@1.0.0"
+
+        def reserved_git_ownership(document: dict) -> None:
+            document["writers"][0]["ownership_roots"] = [".git"]
+
+        def reserved_governance_ownership(document: dict) -> None:
+            document["writers"][0]["ownership_roots"] = [".agent-team"]
+
+        def invalid_git_actor(document: dict) -> None:
+            old = document["writers"][0]["actor_id"]
+            new = "role.front..end"
+            document["writers"][0]["actor_id"] = new
+            document["writers"][0]["role_ref"] = new + "@1.0.0"
+            for phase in document["phases"]:
+                phase["actors"] = [new if actor == old else actor for actor in phase["actors"]]
+
+        def invalid_git_base_label(document: dict) -> None:
+            document["repository"]["base_ref"] = "main..evil@" + ("a" * 40)
+
+        def dishonest_host_limitation(document: dict) -> None:
+            record = next(
+                item for item in document["host_degradation"] if item["host"] == "multica"
+            )
+            record["limitations"] = [
+                "Independent multi-writer runtime is fully enforced and production ready."
+            ]
+
+        def nondeterministic_phase_identity(document: dict) -> None:
+            document["phases"][2]["phase_id"] = "nondeterministic-integration"
+
+        def weakened_failure_policy(document: dict) -> None:
+            for phase in document["phases"]:
+                phase["failure_state"] = "CANCELLED"
+
+        def stale_host_catalog_binding(document: dict) -> None:
+            document["factory_host_catalog"]["catalog_digest"] = "sha256:" + ("0" * 64)
+
+        def git_lock_actor(document: dict) -> None:
+            old = document["writers"][0]["actor_id"]
+            new = "role.front.lock"
+            document["writers"][0]["actor_id"] = new
+            document["writers"][0]["role_ref"] = new + "@1.0.0"
+            for phase in document["phases"]:
+                phase["actors"] = [new if actor == old else actor for actor in phase["actors"]]
+
+        def windows_absolute_root(document: dict) -> None:
+            document["writers"][0]["ownership_roots"] = ["C:/project"]
+
+        def windows_git_alias(document: dict) -> None:
+            document["writers"][0]["ownership_roots"] = [".git."]
+
+        def root_governance_file(document: dict) -> None:
+            document["writers"][0]["ownership_roots"] = ["AGENTS.md"]
+
+        def dash_prefixed_base(document: dict) -> None:
+            document["repository"]["base_ref"] = "-evil@" + ("a" * 40)
+
+        def symbolic_head_base(document: dict) -> None:
+            document["repository"]["base_ref"] = "HEAD@" + ("a" * 40)
+
+        mutations = {
+            "writer-outside-scope": writer_scope,
+            "assurance-writes-and-self-review": assurance_write,
+            "worktree-path-escape": worktree_escape,
+            "mutable-base": mutable_base,
+            "approval-without-plan": approval_without_input,
+            "phase-reorder": phase_reorder,
+            "draft-without-evidence": draft_without_evidence,
+            "dangerous-final-effect": dangerous_final_effect,
+            "overstated-multica": overstated_multica,
+            "fictional-host-only": fictional_host_only,
+            "random-retry-nonce": random_retry_nonce,
+            "casefold-ownership-overlap": casefold_ownership_overlap,
+            "shared-writer-and-tester-identity": shared_identity,
+            "reserved-git-ownership": reserved_git_ownership,
+            "reserved-governance-ownership": reserved_governance_ownership,
+            "invalid-git-actor": invalid_git_actor,
+            "invalid-git-base-label": invalid_git_base_label,
+            "dishonest-host-limitation": dishonest_host_limitation,
+            "nondeterministic-phase-identity": nondeterministic_phase_identity,
+            "weakened-failure-policy": weakened_failure_policy,
+            "stale-host-catalog-binding": stale_host_catalog_binding,
+            "git-lock-actor": git_lock_actor,
+            "windows-absolute-root": windows_absolute_root,
+            "windows-git-alias": windows_git_alias,
+            "root-governance-file": root_governance_file,
+            "dash-prefixed-base": dash_prefixed_base,
+            "symbolic-head-base": symbolic_head_base,
+        }
+        for label, mutate in mutations.items():
+            with self.subTest(label=label):
+                topology = self._load("writer_topology")
+                mutate(topology)
+                topology["topology_digest"] = writer_topology_digest(topology)
+                self.assertTrue(validate_contract("writer_topology", topology))
+
+    def test_writer_authority_rejects_uninstantiable_work_item_identity(self) -> None:
+        topology = self._load("writer_topology")
+        plan = self._load("plan_revision")
+        approval = self._load("approval_grant")
+        oversized = "work-" + ("a" * 300)
+        plan["work_item_id"] = oversized
+        plan["plan_digest"] = plan_revision_digest(plan)
+        approval["work_item_id"] = oversized
+        approval["plan_digest"] = plan["plan_digest"]
+        approval["scope_digest"] = approval_scope_digest(approval)
+        self.assertTrue(validate_contract("plan_revision", plan))
+        self.assertTrue(validate_contract("approval_grant", approval))
+        self.assertTrue(validate_writer_authority(topology, plan, approval))
 
 
 if __name__ == "__main__":

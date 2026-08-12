@@ -1,15 +1,20 @@
 {
-  "$schema": "urn:agent-team:schema:approval-grant:1.0.0",
-  "schema_version": "1.0.0",
+  "$schema": "urn:agent-team:schema:approval-grant:1.1.0",
+  "schema_version": "1.1.0",
   "approval_id": "approval-example-1",
   "actor_id": "owner:example",
   "identity_provider": "native.local-owner",
   "work_item_id": "work-example-1",
   "plan_revision": 1,
-  "plan_digest": "sha256:ec8c649fb1f7496a293d92179b801f6de53fb50ca8ed6cdd04bed9f63532aa37",
-  "repository_id": "repo.example",
-  "base_commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-  "allowed_paths": ["src/account/", "tests/account/"],
+  "plan_digest": "sha256:e8b43d51e503d3cd453627aa0249775a301e1ae14336ef866eb1cfd6980ede7a",
+  "repository_id": "repo.example-software",
+  "base_commit": "0123456789abcdef0123456789abcdef01234567",
+  "writer_topology": {
+    "topology_id": "topology.independent-software-writers",
+    "topology_version": "1.0.0",
+    "topology_digest": "sha256:b4b3e8ad868889082a871e3ecc7588b00ced58a0555da299061c0aae758de0dd"
+  },
+  "allowed_paths": ["apps/web/", "db/migrations/", "packages/ui/", "services/api/"],
   "allowed_actions": ["repository.read", "workspace.write", "test.run", "commit.create", "draft-pr.create", "ci.read"],
   "runner_profile": "runner.isolated-test@1.0.0",
   "agent_capabilities": ["code.change", "test.run"],
@@ -22,5 +27,5 @@
   "nonce": "example-nonce-0001",
   "evidence_ref": "evidence://approval/example-1",
   "signature_ref": "identity://native.local-owner/signature/example-1",
-  "scope_digest": "sha256:fd8f2a1a5ed496de8e27b045cf42abfb16b26a777038c30a78bbc0b225269875"
+  "scope_digest": "sha256:57137766d7f2c13c1b5eaecba648a67deab6d888400b609cfb1b210dc90c3b00"
 }

@@ -3,7 +3,7 @@
   "schema_version": "1.0.0",
   "id": "capability.orchestrate-software-delivery",
   "name": "宿主原生可移植智能体团队工厂",
-  "version": "0.9.0",
+  "version": "1.0.0",
   "status": "ACTIVE",
   "owner": "丘彬彬",
   "entrypoint": "skills/orchestrate-software-delivery/SKILL.md",

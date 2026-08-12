@@ -464,6 +464,7 @@ class NativeControllerTests(unittest.TestCase):
             "time_limit_seconds": valid["time_limit_seconds"] + 1,
             "agent_capabilities": ["code.change"],
             "runner_profile": "runner.other@1.0.0",
+            "writer_topology": None,
         }
         for field, value in mutations.items():
             with self.subTest(field=field):

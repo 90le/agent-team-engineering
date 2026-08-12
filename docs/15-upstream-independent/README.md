@@ -1,6 +1,6 @@
 # v0.8 供应商中立核心
 
-状态：核心由 `v0.8.0` 引入，并由当前稳定版 `v0.9.0` 完整保留。它是可发布、可安装、可验证的 Factory 核心，不是已经连接账号和生产仓库的无人值守开发公司。
+状态：核心由 `v0.8.0` 引入，并由稳定版 `v0.9.0` 完整保留。下面的 v0.8/v0.9 能力、命令和门禁是历史发布事实；Factory `1.0.0` 新增的 `WriterTopology → PlanRevision 1.1 → ApprovalGrant 1.1` 权威链单独记录在[独立写入者指南](independent-writer-topology.md)，完整发布门禁见 [v1.0 验收契约](../16-release/v1.0-acceptance.md)，不得倒写成 v0.9 已有能力。它是可发布、可安装、可验证的 Factory 核心，不是已经连接账号和生产仓库的无人值守开发公司。
 
 本章是维护者和无历史聊天 AI 接手 v0.8 的最短入口。核心资产由 Markdown/JSON/Git、严格契约和 Native Controller 组成；OpenClaw、OpenHands、Paperclip、Codex、Claude、GitHub 和 Runner 都在可替换边界之外。
 
@@ -21,13 +21,15 @@
 
 - `L1 reference`：本发布已经达到。离线 Native 闭环可重复执行；真实外部边界有契约、负例和受限实验工具。
 - `L2 controlled pilot`：需要新的 Private Team Instance、专用测试仓库、身份、模型预算和隔离 Worker；属于 v0.9 采用项目，v0.8 不会自动创建。
-- `L3 production`：还需要 SLO、值守、威胁评审、密钥轮换、备份恢复演练和业务责任人；属于 v1.0 路线。
+- `L3 production`：还需要 SLO、值守、威胁评审、密钥轮换、备份恢复演练和业务责任人；不由 v1.0 的离线权威链或宿主文件安装自动授予，属于后续单独授权的采用工程。
 
 因此，v0.8 可以帮助用户生成团队、共享上下文、验证工作流和搭建受治理集成，但不会因为安装成功就自动读取用户反馈、修改业务代码、合并或上线。
 
 ## 本地验证
 
 要求 Python 3.11+ 和 Git，无第三方 Python 运行依赖：
+
+以下固定检出 `v0.9.0` 仅用于复现本章记录的历史 v0.8/v0.9 核心；新采用者应从根目录 `AI-START.md` 使用当前 `v1.0.0`。
 
 ```bash
 git checkout v0.9.0
@@ -59,9 +61,11 @@ tools/release-smoke.sh
 2. [核心契约与迁移](core-contracts-and-migration.md)：权威数据和 v0.7 导入。
 3. [Adapter Port SDK](adapter-port-sdk.md)：接口、能力和故障语义。
 4. [Native Controller 与一致性](native-controller-and-conformance.md)：状态、事务和恢复。
-5. [Runner、SCM、Agent 与外部平台边界](runner-scm-and-agent-boundaries.md)：W4–W7 的安全实现。
-6. [采用路线](adoption-and-integration.md)：从生成文件团队到受控自动化。
-7. `contracts/`、`acceptance/`、`sbom/` 和 `supply-chain/`：机器文件优先于聊天摘要。
+5. [独立前后端写入者权威链](independent-writer-topology.md)：v1.0 的拓扑、PlanRevision 1.1、ApprovalGrant 1.1、准确摘要绑定、隔离、交接和宿主降级；仍为 `DESIGN_ONLY`。
+6. [Runner、SCM、Agent 与外部平台边界](runner-scm-and-agent-boundaries.md)：W4–W7 的安全实现。
+7. [采用路线](adoption-and-integration.md)：从生成文件团队到受控自动化。
+8. [v1.0 发布验收契约](../16-release/v1.0-acceptance.md)：本地门禁、PR/CI、tag、Release、匿名安装与外部证据的完成规则。
+9. `contracts/`、`acceptance/`、`sbom/` 和 `supply-chain/`：机器文件优先于聊天摘要。
 
 ## 永远保持关闭的默认项
 

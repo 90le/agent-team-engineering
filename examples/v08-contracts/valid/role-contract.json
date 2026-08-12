@@ -7,7 +7,7 @@
   "responsibilities": ["Implement the approved plan and produce test evidence."],
   "non_responsibilities": ["Approve its own plan, merge, or deploy."],
   "minimum_context_refs": ["AI-BOOTSTRAP.md", "project/AGENTS.md"],
-  "input_contracts": ["urn:agent-team:schema:plan-revision:1.0.0"],
+  "input_contracts": ["urn:agent-team:schema:plan-revision:1.1.0"],
   "output_contracts": ["urn:agent-team:schema:evidence-bundle:1.0.0"],
   "required_capabilities": ["code.change", "test.run"],
   "allowed_actions": ["repository.read", "workspace.write", "test.run", "commit.create"],

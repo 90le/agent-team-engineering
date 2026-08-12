@@ -11,3 +11,5 @@
 - [ADR-0009：供应商中立内核与可替换端口](ADR-0009-vendor-neutral-core-and-replaceable-ports.md)
 - [ADR-0010：场景优先引导与摘要绑定采用方案](ADR-0010-scenario-first-guided-adoption.md)
 - [ADR-0011：宿主能力契约与原生团队投影](ADR-0011-host-capability-contract-and-native-team-projection.md)
+- [ADR-0012：并发安全的宿主生命周期与可重放卸载](ADR-0012-concurrent-host-lifecycle-and-replay-safe-uninstall.md)
+- [ADR-0013：可移植的独立多写入者权威链](ADR-0013-portable-independent-writer-topology.md)

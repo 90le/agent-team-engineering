@@ -41,9 +41,12 @@ Hermes profile distributions intentionally separate distribution-owned files fro
 
 - manage only artifacts listed in the exact install record;
 - never claim ownership of memories, sessions, authentication, `.env`, logs, or existing boards;
-- preserve unrelated destination content and refuse any planned-path collision or different install lock;
+- follow the [common v1 lifecycle](README.md): bind the complete proposal, persistent empty guard, deterministic file stages, fixed metadata scratch, prior lifecycle state, effects, and digest;
+- preserve unrelated destination content; require absent projected files/file stages on first apply, allow their recovery only for an exact same-proposal `APPLYING` lock, and never create, replace, or delete a temporary path other than the declared scratch;
 - require a new plan when a profile name or destination changes;
-- remove only Factory-owned artifacts on uninstall.
+- rebuild and reconfirm every unexecuted v0.9 plan; treat v0.9 locks as `LEGACY_UNBOUND` read-only records with automatic uninstall disabled;
+- run `host uninstall-preview` first; for `ACTIVE`/`UNINSTALLING`, explain that its delete/create lists and `transient_files` include the scratch, while those lists are empty for `ALREADY_UNINSTALLED`/`LEGACY_UNBOUND`; obtain human process confirmation for `ACTIVE`, and remove only immediately rechecked Factory-owned files with the exact digest;
+- retain the empty guard/tombstone and every directory, require scratch absence after success, and allow empty directories to remain after uninstall.
 
 ## Optional swarm use
 

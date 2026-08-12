@@ -1,17 +1,17 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:agent-team:schema:host-install-plan:1.0.0",
+  "$id": "urn:agent-team:schema:host-install-plan:1.1.0",
   "title": "Host-native team installation plan",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "state", "proposal", "proposal_digest", "confirmation"],
   "properties": {
-    "schema_version": {"const": "1.0.0"},
+    "schema_version": {"const": "1.1.0"},
     "state": {"enum": ["DRAFT", "CONFIRMED"]},
     "proposal": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["team", "host", "destination", "files", "effects", "limitations"],
+      "required": ["team", "host", "lifecycle", "destination", "files", "effects", "limitations"],
       "properties": {
         "team": {
           "type": "object",
@@ -36,6 +36,55 @@
             "external_apply": {"const": false}
           }
         },
+        "lifecycle": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["operation_guard", "operation_guard_format", "operation_guard_content_sha256", "unbound_empty_guard_reuse", "install_record", "uninstall_tombstone", "metadata_recovery_stage", "metadata_recovery_stage_retained", "locking", "retained_files_after_uninstall", "directories_removed", "expected_prior_guard", "expected_prior_uninstall_tombstone", "remove_prior_uninstall_tombstone"],
+          "properties": {
+            "operation_guard": {"const": ".agent-team/.host-lifecycle.guard"},
+            "operation_guard_format": {"const": "empty-regular-file-v1"},
+            "operation_guard_content_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+            "unbound_empty_guard_reuse": {"const": true},
+            "install_record": {"const": ".agent-team/host-install.lock.json"},
+            "uninstall_tombstone": {"const": ".agent-team/host-uninstall.tombstone.json"},
+            "metadata_recovery_stage": {"const": ".agent-team/.host-lifecycle.json.stage"},
+            "metadata_recovery_stage_retained": {"const": false},
+            "locking": {"const": "posix-fcntl-exclusive-nonblocking"},
+            "retained_files_after_uninstall": {
+              "const": [
+                ".agent-team/.host-lifecycle.guard",
+                ".agent-team/host-uninstall.tombstone.json"
+              ]
+            },
+            "directories_removed": {"const": false},
+            "expected_prior_guard": {
+              "type": ["object", "null"],
+              "additionalProperties": false,
+              "required": ["sha256", "size", "device", "inode"],
+              "properties": {
+                "sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+                "size": {"const": 0},
+                "device": {"type": "integer", "minimum": 0},
+                "inode": {"type": "integer", "minimum": 1}
+              }
+            },
+            "expected_prior_uninstall_tombstone": {
+              "type": ["object", "null"],
+              "additionalProperties": false,
+              "required": ["sha256", "size", "device", "inode", "team_id", "host", "proposal_digest"],
+              "properties": {
+                "sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+                "size": {"type": "integer", "minimum": 1},
+                "device": {"type": "integer", "minimum": 0},
+                "inode": {"type": "integer", "minimum": 1},
+                "team_id": {"type": "string", "pattern": "^team\\.[a-z0-9][a-z0-9.-]*$"},
+                "host": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+                "proposal_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+              }
+            },
+            "remove_prior_uninstall_tombstone": {"type": "boolean"}
+          }
+        },
         "destination": {"type": "string", "minLength": 1},
         "files": {
           "type": "array",
@@ -43,10 +92,11 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["source", "path", "sha256", "management"],
+            "required": ["source", "path", "stage_path", "sha256", "management"],
             "properties": {
               "source": {"type": "string", "minLength": 1},
               "path": {"type": "string", "minLength": 1},
+              "stage_path": {"type": "string", "minLength": 1},
               "sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
               "management": {"const": "factory-created"}
             }
@@ -55,9 +105,11 @@
         "effects": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["filesystem_writes", "external_writes", "bindings_created", "tasks_started", "credentials_read"],
+          "required": ["filesystem_writes", "filesystem_deletes", "persistent_filesystem_deletes", "external_writes", "bindings_created", "tasks_started", "credentials_read"],
           "properties": {
             "filesystem_writes": {"const": true},
+            "filesystem_deletes": {"const": true},
+            "persistent_filesystem_deletes": {"type": "boolean"},
             "external_writes": {"const": false},
             "bindings_created": {"const": false},
             "tasks_started": {"const": false},
@@ -79,7 +131,7 @@
       "properties": {
         "proposal_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
         "approved_by": {"type": "string", "minLength": 1, "maxLength": 160},
-        "scope": {"const": "create-factory-managed-host-files-only"},
+        "scope": {"enum": ["manage-declared-host-lifecycle-and-scratch-files", "replace-exact-prior-tombstone-and-manage-declared-host-lifecycle-and-scratch-files"]},
         "statement": {"const": "I approve this exact host installation proposal."}
       }
     }

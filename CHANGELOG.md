@@ -2,6 +2,22 @@
 
 本项目遵循语义化版本。版本标签只在仓库验证、测试、Skill校验和空目录冷启动全部通过后创建；已发布标签不移动。
 
+## 1.0.0 — 2026-08-12
+
+Agent Team Factory 的“可移植独立写入者权威链与可恢复宿主生命周期”版本：
+
+- 新增严格的 `WriterTopology` 契约，并把规范 `WriterTopology → PlanRevision → ApprovalGrant` 三件套绑定为拓扑摘要 `sha256:b4b3e8ad868889082a871e3ecc7588b00ced58a0555da299061c0aae758de0dd`、计划摘要 `sha256:e8b43d51e503d3cd453627aa0249775a301e1ae14336ef866eb1cfd6980ede7a` 与批准范围摘要 `sha256:57137766d7f2c13c1b5eaecba648a67deab6d888400b609cfb1b210dc90c3b00`。PlanRevision 与 ApprovalGrant 的统一 Schema `$id` 升级为 `1.1.0`，仍兼容省略 `writer_topology` 的 `1.0.0` 文档；`1.1.0` 必须显式绑定准确拓扑或 `null`，拓扑变化会同时使计划、批准与重试身份失效。
+- 新增 `./agent-team native writer-authority-validate` 离线链校验。它只证明三个本地文档的 Schema、语义、摘要和交叉绑定一致，并明确返回 `automatic_execution: false` 与 `identity_or_signature_verified: false`；它不认证批准者身份或签名，也不会启动 Agent、创建 worktree/分支、写仓库、开 PR、merge、release 或 deploy。
+- Host-install plan 与 install lock 升级为完整 proposal 绑定的 `1.1.0` 生命周期：准确披露持久空 ordinary-file guard、确定性文件 stage、唯一临时元数据 scratch、旧 tombstone 删除效果和卸载保留项。v0.9 尚未执行的 host plan 必须重新 `plan → preview → confirm`；v0.9 legacy lock 仅可 `LEGACY_UNBOUND` 只读核验，禁止自动破坏性卸载。
+- Apply、verify 和 uninstall 通过持久 `fcntl` guard 串行化协作中的本机 Factory 进程。源文件通过不跟随符号链接的目录描述符读取，并在独占发布前再次核对准确 SHA-256；不同计划的并发 apply 在第二次写入发生前安全停止。该机制不宣称抵抗 root、内核、文件系统、存储故障或非协作特权写入。
+- Uninstall 新增 `ACTIVE → UNINSTALLING → UNINSTALLED tombstone` 状态机与只读 `uninstall-preview`。每个文件在 unlink 前重新核对内容与 inode，中断可按同摘要继续，完成后重放返回 `ALREADY_UNINSTALLED`；持久空 guard 和 tombstone 被保留，目录永不删除，因此可能留下空目录。
+- Factory `1.0.0` 新增从 `0.9.0` 以及所有既有受支持版本到 `1.0.0` 的显式、摘要绑定、可恢复 Team Instance 迁移。Team Instance 升级与 host-install legacy lock 对账是两套独立生命周期，不能用普通实例迁移冒充宿主安装所有权升级。
+- 新增 ADR-0012、ADR-0013、独立写入者指南、并发/延迟漂移/中断恢复负例和 v1.0 发布验收契约。GitHub Actions 的 `upload-artifact` 固定到官方 v7.0.1 提交 `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a` 并使用 Node 24 运行时，消除 v0.9 精确标签门禁中的 Node 20 弃用提示。
+
+限制：v1.0 把独立前端/后端写入者表达为 `DESIGN_ONLY` 权威，不提供持久多写入者调度器。当前 Managed 参考控制器仍只有一个源码写入 `builder`，所有宿主映射仍为 `topology_enforced=false`。Factory 不自动执行独立写入者，不自动 merge、release 或 deploy；真实身份签名、模型、账号、频道、外部 SCM、Runner 与生产权限仍需要独立认证、授权和一致性证据。
+
+回退：`v0.9.0` 历史保持不可移动。Team Instance 从 v0.9 升级到 v1.0 时必须保留外部恢复包，并用标准 rollback 返回升级前锁；宿主投影先运行 `host verify` 与 `uninstall-preview`，只对 proposal-bound v1 lock 使用准确摘要卸载。`LEGACY_UNBOUND` v0.9 lock 只能人工对账，不能删除锁或复用旧批准强制卸载。完整发布状态必须以 [v1.0 验收契约](docs/16-release/v1.0-acceptance.md)要求的 PR、CI、annotated tag、GitHub Release、匿名安装和外部证据为准，不能仅从本节标题推断远端发布已完成。
+
 ## 0.9.0 — 2026-08-12
 
 Agent Team Factory 的“宿主原生团队投影与安全安装生命周期”版本：

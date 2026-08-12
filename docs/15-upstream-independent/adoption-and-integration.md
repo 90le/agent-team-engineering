@@ -38,7 +38,7 @@ OpenClaw 可以收集反馈和发送通知，但公开入口与 owner 控制入�
 
 ## 交给任意 AI 的采用提示
 
-> 克隆 `https://github.com/90le/agent-team-engineering` 并检出 `v0.9.0`。先完整阅读 `AI-START.md`。只读检查我的项目与已安装宿主，每轮最多问三个高影响问题；用普通语言推荐团队，展示准确团队方案并等我确认后，才在新目录生成和验证。宿主投影使用第二份方案与第二次准确确认。不要自动创建凭据、外部写入、OpenClaw bindings、Host Runner、merge 或 deploy。若我要求真实试点，先输出逐端口权限、威胁、恢复和人工门禁清单，等待逐项授权。
+> 克隆 `https://github.com/90le/agent-team-engineering` 并检出 `v1.0.0`。先完整阅读 `AI-START.md`。只读检查我的项目与已安装宿主，每轮最多问三个高影响问题；用普通语言推荐团队，展示准确团队方案并等我确认后，才在新目录生成和验证。宿主投影使用第二份方案与第二次准确确认。不要自动创建凭据、外部写入、OpenClaw bindings、Host Runner、merge 或 deploy。若我要求真实试点，先输出逐端口权限、威胁、恢复和人工门禁清单，等待逐项授权。
 
 ## 迁移与复刻
 

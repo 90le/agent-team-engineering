@@ -31,7 +31,7 @@ Use a digest-bound lifecycle:
 list/probe → plan → preview → confirm → apply → verify → uninstall
 ```
 
-Apply may manage only a new declared destination or files already proven to be owned by the same install record. It must not silently merge existing user configuration or infer permission for accounts, credentials, bindings, external writes, merge, release, or deployment.
+Apply may use a new destination or preserve unrelated content in an existing directory, but first apply creates only absent declared files. Only the exact same proposal-bound `APPLYING` record may resume deterministic recovery after interruption. It must not silently merge existing user configuration or infer permission for accounts, credentials, bindings, external writes, merge, release, or deployment.
 
 Keep host projectors separate from the existing runtime `adapters/` ports. Preserve the existing Managed controller as an optional automation layer for adopters who explicitly need durable progression. It is not the primary product identity and does not replace the target host.
 
@@ -65,7 +65,7 @@ Rejected because it would duplicate mature host schedulers, profiles, workspaces
 
 ### Keep only Markdown and let every AI improvise installation
 
-Rejected because prose alone cannot enforce exact paths, non-overwrite behavior, digest binding, ownership, drift detection, verification, or rollback.
+Rejected because prose alone cannot enforce exact paths, non-overwrite behavior, digest binding, ownership, drift detection, verification, deterministic crash recovery, or replay-safe uninstall.
 
 ### Treat every platform folder as “supported”
 
@@ -85,6 +85,7 @@ Rejected because SDK churn and vendor identities would contaminate the portable 
 - Multica remains experimental and does not receive live workspace writes in the normal lifecycle.
 - Unknown names such as Leda are not guessed into compatibility claims.
 - Existing Managed controller and runtime adapters remain optional and architecturally separate.
+- Concurrent mutation, proposal-bound recovery, legacy read-only verification, and replay-safe uninstall follow [ADR-0012](ADR-0012-concurrent-host-lifecycle-and-replay-safe-uninstall.md).
 
 ## References
 

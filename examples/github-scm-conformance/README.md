@@ -1,21 +1,21 @@
 # Dedicated GitHub SCM conformance repository
 
-Use this template only in a new Private repository that contains no product code, user data, secrets, deployment configuration, or branch shared with another project. It proves the v0.8 proposal-only connector before any business-repository adoption.
+Use this template only in a new Private repository that contains no product code, user data, secrets, deployment configuration, or branch shared with another project. It proves the v1.0 proposal-only connector and its 1.1 approval contract before any business-repository adoption.
 
 ## One-time setup
 
-1. Create an empty Private repository and protect it from production use.
-2. Copy `workflow.yml` to `.github/workflows/agent-team-v08-conformance.yml` in its default branch.
+1. Create the dedicated Private repository `90le/agent-team-v10-conformance-private` and protect it from production use. The release audit rejects any other repository identity.
+2. Copy `workflow.yml` to `.github/workflows/agent-team-v10-conformance.yml` in its default branch.
 3. Replace `REPLACE_WITH_NUMERIC_OWNER_ID` in that trusted workflow with the human owner's immutable GitHub actor ID. Do not turn it into a dispatch input.
 4. Commit the workflow and record the exact default-branch commit.
 5. Select an exact reviewed Agent Team framework commit and compute the plan digest from that checkout:
 
 ```bash
 python3 tools/github_scm_conformance.py \
-  --repository-id repo.conformance.github.v08 \
+  --repository-id repo.conformance.github.v10 \
   --base-commit <private-repository-main-commit> \
   --framework-commit <agent-team-framework-commit> \
-  --repository owner/private-conformance-repository \
+  --repository 90le/agent-team-v10-conformance-private \
   --print-plan-digest
 ```
 

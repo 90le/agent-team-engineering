@@ -55,6 +55,10 @@ def verify_github_actions_identity(
     expected_repository: str,
     expected_actor_id: str,
     expected_plan_digest: str,
+    expected_workflow_ref: str,
+    expected_base_commit: str,
+    expected_framework_commit: str,
+    expected_framework_repository: str,
 ) -> dict[str, str]:
     required = {
         "CI": "true",
@@ -64,6 +68,13 @@ def verify_github_actions_identity(
         "GITHUB_REPOSITORY": expected_repository,
         "GITHUB_ACTOR_ID": expected_actor_id,
         "APPROVED_PLAN_DIGEST": expected_plan_digest,
+        "APPROVED_BASE_COMMIT": expected_base_commit,
+        "APPROVED_FRAMEWORK_COMMIT": expected_framework_commit,
+        "APPROVED_FRAMEWORK_REPOSITORY": expected_framework_repository,
+        "GITHUB_REF": "refs/heads/main",
+        "GITHUB_SHA": expected_base_commit,
+        "GITHUB_WORKFLOW_REF": expected_workflow_ref,
+        "GITHUB_WORKFLOW_SHA": expected_base_commit,
     }
     wrong = [key for key, value in required.items() if environment.get(key) != value]
     if wrong:
@@ -71,10 +82,27 @@ def verify_github_actions_identity(
     actor = environment.get("GITHUB_ACTOR", "")
     run_id = environment.get("GITHUB_RUN_ID", "")
     attempt = environment.get("GITHUB_RUN_ATTEMPT", "")
-    if not actor or not expected_actor_id.isdigit() or not run_id.isdigit() or not attempt.isdigit():
+    if (
+        not actor
+        or not expected_actor_id.isdigit()
+        or not re.fullmatch(r"[1-9][0-9]*", run_id)
+        or attempt != "1"
+    ):
         raise GitHubScmError("GitHub workflow identity fields are malformed")
     if not PLAN_DIGEST.fullmatch(expected_plan_digest):
         raise GitHubScmError("approved plan digest is malformed")
+    if not OBJECT_ID.fullmatch(expected_base_commit) or not OBJECT_ID.fullmatch(
+        expected_framework_commit
+    ):
+        raise GitHubScmError("approved commit binding is malformed")
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", expected_framework_repository):
+        raise GitHubScmError("approved framework repository is malformed")
+    expected_workflow = (
+        rf"{re.escape(expected_repository)}/\.github/workflows/"
+        r"[A-Za-z0-9_.-]+\.ya?ml@refs/heads/main"
+    )
+    if not re.fullmatch(expected_workflow, expected_workflow_ref):
+        raise GitHubScmError("approved workflow reference is malformed")
     return {
         "actor_id": f"github:{expected_actor_id}",
         "actor_login": actor,
@@ -82,6 +110,12 @@ def verify_github_actions_identity(
         "signature_ref": (
             f"github-actions://{expected_repository}/runs/{run_id}/attempts/{attempt}"
         ),
+        "repository_ref": "refs/heads/main",
+        "workflow_ref": expected_workflow_ref,
+        "workflow_sha": expected_base_commit,
+        "framework_repository": expected_framework_repository,
+        "run_id": run_id,
+        "run_attempt": attempt,
     }
 
 
@@ -145,6 +179,8 @@ def validate_bound_change(
     for field, expected in comparisons.items():
         if approval[field] != expected:
             raise GitHubScmError(f"approval differs from plan: {field}")
+    if approval.get("writer_topology") != plan.get("writer_topology"):
+        raise GitHubScmError("approval differs from plan: writer_topology")
     if approval_scope_digest(approval) != approval["scope_digest"]:
         raise GitHubScmError("approval scope digest is invalid")
     if approval["actor_id"] != verified_identity.get("actor_id"):
@@ -159,7 +195,7 @@ def validate_bound_change(
     if issued > current or expires <= current or (expires - issued).total_seconds() > 900:
         raise GitHubScmError("approval is not active under the 15 minute workflow policy")
     if approval["merge_allowed"] or approval["deploy_allowed"]:
-        raise GitHubScmError("v0.8 GitHub execution cannot merge or deploy")
+        raise GitHubScmError("v1 GitHub execution cannot merge or deploy")
     required_actions = {"repository.read", "commit.create", "draft-pr.create"}
     if not required_actions <= set(approval["allowed_actions"]):
         raise GitHubScmError("approval lacks proposal SCM actions")
@@ -215,7 +251,7 @@ def execute_bound_change(
         change["base_branch"],
     )
     return {
-        "schema_version": "1.0.0",
+        "schema_version": "1.1.0",
         "repository": expected_repository,
         "repository_id": expected_repository_id,
         "base_commit": plan["base_commit"],
@@ -267,7 +303,7 @@ class GitHubJobClient:
                 "Accept": "application/vnd.github+json",
                 "Authorization": f"Bearer {self._token}",
                 "Content-Type": "application/json",
-                "User-Agent": "agent-team-engineering-v0.8-conformance",
+                "User-Agent": "agent-team-engineering-v1-conformance",
                 "X-GitHub-Api-Version": "2022-11-28",
             },
         )
@@ -287,18 +323,59 @@ class GitHubJobClient:
         except ValueError:
             raise GitHubScmError("GitHub API response is not strict JSON") from None
 
-    @staticmethod
-    def _summary(record: dict[str, Any], *, created: bool) -> dict[str, Any]:
-        url = record.get("html_url") or record.get("url")
-        identity = (
-            record.get("node_id")
-            or record.get("id")
-            or record.get("ref")
-            or record.get("sha")
-        )
-        if not isinstance(url, str) or identity is None:
-            raise GitHubScmError("GitHub response lacks sanitized stable identity")
-        return {"external_ref": url, "provider_id": str(identity), "created": created}
+    def _summary(
+        self, record: dict[str, Any], *, created: bool, object_type: str
+    ) -> dict[str, Any]:
+        root = f"https://github.com/{self.repository}"
+        api_root = f"https://api.github.com/repos/{self.repository}"
+        if object_type in {"issue", "draft_pull_request"}:
+            number = record.get("number")
+            provider_id = record.get("node_id")
+            external_ref = record.get("html_url")
+            expected_segment = "issues" if object_type == "issue" else "pull"
+            expected_prefix = "I_" if object_type == "issue" else "PR_"
+            if (
+                not isinstance(number, int)
+                or isinstance(number, bool)
+                or number < 1
+                or not isinstance(provider_id, str)
+                or not provider_id.startswith(expected_prefix)
+                or external_ref != f"{root}/{expected_segment}/{number}"
+            ):
+                raise GitHubScmError(f"GitHub {object_type} response has the wrong identity type")
+            if object_type == "issue" and "pull_request" in record:
+                raise GitHubScmError("GitHub issue response is a pull request")
+            if object_type == "draft_pull_request" and record.get("draft") is not True:
+                raise GitHubScmError("GitHub pull request is not a draft")
+        elif object_type == "branch":
+            ref = record.get("ref")
+            provider_id = record.get("node_id")
+            external_ref = record.get("url")
+            if (
+                not isinstance(ref, str)
+                or not ref.startswith("refs/heads/")
+                or not isinstance(provider_id, str)
+                or not provider_id.startswith("REF_")
+                or external_ref != f"{api_root}/git/{ref}"
+            ):
+                raise GitHubScmError("GitHub branch response has the wrong identity type")
+        elif object_type == "commit":
+            provider_id = record.get("sha")
+            external_ref = record.get("url")
+            if (
+                not isinstance(provider_id, str)
+                or not OBJECT_ID.fullmatch(provider_id)
+                or external_ref != f"{api_root}/git/commits/{provider_id}"
+            ):
+                raise GitHubScmError("GitHub commit response has the wrong identity type")
+        else:
+            raise GitHubScmError("GitHub object type is unsupported")
+        return {
+            "object_type": object_type,
+            "external_ref": external_ref,
+            "provider_id": provider_id,
+            "created": created,
+        }
 
     def base_commit(self, branch: str) -> str:
         encoded = urllib.parse.quote(branch, safe="")
@@ -329,11 +406,11 @@ class GitHubJobClient:
     def ensure_issue(self, marker: str, title: str, body: str) -> dict[str, Any]:
         for record in self._all(f"/repos/{self.repository}/issues?state=all&per_page=100"):
             if "pull_request" not in record and marker in str(record.get("body", "")):
-                return self._summary(record, created=False)
+                return self._summary(record, created=False, object_type="issue")
         value = self._request(
             "POST", f"/repos/{self.repository}/issues", {"title": title, "body": body}
         )
-        return self._summary(value, created=True)
+        return self._summary(value, created=True, object_type="issue")
 
     def ensure_branch(self, branch: str, base_commit: str) -> dict[str, Any]:
         encoded = urllib.parse.quote(branch, safe="")
@@ -341,13 +418,13 @@ class GitHubJobClient:
             "GET", f"/repos/{self.repository}/git/ref/heads/{encoded}", allow_missing=True
         )
         if existing is not None:
-            return self._summary(existing, created=False)
+            return self._summary(existing, created=False, object_type="branch")
         value = self._request(
             "POST",
             f"/repos/{self.repository}/git/refs",
             {"ref": f"refs/heads/{branch}", "sha": base_commit},
         )
-        return self._summary(value, created=True)
+        return self._summary(value, created=True, object_type="branch")
 
     def _branch_head_commit(self, branch: str, *, created: bool) -> dict[str, Any]:
         encoded = urllib.parse.quote(branch, safe="")
@@ -360,7 +437,7 @@ class GitHubJobClient:
             raise GitHubScmError("GitHub branch response lacks a commit identity") from None
         if kind != "commit" or not OBJECT_ID.fullmatch(commit):
             raise GitHubScmError("GitHub branch target is not a commit")
-        return self._summary(target, created=created)
+        return self._summary(target, created=created, object_type="commit")
 
     def ensure_file(
         self, branch: str, path: str, content: bytes, message: str
@@ -406,7 +483,9 @@ class GitHubJobClient:
             if marker in str(record.get("body", "")):
                 if record.get("draft") is not True or record.get("merged_at") is not None:
                     raise GitHubScmError("reconciled pull request is not an unmerged draft")
-                return self._summary(record, created=False)
+                return self._summary(
+                    record, created=False, object_type="draft_pull_request"
+                )
         value = self._request(
             "POST",
             f"/repos/{self.repository}/pulls",
@@ -414,4 +493,4 @@ class GitHubJobClient:
         )
         if not isinstance(value, dict) or value.get("draft") is not True:
             raise GitHubScmError("GitHub did not create a draft pull request")
-        return self._summary(value, created=True)
+        return self._summary(value, created=True, object_type="draft_pull_request")

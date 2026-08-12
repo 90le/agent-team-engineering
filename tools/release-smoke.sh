@@ -74,6 +74,13 @@ host_digest="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["
   --plan "$temp_root/openclaw-host-plan.json" >/dev/null
 "$temp_root/installed/agent-team" host verify \
   --root "$temp_root/openclaw-projection" >/dev/null
+"$temp_root/installed/agent-team" host uninstall-preview \
+  --root "$temp_root/openclaw-projection" >/dev/null
+"$temp_root/installed/agent-team" host uninstall \
+  --root "$temp_root/openclaw-projection" \
+  --digest "$host_digest" >/dev/null
+"$temp_root/installed/agent-team" host uninstall-preview \
+  --root "$temp_root/openclaw-projection" >/dev/null
 "$temp_root/installed/agent-team" host uninstall \
   --root "$temp_root/openclaw-projection" \
   --digest "$host_digest" >/dev/null
@@ -82,5 +89,11 @@ python3 "$temp_root/installed/tools/agent_team.py" instance init \
   --output "$temp_root/instance" >/dev/null
 python3 "$temp_root/installed/tools/agent_team.py" instance validate \
   --root "$temp_root/instance" >/dev/null
+
+writer_report="$("$temp_root/installed/agent-team" native writer-authority-validate \
+  --topology "$temp_root/installed/examples/v08-contracts/valid/writer-topology.json" \
+  --plan "$temp_root/installed/examples/v08-contracts/valid/plan-revision.json" \
+  --approval "$temp_root/installed/examples/v08-contracts/valid/approval-grant.json")"
+python3 -c 'import json,sys; report=json.load(sys.stdin); assert report["status"] == "VALID"; assert report["automatic_execution"] is False; assert report["identity_or_signature_verified"] is False' <<<"$writer_report"
 
 printf 'release_smoke=PASS tag=%s revision=%s\n' "$release_tag" "$head_revision"

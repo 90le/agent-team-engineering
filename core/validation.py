@@ -7,9 +7,25 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
+from core.contracts import validate_contract, validate_writer_authority
 from core.json_support import loads_strict
 from core.schema_validation import validate_schema
 from core.security import CREDENTIAL_PATTERNS
+
+CORE_CONTRACT_EXAMPLES = {
+    "team_spec": "examples/v08-contracts/valid/team-spec.json",
+    "role_contract": "examples/v08-contracts/valid/role-contract.json",
+    "workflow_spec": "examples/v08-contracts/valid/workflow-spec.json",
+    "work_item": "examples/v08-contracts/valid/work-item.json",
+    "plan_revision": "examples/v08-contracts/valid/plan-revision.json",
+    "approval_grant": "examples/v08-contracts/valid/approval-grant.json",
+    "run": "examples/v08-contracts/valid/run.json",
+    "evidence_bundle": "examples/v08-contracts/valid/evidence-bundle.json",
+    "adapter_descriptor": "examples/v08-contracts/valid/adapter-descriptor.json",
+    "command_envelope": "examples/v08-contracts/valid/command-envelope.json",
+    "event_envelope": "examples/v08-contracts/valid/event-envelope.json",
+    "writer_topology": "examples/v08-contracts/valid/writer-topology.json",
+}
 
 REQUIRED_PATHS = (
     "README.md",
@@ -29,6 +45,7 @@ REQUIRED_PATHS = (
     "capability-package.json",
     "acceptance/cross-ai-takeover.json",
     "acceptance/v09-host-native-conformance.json",
+    "acceptance/v10-host-native-conformance.json",
     "core/adapters.py",
     "core/adapter_ports.py",
     "core/agent_drivers.py",
@@ -60,6 +77,7 @@ REQUIRED_PATHS = (
     "tools/disposable_runner_probe.py",
     "tools/github_scm_conformance.py",
     "tools/release_audit.py",
+    "tools/release_evidence.py",
     ".github/workflows/disposable-runner.yml",
     ".github/workflows/release-verify.yml",
     ".github/workflows/validate.yml",
@@ -109,6 +127,7 @@ REQUIRED_PATHS = (
     "schemas/team-spec.schema.json",
     "schemas/role-contract.schema.json",
     "schemas/workflow-spec.schema.json",
+    "schemas/writer-topology.schema.json",
     "schemas/work-item-v2.schema.json",
     "schemas/plan-revision.schema.json",
     "schemas/approval-grant.schema.json",
@@ -125,13 +144,17 @@ REQUIRED_PATHS = (
     "schemas/external-reference.schema.json",
     "schemas/sandbox-profile.schema.json",
     "schemas/runner-conformance-report.schema.json",
+    "schemas/release-evidence.schema.json",
     "schemas/github-change-set.schema.json",
     "schemas/github-scm-conformance-report.schema.json",
     "schemas/guided-adoption-plan.schema.json",
     "schemas/host-capability.schema.json",
     "schemas/host-conformance-report.schema.json",
+    "schemas/v10-release-candidate-conformance.schema.json",
     "schemas/host-install-lock.schema.json",
+    "schemas/host-install-lock-legacy-v1.schema.json",
     "schemas/host-install-plan.schema.json",
+    "schemas/host-uninstall-tombstone.schema.json",
     "schemas/project-task-envelope.schema.json",
     "schemas/runner-profile.schema.json",
     "schemas/team-blueprint.schema.json",
@@ -154,6 +177,7 @@ REQUIRED_PATHS = (
     "docs/14-context-first/context-first-team-kit.md",
     "docs/14-context-first/platform-installation.md",
     "docs/15-upstream-independent/core-contracts-and-migration.md",
+    "docs/15-upstream-independent/independent-writer-topology.md",
     "docs/15-upstream-independent/adapter-port-sdk.md",
     "docs/15-upstream-independent/native-controller-and-conformance.md",
     "docs/15-upstream-independent/runner-scm-and-agent-boundaries.md",
@@ -162,6 +186,7 @@ REQUIRED_PATHS = (
     "docs/16-release/v0.8-acceptance.md",
     "docs/16-release/v0.8.1-acceptance.md",
     "docs/16-release/v0.9-acceptance.md",
+    "docs/16-release/v1.0-acceptance.md",
     "docs/17-guided-adoption/README.md",
     "docs/17-guided-adoption/conversation-protocol.md",
     "docs/17-guided-adoption/plan-contract.md",
@@ -179,6 +204,8 @@ REQUIRED_PATHS = (
     "docs/adr/ADR-0009-vendor-neutral-core-and-replaceable-ports.md",
     "docs/adr/ADR-0010-scenario-first-guided-adoption.md",
     "docs/adr/ADR-0011-host-capability-contract-and-native-team-projection.md",
+    "docs/adr/ADR-0012-concurrent-host-lifecycle-and-replay-safe-uninstall.md",
+    "docs/adr/ADR-0013-portable-independent-writer-topology.md",
     "contracts/core-contracts.json",
     "contracts/v07-to-v08-migration.json",
     "contracts/native-reference-workflow.json",
@@ -207,6 +234,7 @@ REQUIRED_PATHS = (
     "examples/v08-contracts/valid/adapter-descriptor.json",
     "examples/v08-contracts/valid/command-envelope.json",
     "examples/v08-contracts/valid/event-envelope.json",
+    "examples/v08-contracts/valid/writer-topology.json",
     "examples/v08-contracts/valid/capability-report.json",
     "examples/v08-contracts/invalid/cases.json",
     "examples/github-scm-conformance/README.md",
@@ -255,6 +283,7 @@ REQUIRED_CONTRACT_FILES = frozenset(
         "docs/14-context-first/context-first-team-kit.md",
         "docs/14-context-first/platform-installation.md",
         "docs/15-upstream-independent/core-contracts-and-migration.md",
+        "docs/15-upstream-independent/independent-writer-topology.md",
         "docs/15-upstream-independent/adapter-port-sdk.md",
         "docs/15-upstream-independent/native-controller-and-conformance.md",
         "docs/15-upstream-independent/runner-scm-and-agent-boundaries.md",
@@ -263,6 +292,7 @@ REQUIRED_CONTRACT_FILES = frozenset(
         "docs/16-release/v0.8-acceptance.md",
         "docs/16-release/v0.8.1-acceptance.md",
         "docs/16-release/v0.9-acceptance.md",
+        "docs/16-release/v1.0-acceptance.md",
         "docs/17-guided-adoption/README.md",
         "docs/17-guided-adoption/conversation-protocol.md",
         "docs/17-guided-adoption/plan-contract.md",
@@ -279,6 +309,8 @@ REQUIRED_CONTRACT_FILES = frozenset(
         "docs/adr/ADR-0009-vendor-neutral-core-and-replaceable-ports.md",
         "docs/adr/ADR-0010-scenario-first-guided-adoption.md",
         "docs/adr/ADR-0011-host-capability-contract-and-native-team-projection.md",
+        "docs/adr/ADR-0012-concurrent-host-lifecycle-and-replay-safe-uninstall.md",
+        "docs/adr/ADR-0013-portable-independent-writer-topology.md",
         "contracts/core-contracts.json",
         "contracts/v07-to-v08-migration.json",
         "contracts/native-reference-workflow.json",
@@ -288,15 +320,20 @@ REQUIRED_CONTRACT_FILES = frozenset(
         "acceptance/github-scm-replay.json",
         "acceptance/v08-native-conformance.json",
         "acceptance/v09-host-native-conformance.json",
+        "acceptance/v10-host-native-conformance.json",
         "schemas/sandbox-profile.schema.json",
         "schemas/runner-conformance-report.schema.json",
+        "schemas/release-evidence.schema.json",
         "schemas/github-change-set.schema.json",
         "schemas/github-scm-conformance-report.schema.json",
         "schemas/guided-adoption-plan.schema.json",
         "schemas/host-capability.schema.json",
         "schemas/host-conformance-report.schema.json",
+        "schemas/v10-release-candidate-conformance.schema.json",
         "schemas/host-install-lock.schema.json",
+        "schemas/host-install-lock-legacy-v1.schema.json",
         "schemas/host-install-plan.schema.json",
+        "schemas/host-uninstall-tombstone.schema.json",
         "sbom/agent-team-engineering.spdx.json",
         "supply-chain/source-provenance.json",
         ".github/workflows/disposable-runner.yml",
@@ -304,6 +341,7 @@ REQUIRED_CONTRACT_FILES = frozenset(
         "schemas/team-spec.schema.json",
         "schemas/role-contract.schema.json",
         "schemas/workflow-spec.schema.json",
+        "schemas/writer-topology.schema.json",
         "schemas/work-item-v2.schema.json",
         "schemas/plan-revision.schema.json",
         "schemas/approval-grant.schema.json",
@@ -316,6 +354,7 @@ REQUIRED_CONTRACT_FILES = frozenset(
         "schemas/native-conformance-profile.schema.json",
         "examples/v08-contracts/README.md",
         "examples/v08-contracts/valid/capability-report.json",
+        "examples/v08-contracts/valid/writer-topology.json",
         "examples/v08-contracts/invalid/cases.json",
         "examples/github-scm-conformance/README.md",
         "examples/github-scm-conformance/workflow.yml",
@@ -429,6 +468,37 @@ def validate_repository(root: Path) -> list[Finding]:
                 resolved = (path.parent / target).resolve()
                 if not resolved.exists():
                     findings.append(Finding("ERROR", relative, f"broken local link: {link}"))
+
+    for contract, relative in CORE_CONTRACT_EXAMPLES.items():
+        document = json_documents.get((root / relative).resolve())
+        if document is None:
+            continue
+        for issue in validate_contract(contract, document):
+            findings.append(
+                Finding(
+                    "ERROR",
+                    relative,
+                    f"{contract} {issue.path}: {issue.message}",
+                )
+            )
+
+    authority_documents = {
+        contract: json_documents.get((root / CORE_CONTRACT_EXAMPLES[contract]).resolve())
+        for contract in ("writer_topology", "plan_revision", "approval_grant")
+    }
+    if all(isinstance(document, dict) for document in authority_documents.values()):
+        for issue in validate_writer_authority(
+            authority_documents["writer_topology"],
+            authority_documents["plan_revision"],
+            authority_documents["approval_grant"],
+        ):
+            findings.append(
+                Finding(
+                    "ERROR",
+                    "examples/v08-contracts/valid/writer-topology.json",
+                    f"writer authority {issue.path}: {issue.message}",
+                )
+            )
 
     skill_root = root / "skills"
     if skill_root.is_dir():
@@ -920,5 +990,19 @@ def validate_repository(root: Path) -> list[Finding]:
                         f"takeover document is missing: {relative}",
                     )
                 )
+
+    candidate_path = root / "acceptance/v10-host-native-conformance.json"
+    candidate_schema_path = root / "schemas/v10-release-candidate-conformance.schema.json"
+    candidate = json_documents.get(candidate_path.resolve())
+    candidate_schema = json_documents.get(candidate_schema_path.resolve())
+    if isinstance(candidate, dict) and isinstance(candidate_schema, dict):
+        for issue in validate_schema(candidate, candidate_schema):
+            findings.append(
+                Finding(
+                    "ERROR",
+                    candidate_path.relative_to(root).as_posix(),
+                    f"{issue.path}: {issue.message}",
+                )
+            )
 
     return findings

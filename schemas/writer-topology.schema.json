@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:writer-topology:1.0.0",
+  "title": "Portable independent-writer team topology",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "schema_version", "topology_id", "topology_version", "status", "team_spec_ref", "repository", "approval", "writers", "integrator", "assurance_roles", "phases", "recovery", "default_effects", "factory_host_catalog", "host_degradation", "topology_digest"],
+  "properties": {
+    "$schema": {"const": "urn:agent-team:schema:writer-topology:1.0.0"},
+    "schema_version": {"const": "1.0.0"},
+    "topology_id": {"type": "string", "pattern": "^topology\\.[a-z0-9][a-z0-9.-]*$", "maxLength": 120},
+    "topology_version": {"type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"},
+    "status": {"const": "DESIGN_ONLY"},
+    "team_spec_ref": {"type": "string", "pattern": "^team\\.[a-z0-9]+([.-][a-z0-9]+)*@[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository_id", "base_ref", "source_clean_required", "protected_default_branch"],
+      "properties": {
+        "repository_id": {"type": "string", "pattern": "^repo\\.[a-z0-9][a-z0-9.-]*$"},
+        "base_ref": {"type": "string", "pattern": "^[A-Za-z0-9._/-]+@[a-f0-9]{40}$", "maxLength": 200},
+        "source_clean_required": {"const": true},
+        "protected_default_branch": {"const": true}
+      }
+    },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authority_actor", "binding", "must_precede_writes", "self_approval_forbidden"],
+      "properties": {
+        "authority_actor": {"const": "human.owner"},
+        "binding": {"const": "exact-plan-and-topology-digests"},
+        "must_precede_writes": {"const": true},
+        "self_approval_forbidden": {"const": true}
+      }
+    },
+    "writers": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["actor_id", "role_ref", "ownership_roots", "worktree_template", "branch_template", "allowed_actions", "forbidden_actions"],
+        "properties": {
+          "actor_id": {"type": "string", "pattern": "^role\\.[a-z0-9]+([.-][a-z0-9]+)*$", "maxLength": 64},
+          "role_ref": {"type": "string", "pattern": "^role\\.[a-z0-9]+([.-][a-z0-9]+)*@[0-9]+\\.[0-9]+\\.[0-9]+$"},
+          "ownership_roots": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 300}},
+          "worktree_template": {"const": ".agent-team/worktrees/{work_item_id}/{writer_id}"},
+          "branch_template": {"const": "agent-team/{work_item_id}/{writer_id}"},
+          "allowed_actions": {"const": ["commit.create", "owned-paths.write", "repository.read"]},
+          "forbidden_actions": {"const": ["approval.issue", "default-branch.merge", "outside-owned-paths.write", "production.deploy", "release.publish", "review-own-work"]}
+        }
+      }
+    },
+    "integrator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actor_id", "role_ref", "allowed_actions", "forbidden_actions"],
+      "properties": {
+        "actor_id": {"type": "string", "pattern": "^role\\.[a-z0-9]+([.-][a-z0-9]+)*$", "maxLength": 64},
+        "role_ref": {"type": "string", "pattern": "^role\\.[a-z0-9]+([.-][a-z0-9]+)*@[0-9]+\\.[0-9]+\\.[0-9]+$"},
+        "allowed_actions": {"const": ["commit.read", "draft-pr.create", "integration-branch.compose"]},
+        "forbidden_actions": {"const": ["approval.issue", "default-branch.merge", "production.deploy", "release.publish", "source-feature.write"]}
+      }
+    },
+    "assurance_roles": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["actor_id", "role_ref", "kind", "read_only", "may_review_own_work", "allowed_actions", "forbidden_actions"],
+        "properties": {
+          "actor_id": {"type": "string", "pattern": "^role\\.[a-z0-9]+([.-][a-z0-9]+)*$", "maxLength": 64},
+          "role_ref": {"type": "string", "pattern": "^role\\.[a-z0-9]+([.-][a-z0-9]+)*@[0-9]+\\.[0-9]+\\.[0-9]+$"},
+          "kind": {"enum": ["reviewer", "tester"]},
+          "read_only": {"const": true},
+          "may_review_own_work": {"const": false},
+          "allowed_actions": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z][a-z0-9.-]*$"}},
+          "forbidden_actions": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z][a-z0-9.-]*$"}}
+        }
+      }
+    },
+    "phases": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sequence", "phase_id", "actors", "parallel", "requires", "produces", "failure_state"],
+        "properties": {
+          "sequence": {"type": "integer", "minimum": 1, "maximum": 32},
+          "phase_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+          "actors": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^(human\\.owner|role\\.[a-z0-9]+([.-][a-z0-9]+)*)$"}},
+          "parallel": {"type": "boolean"},
+          "requires": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z][a-z0-9.-]*$"}},
+          "produces": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z][a-z0-9.-]*$"}},
+          "failure_state": {"enum": ["BLOCKED", "FAILED", "NEEDS_HUMAN", "CANCELLED"]}
+        }
+      }
+    },
+    "recovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["idempotency_fields", "retry", "cancellation", "partial_results", "resume"],
+      "properties": {
+        "idempotency_fields": {"type": "array", "minItems": 3, "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z][a-z0-9._-]*$"}},
+        "retry": {"const": "same-revision-and-approval-only"},
+        "cancellation": {"const": "stop-new-dispatch-and-preserve-evidence"},
+        "partial_results": {"const": "retain-immutable-commits-and-content-addressed-evidence"},
+        "resume": {"const": "revalidate-base-approval-ownership-and-evidence"}
+      }
+    },
+    "default_effects": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["result", "automatic_merge", "automatic_release", "automatic_deploy"],
+      "properties": {
+        "result": {"const": "reviewed-draft-pr"},
+        "automatic_merge": {"const": false},
+        "automatic_release": {"const": false},
+        "automatic_deploy": {"const": false}
+      }
+    },
+    "factory_host_catalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["catalog_digest", "hosts"],
+      "properties": {
+        "catalog_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "hosts": {"type": "array", "minItems": 1, "maxItems": 64, "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"}}
+      }
+    },
+    "host_degradation": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["host", "support_tier", "projection", "topology_enforced", "automatic_execution", "limitations"],
+        "properties": {
+          "host": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+          "support_tier": {"enum": ["native-install-verified", "verified-export", "experimental-plan", "portable"]},
+          "projection": {"enum": ["role-files-only", "portable-documents-only", "native-team-files-no-multiwriter-runtime", "leader-squad-overlay-no-independent-writer-enforcement"]},
+          "topology_enforced": {"const": false},
+          "automatic_execution": {"const": false},
+          "limitations": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 500}}
+        }
+      }
+    },
+    "topology_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+  }
+}

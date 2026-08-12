@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0.0",
   "project": "90le/agent-team-engineering",
-  "release": "v0.9.0",
+  "release": "v1.0.0",
   "release_commit_binding": "annotated-tag-object",
   "license": "Apache-2.0",
   "python_runtime_dependencies": [],
@@ -19,7 +19,7 @@
   "github_actions": [
     {"repository": "actions/checkout", "revision": "3d3c42e5aac5ba805825da76410c181273ba90b1", "tag_observed": "v7.0.1"},
     {"repository": "actions/setup-python", "revision": "5fda3b95a4ea91299a34e894583c3862153e4b97", "tag_observed": "v7.0.0"},
-    {"repository": "actions/upload-artifact", "revision": "ea165f8d65b6e75b540449e92b4886f43607fa02", "tag_observed": "v4.6.2"}
+    {"repository": "actions/upload-artifact", "revision": "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a", "tag_observed": "v7.0.1"}
   ],
   "claims": {
     "external_products_are_optional": true,

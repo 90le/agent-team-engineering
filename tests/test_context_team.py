@@ -168,6 +168,48 @@ class ContextTeamCompilerTests(unittest.TestCase):
                     / "platforms/openclaw/workspaces/frontend-engineer/skills/implement-frontend-change/SKILL.md"
                 ).read_text(encoding="utf-8"),
             )
+            openclaw_fragment = json.loads(
+                (team / "platforms/openclaw/openclaw.fragment.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            for agent in openclaw_fragment["agents"]["list"]:
+                self.assertEqual(agent["sandbox"], {"mode": "all", "scope": "agent"})
+                self.assertNotIn("sandbox", agent["tools"])
+                self.assertFalse(agent["tools"]["elevated"]["enabled"])
+            frontend = next(
+                item
+                for item in openclaw_fragment["agents"]["list"]
+                if item["id"].endswith("-frontend-engineer")
+            )
+            reviewer = next(
+                item
+                for item in openclaw_fragment["agents"]["list"]
+                if item["id"].endswith("-independent-reviewer")
+            )
+            relay = next(
+                item
+                for item in openclaw_fragment["agents"]["list"]
+                if item["id"].endswith("-approval-relay")
+            )
+            self.assertNotIn("group:runtime", frontend["tools"]["deny"])
+            self.assertNotIn("write", frontend["tools"]["deny"])
+            for agent in openclaw_fragment["agents"]["list"]:
+                for denied_group in (
+                    "group:automation",
+                    "group:messaging",
+                    "group:nodes",
+                    "group:sessions",
+                    "group:agents",
+                    "group:media",
+                    "group:plugins",
+                    "group:ui",
+                ):
+                    self.assertIn(denied_group, agent["tools"]["deny"])
+            for read_only_agent in (reviewer, relay):
+                self.assertIn("group:runtime", read_only_agent["tools"]["deny"])
+                self.assertIn("apply_patch", read_only_agent["tools"]["deny"])
+            self.assertEqual(openclaw_fragment["bindings"], [])
             self.assertFalse((team / "runtime").exists())
             text = (team / "TEAM.md").read_text(encoding="utf-8")
             self.assertEqual(text.count("# software-lite Example Team"), 1)

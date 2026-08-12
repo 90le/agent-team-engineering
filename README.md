@@ -4,9 +4,9 @@
 [![Release](https://img.shields.io/github/v/release/90le/agent-team-engineering)](https://github.com/90le/agent-team-engineering/releases)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-**A host-native Agent Team Factory for OpenClaw, Hermes Agent, Codex, Claude Code, and other AI hosts.** Turn a project, a goal, and human authority boundaries into a portable team source plus files that the chosen host understands natively.
+**A host-native Agent Team Factory for OpenClaw, Hermes Agent, Codex, Claude Code, and other AI hosts.** Turn a project, a goal, and human authority boundaries into a portable team source plus a reviewable host-shaped package at an explicit evidence tier.
 
-[中文说明](README.zh-CN.md) · [Give this repository to an AI](AI-START.md) · [Native-host guide](docs/18-native-hosts/README.md) · [Examples](examples/guided-adoption/README.md)
+[中文说明](README.zh-CN.md) · [Give this repository to an AI](AI-START.md) · [Native-host guide](docs/18-native-hosts/README.md) · [v1.0 release contract](docs/16-release/v1.0-acceptance.md) · [Examples](examples/guided-adoption/README.md)
 
 ## What this project does
 
@@ -27,7 +27,18 @@ project facts + desired outcome + human boundaries
 
 The Factory does **not** replace OpenClaw, Hermes Agent, Codex, Claude Code, or Multica. It compiles the same governed team intent into host-native packages and safe installation plans. Choose an AI host you already use; do not adopt another runtime just for this project.
 
-For long-running feedback → analysis → approval → implementation → independent review → tested Draft PR workflows, the repository also includes an optional **Managed** controller. It is a governed automation layer, not the default mode and never grants merge or production deployment authority. In v0.9 it deliberately has one source-writing `builder`; choose the on-demand native team when separate frontend and backend writer identities are mandatory.
+For long-running feedback → analysis → approval → implementation → independent review → tested Draft PR workflows, the repository also includes an optional **Managed** controller. It is a governed automation layer, not the default mode and never grants merge or production deployment authority. The current reference controller deliberately has one source-writing `builder`; choose the on-demand native team when separate frontend and backend writer identities are mandatory.
+
+For a genuinely independent frontend/backend design, v1.0 adds a machine-validated [`WriterTopology → PlanRevision → ApprovalGrant` authority chain](docs/15-upstream-independent/independent-writer-topology.md): distinct identities, non-overlapping ownership, isolated worktree/branch templates, exact plan-and-topology approval, a separate integrator, read-only assurance, recovery rules, and a reviewed Draft PR stop. Validate the canonical trio offline:
+
+```bash
+./agent-team native writer-authority-validate \
+  --topology examples/v08-contracts/valid/writer-topology.json \
+  --plan examples/v08-contracts/valid/plan-revision.json \
+  --approval examples/v08-contracts/valid/approval-grant.json
+```
+
+The current PlanRevision and ApprovalGrant schema files have `$id` `1.1.0`: `1.1.0` documents must explicitly bind the topology object or declare `null`, while compatible `1.0.0` documents omit it. This is a v1.0 product addition, not a rewritten v0.9 claim. It remains `DESIGN_ONLY`; successful validation reports `automatic_execution: false` and `identity_or_signature_verified: false`. The offline command checks document and digest coherence, not the approval actor's authenticated identity or digital signature, and no current host package or Managed controller claims a verified durable multi-writer scheduler.
 
 ## Give it to an AI
 
@@ -79,7 +90,9 @@ Team creation does not modify the target project. Installing a generated native 
 ./agent-team host preview --plan /new/path/openclaw-install-plan.json
 ```
 
-After reviewing the paths, limitations, digest, and rollback information, follow the displayed `confirm`, `apply`, and `verify` instructions. `apply` creates only absent files declared by the plan; unrelated destination content is preserved and any planned-path collision fails closed. It does not log in, create credentials, bind channels, write to a Multica workspace, merge code, or deploy production.
+Review the projected files and deterministic file stages, the declared transient metadata stage `.agent-team/.host-lifecycle.json.stage`, the empty guard format/digest, expected prior guard/tombstone, all delete effects, retention, limitations, and digest before following the displayed `confirm`, `apply`, and `verify` instructions. Plan schema `1.1.0` and install-lock schema `1.1.0` bind the complete proposal; an unexecuted v0.9 plan must be rebuilt, previewed, and confirmed again. On first apply, projected files must be absent; the same exact `APPLYING` record can resume their deterministic stages after a crash. Apply/uninstall may create or replace and then delete only the declared metadata scratch, and success requires it to be absent; they never touch similarly named hidden files. `filesystem_deletes: true` discloses that transient scratch behavior, while `persistent_filesystem_deletes` is true only when the newly confirmed plan will remove its exact prior tombstone. An exact empty guard with no install lock may be reused for guard-fsync recovery, but it is never deleted and grants no file-deletion authority. Unrelated content is preserved; collisions, baseline drift, or a concurrent lifecycle operation fail closed. Apply does not log in, create credentials, bind channels, write to a Multica workspace, merge code, or deploy production.
+
+Before removal, run `./agent-team host uninstall-preview --root <destination>`. This is a read-only scope preview. For `ACTIVE` and `UNINSTALLING`, it shows the fixed scratch in both create/delete lists and in `transient_files`; the operation may create and delete that scratch, but success leaves it absent. A current `ACTIVE` install requires a separate human process confirmation and its exact digest before `uninstall`; an interrupted `UNINSTALLING` install resumes directly. `ALREADY_UNINSTALLED` and `LEGACY_UNBOUND` have empty create/delete/transient lists: a completed tombstone makes exact replay idempotent, while the legacy lock is read-only verifiable and requires manual reconciliation instead of automatic destructive uninstall. Uninstall never removes directories, so empty directories may remain with the retained empty guard and tombstone.
 
 ## Inputs and outputs
 
@@ -136,6 +149,7 @@ See the [support matrix](docs/18-native-hosts/support-matrix.md) for exact artif
 |---|---|---|
 | “Create specialists that my existing AI can invoke for this project.” | Native host team | Context, roles, Skills, handoffs; host remains the runtime |
 | “Create a research, knowledge, content, operations, or custom expert group.” | Custom context-first team | Context-only until each external capability is engineered |
+| “Design separate frontend and backend source writers.” | Native team + validated WriterTopology authority chain | `DESIGN_ONLY`; no current host enforces the multi-writer runtime |
 | “Carry approved feedback across restarts to a tested, independently reviewed Draft PR.” | Native team + optional Managed controller | One source-writing builder; exact human approval; no automatic merge or deployment |
 
 ## Use a generated team
@@ -152,12 +166,13 @@ The team records state in `WORK/` and reviewed Git files instead of depending on
 - Issues, chats, webpages, repositories, tool output, and Agent messages are untrusted data.
 - A role description cannot grant a tool or turn chat into authenticated approval.
 - Creation and installation plans are separate, digest-bound decisions and refuse overwrite by default.
+- POSIX `fcntl` serializes cooperating local Factory lifecycle processes only; it does not defend against root, the kernel, the filesystem, storage failure, or another privileged writer.
 - Host discovery must be read-only; secrets, sessions, runtime databases, and production data do not belong in Git.
 - OpenClaw channel bindings, Multica workspace writes, live external adapters, merge, release, and deployment remain disabled unless separately engineered and authorized.
 - Managed automation stops at a tested, independently reviewed Draft PR.
 - A Host Runner is not a hostile-code sandbox; real execution needs an isolated, disposable environment.
 
-Read [SECURITY.md](SECURITY.md), the [threat model](docs/03-security/threat-model.md), and [ADR-0011](docs/adr/ADR-0011-host-capability-contract-and-native-team-projection.md) before enabling a live integration.
+Read [SECURITY.md](SECURITY.md), the [threat model](docs/03-security/threat-model.md), [ADR-0011](docs/adr/ADR-0011-host-capability-contract-and-native-team-projection.md), [ADR-0012](docs/adr/ADR-0012-concurrent-host-lifecycle-and-replay-safe-uninstall.md), and [ADR-0013](docs/adr/ADR-0013-portable-independent-writer-topology.md) before enabling a live integration.
 
 ## Documentation
 
@@ -168,6 +183,8 @@ Read [SECURITY.md](SECURITY.md), the [threat model](docs/03-security/threat-mode
 - [Guided adoption](docs/17-guided-adoption/README.md)
 - [Context-first team model](docs/14-context-first/context-first-team-kit.md)
 - [Optional governed automation](docs/15-upstream-independent/README.md)
+- [Independent frontend/backend writer authority chain](docs/15-upstream-independent/independent-writer-topology.md)
+- [v1.0 release acceptance contract](docs/16-release/v1.0-acceptance.md) — required gates and evidence rules; a changelog or version file alone does not prove remote release completion
 - [Contributing](CONTRIBUTING.md), [security reporting](SECURITY.md), and [code of conduct](CODE_OF_CONDUCT.md)
 
 Use [GitHub Discussions](https://github.com/90le/agent-team-engineering/discussions) for usage and design questions. Use [GitHub Issues](https://github.com/90le/agent-team-engineering/issues) for reproducible bugs and scoped feature proposals.

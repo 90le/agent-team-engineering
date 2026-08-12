@@ -49,7 +49,7 @@ Use these internal mappings only after the explanation:
 | Durable feedback-to-reviewed-Draft-PR progression | Native team plus optional `software-managed` controller |
 | Custom roles with external actions | Context-only until capabilities, identities, approvals, evidence, and recovery are designed |
 
-The v0.9 Managed controller deliberately exposes one source-writing `builder` identity. It preserves a narrow approval and audit boundary but is not an independent frontend/backend multi-writer controller. When separate writer identities are mandatory, recommend the on-demand native team and record durable multi-writer orchestration as an unimplemented capability rather than silently mapping both roles to `builder`.
+The current reference Managed controller deliberately exposes one source-writing `builder` identity. It preserves a narrow approval and audit boundary but is not an independent frontend/backend multi-writer controller. When separate writer identities are mandatory, recommend the on-demand native team and validate the portable [`WriterTopology → PlanRevision → ApprovalGrant`](../15-upstream-independent/independent-writer-topology.md) authority chain with `native writer-authority-validate`. Document `1.1.0` plans and approvals must explicitly bind the exact topology; `null` means none, while compatible `1.0.0` documents omit the field. The chain records disjoint ownership, Git isolation, independent assurance, deterministic handoff, and a retry identity containing `topology_digest`, but remains `DESIGN_ONLY`; every current host mapping honestly says `topology_enforced=false`. Never silently map both writers to `builder`, attribute this v1.0 addition to v0.9, or claim automatic orchestration.
 
 ## Plan and preview
 
@@ -57,13 +57,15 @@ First create and confirm the portable team plan. Say exactly:
 
 > This proposal only creates a new portable team directory. It does not modify your project, install into an AI host, create an account, read credentials, bind a channel, or enable external writes.
 
-After team validation, create a separate host plan. The host preview must show source design and lock digests, complete target descriptor digest/version, destination, every managed file, evidence tier, limitations, digest, verification, and uninstall scope.
+After team validation, create a separate host plan. The host preview must show schema `1.1.0`, source design and lock digests, complete target descriptor digest/version, destination, every projected file and deterministic file stage, the fixed transient metadata stage `.agent-team/.host-lifecycle.json.stage`, the persistent `empty-regular-file-v1` guard and empty-content digest, install record, uninstall tombstone, expected prior guard/tombstone identities, any exact prior-tombstone deletion, all filesystem effects, retention and directory behavior, evidence tier, limitations, digest, verification, and uninstall scope. Distinguish `filesystem_deletes: true` for the declared scratch that may be created or replaced and then deleted from `persistent_filesystem_deletes` for exact prior-tombstone removal. Explain that the `1.1.0` lock retains the complete proposal plus exact guard binding.
 
 Say exactly:
 
-> This is a host-install proposal, not an authorization yet. It manages only the displayed destination/files. It does not grant the generated roles any tool or account authority.
+> This is a host-install proposal, not an authorization yet. It manages only the displayed destination, projected files, deterministic file stages, and lifecycle metadata. Apply/uninstall may create or replace and then delete only the fixed declared metadata scratch, which must be absent on success; they do not touch similarly named hidden files. Persistent deletion is limited to the exact prior tombstone shown by this proposal. Uninstall retains the displayed empty guard and digest-bound tombstone, removes no directories, and may leave empty directories. It does not grant the generated roles any tool or account authority.
 
-If any material field changes, regenerate the plan and obtain a new confirmation.
+If any material field or prior lifecycle baseline changes, regenerate the plan and obtain a new confirmation. An unexecuted v0.9 plan must always go through a fresh `plan → preview → confirm`; never carry its approval into schema `1.1.0`.
+
+On first apply, all projected files and their deterministic file stages must be absent. If the exact complete `APPLYING` lock exists after a crash, the same confirmed plan may validate or rebuild those stages and resume. The fixed metadata scratch is the only declared temporary path that may be created or replaced and then deleted. An exact empty guard without an install lock may be reused after the guard-fsync crash window, but it is never deleted and grants no deletion authority. Do not describe any other existing path as recoverable.
 
 ## After apply
 
@@ -75,13 +77,30 @@ Report facts rather than a generic success message:
 - actual probe/verify checks and evidence tier;
 - checks skipped and why;
 - credentials, accounts, channels, writes, merge, and deployment that remain disabled;
-- exact uninstall/rollback boundary;
+- exact uninstall and crash-recovery boundary;
 - a copyable first task.
 
 Use this first-task pattern:
 
 > Read the installed team entrypoint and use the team for: `<outcome>`. Inspect verified project facts and durable work first. Explain the selected role and next bounded step. Do not infer external authority, and stop at the documented human gate.
 
+## Uninstall conversation
+
+Always begin with the read-only scope preview:
+
+```bash
+./agent-team host uninstall-preview --root <destination>
+```
+
+Then respond according to the reported state:
+
+- `ACTIVE`: enumerate every delete/create/retained path and `transient_files`. Explain that both `filesystem_deletes` and `filesystem_creates` include the fixed metadata scratch, which uninstall may create and delete and must leave absent on success. State that directories are never removed, ask for a separate human process confirmation, and only then use `host uninstall --digest <exact-proposal-digest>`. Be explicit that the CLI does not persist or authenticate that approval.
+- `UNINSTALLING`: explain that a previously started removal is incomplete and that its delete/create lists and `transient_files` likewise include the metadata scratch; recheck the preview and resume directly with the same exact digest.
+- `ALREADY_UNINSTALLED`: explain that the tombstone proves the exact completed digest, all three scope lists are empty, and replay is optional and idempotent.
+- `LEGACY_UNBOUND`: report empty delete/create/transient lists, read-only verification only, automatic destructive uninstall disabled, and the need for manual ownership reconciliation. Do not manufacture a v1 ownership record.
+
+The current lifecycle retains the persistent empty guard and tombstone, leaves the metadata scratch absent after success, and can leave empty directories. POSIX `fcntl` coordinates only cooperating local Factory processes; never present it as protection from root, the kernel, the filesystem, storage compromise, or other privileged writers.
+
 ## Stop conditions
 
-Stop without applying when the plan is unconfirmed or stale, the digest changed, the source lock drifted, the target is `research-unknown` or unsupported, a planned destination path already exists, a different install lock exists, a credential appears, host probing would read private state, the owner is unclear, verification fails, or live external effects lack a separate reviewed plan.
+Stop without applying when the plan is unconfirmed or stale, the digest changed, the source lock or approved prior lifecycle baseline drifted, a projected path/file-stage exists outside exact same-plan `APPLYING` recovery, any undeclared lookalike scratch would be touched, the target is `research-unknown` or unsupported, a different install lock exists, a credential appears, host probing would read private state, the owner is unclear, verification fails, or live external effects lack a separate reviewed plan.

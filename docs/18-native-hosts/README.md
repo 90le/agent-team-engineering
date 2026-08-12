@@ -80,15 +80,38 @@ Use the host lifecycle on a locked team:
 Review the plan JSON and its human-readable preview together. They identify:
 
 - exact source lock and complete host descriptor digest;
-- destination and every managed artifact;
+- plan schema `1.1.0`, destination, every projected artifact, its deterministic file `stage_path`, and the fixed transient metadata stage `.agent-team/.host-lifecycle.json.stage`;
+- the persistent `empty-regular-file-v1` operation guard and empty-content digest, install record, uninstall tombstone, and retained files;
+- exact expected prior guard/tombstone identities and whether apply will delete that exact prior tombstone;
 - host descriptor version, evidence tier, and any separate read-only probe result;
-- overwrite, merge, credentials, bindings, and network behavior;
+- filesystem write/delete effects, including `filesystem_deletes: true` for transient scratch management and `persistent_filesystem_deletes` for exact prior-tombstone removal, plus directory behavior, merge, credentials, bindings, and network behavior;
 - known unsupported capabilities;
 - digest, verification, and uninstall scope.
 
-Only an exact confirmation may unlock `host apply`. Changing the source, target, destination, descriptor, or artifact set invalidates the digest. Apply creates only absent files listed in the plan. An existing destination may contain unrelated files, which are preserved; any planned-path collision, symlink crossing, different install lock, or source drift fails closed.
+Only an exact confirmation may unlock `host apply`. The plan digest binds the complete proposal, and the `1.1.0` install lock copies that proposal plus the exact guard binding as durable ownership authority. Changing the source, target, destination, descriptor, artifact/stage set, prior lifecycle baseline, or effect invalidates the digest.
 
-`host uninstall` removes only artifacts recorded as owned by the exact install record. It is not permission to remove user-managed host configuration, workspaces, sessions, Skills, credentials, or project files.
+On first apply, every projected file and deterministic file stage must be absent. Apply may create or reuse the exact empty guard, create lifecycle records and declared files, and create or replace and then delete the fixed metadata scratch. The scratch is not retained and must be absent after successful apply/uninstall; no similarly named hidden file is in scope. A persistent deletion is limited to an exact prior tombstone when that identity and effect were displayed and confirmed by the new plan. An existing destination may contain unrelated files, which are preserved. Any other collision, changed tombstone baseline, unsafe guard, symlink crossing, different install lock, source drift, digest mismatch, or concurrent lifecycle operation fails closed.
+
+Each projected-file stage path is derived deterministically from its target and digest. After establishing the guard and before publishing those stages, apply writes an `APPLYING` lock. If a crash occurs, only the same confirmed plan with the exact same complete lock may validate or rebuild them and continue; a different plan cannot adopt them. The separate metadata scratch makes JSON state transitions crash-recoverable; apply/uninstall may create or replace and then delete it only at its declared exact path. An exact empty regular-file guard with no install lock may be reused after a crash between guard fsync and `APPLYING`; it is never deleted and grants no file-deletion authority. Once `ACTIVE`, verification rejects every leftover file stage and the metadata scratch.
+
+Host lifecycle mutation requires POSIX `fcntl`. `.agent-team/.host-lifecycle.guard` serializes cooperating local Factory processes, and v1 verification joins the same lock. This boundary does not protect against root, the kernel, filesystem or storage compromise, or an unrelated privileged writer.
+
+Plan schema `1.1.0` is intentionally not approval-compatible with an unexecuted v0.9 `1.0.0` plan: regenerate it, preview the new effects, and confirm the new digest. A v0.9 `1.0.0` install lock lacks the complete proposal and guard binding. `host verify` reports it as `LEGACY_UNBOUND` for read-only verification only; automatic apply and destructive uninstall are disabled. Ownership must be reconciled manually rather than inferred.
+
+Preview removal before any mutation:
+
+```bash
+./agent-team host uninstall-preview --root /path/to/host-team
+```
+
+The result is state-specific:
+
+- `ACTIVE` shows the exact managed-file and lock deletions, tombstone creation, retained empty guard/tombstone, and `directories_removed: false`. Both `filesystem_deletes` and `filesystem_creates` include `.agent-team/.host-lifecycle.json.stage`, and `transient_files` identifies it: uninstall may create and delete this scratch while transitioning state, but success leaves it absent. Obtain a separate human process confirmation, then pass the exact proposal digest to `host uninstall`. The CLI does not persist or authenticate that approval.
+- `UNINSTALLING` means the already-started state machine was interrupted. Its `filesystem_deletes`, `filesystem_creates`, and `transient_files` likewise include the scratch. Revalidate the preview and resume `host uninstall` directly with the exact digest; no new approval record can be reconstructed by the CLI.
+- `ALREADY_UNINSTALLED` is a read-only tombstone replay preview. Its delete/create/transient lists are empty; repeating `host uninstall` with the same digest returns the idempotent status without new deletion.
+- `LEGACY_UNBOUND` has empty delete/create/transient lists and requires manual reconciliation; do not call automatic uninstall.
+
+Current uninstall transitions `ACTIVE → UNINSTALLING → UNINSTALLED`, rechecks each remaining file immediately before unlinking, and can resume after interruption. It removes only files owned by the proposal-bound install record and manages only the fixed metadata scratch; successful completion leaves that scratch absent. It never removes directories, because a file-only record cannot prove who created an otherwise empty parent directory. Empty directories may therefore remain. It retains the persistent empty guard and `.agent-team/host-uninstall.tombstone.json` as replay evidence. None of this permits removal of user-managed host configuration, workspaces, sessions, Skills, credentials, similarly named hidden files, or project files.
 
 ## Evidence, not marketing labels
 
@@ -120,4 +143,6 @@ A lower step never implies a higher one. In particular, local CLI smoke tests do
 - [Hermes Agent boundary](hermes-agent.md)
 - [Multica experimental plan](multica.md)
 
-For the governing decision, read [ADR-0011](../adr/ADR-0011-host-capability-contract-and-native-team-projection.md).
+Only OpenClaw, Hermes Agent, and Multica currently need dedicated host pages. Codex, Claude Code, and Generic AI adopters must use this architecture chapter, the support matrix, the conversation workflow, and the exact `hosts/<host-id>/host.json` descriptor. The absence of a dedicated page is not evidence for a stronger support tier and must not be filled by guessed host behavior.
+
+For the governing decisions, read [ADR-0011](../adr/ADR-0011-host-capability-contract-and-native-team-projection.md) and [ADR-0012](../adr/ADR-0012-concurrent-host-lifecycle-and-replay-safe-uninstall.md).

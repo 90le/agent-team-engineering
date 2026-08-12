@@ -1,6 +1,6 @@
 [project]
 name = "agent-team-engineering"
-version = "0.9.0"
+version = "1.0.0"
 description = "Host-native factory for portable AI teams, Skills, context, and governed software delivery"
 requires-python = ">=3.11"
 

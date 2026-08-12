@@ -4,49 +4,57 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import subprocess
 import sys
 import tomllib
+import unittest
+from datetime import datetime
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from core.json_support import loads_strict  # noqa: E402
+from core.contracts import (  # noqa: E402
+    approval_scope_digest,
+    digest_value,
+    plan_revision_digest,
+    writer_topology_digest,
+)
+from core.lifecycle import SUPPORTED_UPGRADE_SOURCES  # noqa: E402
 from core.schema_validation import validate_schema  # noqa: E402
 from core.security import CREDENTIAL_PATTERNS  # noqa: E402
+from tools.github_scm_conformance import (  # noqa: E402
+    SCM_BASE_BRANCH,
+    SCM_REPOSITORY,
+    SCM_REPOSITORY_ID,
+    SCM_WORKFLOW_PATH,
+    SCM_WORKFLOW_REF,
+    FRAMEWORK_REPOSITORY,
+    build_approval as build_scm_conformance_approval,
+    build_change as build_scm_conformance_change,
+    build_plan as build_scm_conformance_plan,
+)
 
 ALLOWED_EVALUATION_LICENSES = {"Apache-2.0", "MIT"}
 REVIEWED_CUSTOM_EVALUATION_LICENSES = {"host.multica": "Multica-License"}
-EXPECTED_SCM_REPOSITORY = "90le/agent-team-v08-conformance-private"
-EXPECTED_SCM_REPOSITORY_ID = "repo.conformance.github.v08"
+EXPECTED_SCM_REPOSITORY = SCM_REPOSITORY
+EXPECTED_SCM_REPOSITORY_ID = SCM_REPOSITORY_ID
 EXPECTED_SCM_ACTOR_ID = "github:68719118"
 SCM_OBJECT_KEYS = ("issue", "branch", "commit", "draft_pull_request")
 SCM_EVIDENCE_PATHS = (
-    "acceptance/github-scm-first-run.json",
-    "acceptance/github-scm-replay.json",
+    "acceptance/github-scm-v10-first-run.json",
+    "acceptance/github-scm-v10-replay.json",
 )
-POST_EVIDENCE_ALLOWED_PATHS = frozenset(
-    {
-        "acceptance/github-scm-first-run.json",
-        "acceptance/github-scm-replay.json",
-        "acceptance/v08-native-conformance.json",
-        "core/validation.py",
-        "docs/16-release/v0.8-acceptance.md",
-        "factory-package.json",
-    }
-)
-EXTERNAL_EVIDENCE_BASELINE_TAG = "v0.8.0"
+EXTERNAL_EVIDENCE_BASELINE_TAG = "v0.9.0"
+EXTERNAL_EVIDENCE_BASELINE_COMMIT = "a286cfadbfb6f387a4f1fb94c244f57d4dd089e6"
 EXTERNAL_EVIDENCE_PROTECTED_PATHS = frozenset(
     {
-        "acceptance/github-scm-first-run.json",
-        "acceptance/github-scm-replay.json",
-        "acceptance/v08-native-conformance.json",
         "adapters/github/adapter.json",
         "contracts/core-contracts.json",
         "contracts/native-reference-workflow.json",
@@ -67,10 +75,20 @@ EXTERNAL_EVIDENCE_PROTECTED_PATHS = frozenset(
         "schemas/github-scm-conformance-report.schema.json",
         "schemas/plan-revision.schema.json",
         "schemas/team-spec.schema.json",
+        "schemas/v10-release-candidate-conformance.schema.json",
+        "schemas/writer-topology.schema.json",
+        "examples/github-scm-conformance/workflow.yml",
         "tools/github_scm_conformance.py",
+        "tools/release_audit.py",
     }
 )
 COMMIT_ID = re.compile(r"^[a-f0-9]{40}$")
+ACTION_USE = re.compile(r"uses:\s*(actions/[a-z0-9-]+)@([a-f0-9]{40})")
+EXPECTED_ACTIONS = {
+    "actions/checkout": ("3d3c42e5aac5ba805825da76410c181273ba90b1", "v7.0.1"),
+    "actions/setup-python": ("5fda3b95a4ea91299a34e894583c3862153e4b97", "v7.0.0"),
+    "actions/upload-artifact": ("043fb46d1a93c77aae656e7c1c64a875d1fc6a0a", "v7.0.1"),
+}
 
 
 class ReleaseAuditError(RuntimeError):
@@ -82,6 +100,99 @@ def _json(relative: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ReleaseAuditError(f"JSON root is not an object: {relative}")
     return value
+
+
+def _sha256_path(relative: str) -> str:
+    return "sha256:" + hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
+
+
+def _discovered_test_count(module: str | None = None) -> int:
+    loader = unittest.TestLoader()
+    pattern = "test*.py" if module is None else module.rsplit(".", 1)[-1] + ".py"
+    return loader.discover(str(ROOT / "tests"), pattern=pattern).countTestCases()
+
+
+def _validate_release_identity(
+    sbom: dict[str, Any], provenance: dict[str, Any], version: str
+) -> None:
+    package_values = sbom.get("packages")
+    package = package_values[0] if isinstance(package_values, list) and package_values else None
+    expected_spdx = {
+        "name": f"agent-team-engineering-{version}",
+        "documentNamespace": (
+            "https://github.com/90le/agent-team-engineering/releases/download/"
+            f"v{version}/agent-team-engineering-{version}.spdx.json"
+        ),
+        "documentDescribes": ["SPDXRef-Package-Agent-Team-Engineering"],
+    }
+    if any(sbom.get(field) != value for field, value in expected_spdx.items()):
+        raise ReleaseAuditError("SPDX document identity differs from the release")
+    if not isinstance(package, dict):
+        raise ReleaseAuditError("SPDX package identity is malformed")
+    expected_package = {
+        "name": "agent-team-engineering",
+        "SPDXID": "SPDXRef-Package-Agent-Team-Engineering",
+        "downloadLocation": (
+            f"git+https://github.com/90le/agent-team-engineering.git@v{version}"
+        ),
+        "licenseConcluded": "Apache-2.0",
+        "supplier": "Organization: 90le",
+        "primaryPackagePurpose": "APPLICATION",
+    }
+    if any(package.get(field) != value for field, value in expected_package.items()):
+        raise ReleaseAuditError("SPDX package release identity differs")
+    external_refs = package.get("externalRefs")
+    expected_purl = f"pkg:github/90le/agent-team-engineering@v{version}"
+    if not isinstance(external_refs, list) or not any(
+        isinstance(record, dict)
+        and record.get("referenceCategory") == "PACKAGE-MANAGER"
+        and record.get("referenceType") == "purl"
+        and record.get("referenceLocator") == expected_purl
+        for record in external_refs
+    ):
+        raise ReleaseAuditError("SPDX package purl differs from the release")
+
+    expected_provenance = {
+        "schema_version": "1.0.0",
+        "project": "90le/agent-team-engineering",
+        "release_commit_binding": "annotated-tag-object",
+        "license": "Apache-2.0",
+        "claims": {
+            "external_products_are_optional": True,
+            "host_projections_are_data_only": True,
+            "custom_licensed_upstreams_are_not_embedded": True,
+            "external_databases_are_not_core_authority": True,
+            "production_credentials_in_repository": False,
+            "automatic_merge_or_deploy": False,
+        },
+    }
+    if any(provenance.get(field) != value for field, value in expected_provenance.items()):
+        raise ReleaseAuditError("source provenance identity or claims differ from policy")
+    action_records = provenance.get("github_actions")
+    if not isinstance(action_records, list):
+        raise ReleaseAuditError("source provenance lacks GitHub Action pins")
+    observed_actions = {
+        str(record.get("repository")): (
+            str(record.get("revision")),
+            str(record.get("tag_observed")),
+        )
+        for record in action_records
+        if isinstance(record, dict)
+    }
+    if len(observed_actions) != len(action_records) or observed_actions != EXPECTED_ACTIONS:
+        raise ReleaseAuditError("source provenance GitHub Action pins differ")
+    workflow_paths = sorted((ROOT / ".github/workflows").glob("*.yml")) + [
+        ROOT / "examples/github-scm-conformance/workflow.yml"
+    ]
+    uses: set[tuple[str, str]] = set()
+    for workflow_path in workflow_paths:
+        for repository, revision in ACTION_USE.findall(
+            workflow_path.read_text(encoding="utf-8")
+        ):
+            uses.add((repository, revision))
+    expected_uses = {(repository, values[0]) for repository, values in EXPECTED_ACTIONS.items()}
+    if uses != expected_uses:
+        raise ReleaseAuditError("workflow Action pins differ from source provenance")
 
 
 def validate_release_assets() -> dict[str, Any]:
@@ -100,6 +211,7 @@ def validate_release_assets() -> dict[str, Any]:
         "codex_plugin": str(codex["version"]),
         "claude_plugin": str(claude["version"]),
         "claude_marketplace_plugin": str(marketplace["plugins"][0]["version"]),
+        "claude_marketplace": str(marketplace["version"]),
     }
     if set(observed.values()) != {version}:
         raise ReleaseAuditError(f"release versions differ: {observed}")
@@ -150,9 +262,10 @@ def validate_release_assets() -> dict[str, Any]:
             raise ReleaseAuditError(f"upstream revision is not an immutable commit: {identity}")
         if record.get("runtime_dependency") is not False:
             raise ReleaseAuditError(f"upstream unexpectedly became a runtime dependency: {identity}")
+    _validate_release_identity(sbom, provenance, version)
 
-    conformance = _json("acceptance/v09-host-native-conformance.json")
-    conformance_schema = _json("schemas/host-conformance-report.schema.json")
+    conformance = _json("acceptance/v10-host-native-conformance.json")
+    conformance_schema = _json("schemas/v10-release-candidate-conformance.schema.json")
     conformance_issues = validate_schema(conformance, conformance_schema)
     if conformance_issues:
         details = "; ".join(
@@ -161,11 +274,18 @@ def validate_release_assets() -> dict[str, Any]:
         raise ReleaseAuditError(f"host-native conformance report violates schema: {details}")
     if conformance.get("factory_release") != f"v{version}":
         raise ReleaseAuditError("host-native conformance release differs from VERSION")
+    if conformance.get("status") != "PRE_RELEASE":
+        raise ReleaseAuditError("source conformance must remain PRE_RELEASE")
+    hosts = conformance.get("hosts")
+    if not isinstance(hosts, list):
+        raise ReleaseAuditError("host-native conformance hosts are malformed")
     claimed_hosts = {
         str(record.get("host_id")): str(record.get("support_tier"))
-        for record in conformance.get("hosts", [])
+        for record in hosts
         if isinstance(record, dict)
     }
+    if len(claimed_hosts) != len(hosts):
+        raise ReleaseAuditError("host-native conformance contains duplicate host identities")
     descriptor_hosts: dict[str, str] = {}
     for descriptor_path in sorted((ROOT / "hosts").glob("*/host.json")):
         descriptor = _json(descriptor_path.relative_to(ROOT).as_posix())
@@ -175,6 +295,103 @@ def validate_release_assets() -> dict[str, Any]:
             "host-native conformance claims differ from host descriptors: "
             f"report={claimed_hosts}, descriptors={descriptor_hosts}"
         )
+    local_gates = conformance.get("local_gates")
+    if not isinstance(local_gates, dict):
+        raise ReleaseAuditError("v1.0 candidate lacks local gates")
+    expected_counts = {
+        "unit_tests": _discovered_test_count(),
+        "writer_authority": _discovered_test_count("tests.test_v08_contracts"),
+        "host_lifecycle": _discovered_test_count("tests.test_host_lifecycle"),
+    }
+    reported_counts = {
+        "unit_tests": local_gates.get("unit_tests", {}).get("count"),
+        "writer_authority": local_gates.get("writer_authority", {}).get("test_count"),
+        "host_lifecycle": local_gates.get("host_lifecycle", {}).get("test_count"),
+    }
+    if reported_counts != expected_counts:
+        raise ReleaseAuditError(
+            f"v1.0 candidate test counts differ: report={reported_counts}, actual={expected_counts}"
+        )
+
+    topology = _json("examples/v08-contracts/valid/writer-topology.json")
+    plan = _json("examples/v08-contracts/valid/plan-revision.json")
+    approval = _json("examples/v08-contracts/valid/approval-grant.json")
+    writer_gate = local_gates.get("writer_authority")
+    expected_writer_digests = {
+        "topology_digest": writer_topology_digest(topology),
+        "plan_digest": plan_revision_digest(plan),
+        "approval_scope_digest": approval_scope_digest(approval),
+    }
+    if not isinstance(writer_gate, dict) or any(
+        writer_gate.get(field) != digest for field, digest in expected_writer_digests.items()
+    ):
+        raise ReleaseAuditError("v1.0 candidate writer authority digests differ from examples")
+
+    migration = local_gates.get("instance_migration")
+    expected_sources = sorted(
+        SUPPORTED_UPGRADE_SOURCES,
+        key=lambda value: tuple(int(part) for part in value.split(".")),
+    )
+    if not isinstance(migration, dict) or migration.get("source_versions") != expected_sources:
+        raise ReleaseAuditError("v1.0 candidate migration sources differ from implementation")
+
+    package_gate = local_gates.get("skills_and_plugins")
+    skill_count = len(list((ROOT / "skills").glob("*/SKILL.md"))) + len(
+        list((ROOT / ".agents/plugins/plugins/agent-team/skills").glob("*/SKILL.md"))
+    )
+    if not isinstance(package_gate, dict) or package_gate.get("skill_packages") != skill_count:
+        raise ReleaseAuditError("v1.0 candidate Skill count differs from the distribution")
+    if package_gate.get("plugin_manifests") != 2:
+        raise ReleaseAuditError("v1.0 candidate plugin manifest count differs")
+
+    supply = conformance.get("supply_chain")
+    if not isinstance(supply, dict):
+        raise ReleaseAuditError("v1.0 candidate lacks supply-chain bindings")
+    for field in ("sbom", "source_provenance"):
+        record = supply.get(field)
+        if not isinstance(record, dict) or record.get("sha256") != _sha256_path(str(record.get("path", ""))):
+            raise ReleaseAuditError(f"v1.0 candidate {field} digest differs from the file")
+
+    for gate_name in ("cold_start", "release_smoke"):
+        gate = local_gates.get(gate_name)
+        if not isinstance(gate, dict):
+            raise ReleaseAuditError(f"v1.0 candidate lacks {gate_name} gate")
+        if (gate.get("status") == "PASS") != (isinstance(gate.get("runs"), int) and gate["runs"] > 0):
+            raise ReleaseAuditError(f"v1.0 candidate {gate_name} status/count disagree")
+    isolated = local_gates.get("isolated_hosts")
+    if not isinstance(isolated, dict):
+        raise ReleaseAuditError("v1.0 candidate lacks isolated-host gate")
+    isolated_pass = isolated.get("load_tests") == 2 and set(isolated.get("hosts", [])) == {
+        "openclaw",
+        "hermes",
+    }
+    if (isolated.get("status") == "PASS") != isolated_pass:
+        raise ReleaseAuditError("v1.0 candidate isolated-host status/evidence disagree")
+
+    boundaries = conformance.get("authority_boundaries")
+    external = local_gates.get("external_scm")
+    if not isinstance(boundaries, dict) or not isinstance(external, dict):
+        raise ReleaseAuditError("v1.0 candidate external authority is malformed")
+    external_pass = (
+        external.get("status") == "PASS"
+        and external.get("live_runs") == 2
+        and external.get("evidence_files") == list(SCM_EVIDENCE_PATHS)
+    )
+    expected_external_boundary = {
+        "dedicated_scm_identity_used": external_pass,
+        "ephemeral_scm_token_used": external_pass,
+        "external_scm_write_scope": (
+            "GRANTED_DEDICATED_TEST_ONLY" if external_pass else "NONE"
+        ),
+    }
+    if any(boundaries.get(field) != value for field, value in expected_external_boundary.items()):
+        raise ReleaseAuditError("v1.0 candidate external SCM status/authority disagree")
+    if not external_pass and (
+        external.get("status") != "NOT_RUN"
+        or external.get("live_runs") != 0
+        or external.get("evidence_files") != []
+    ):
+        raise ReleaseAuditError("v1.0 candidate contains partial external SCM claims")
     return {
         "version": version,
         "metadata_sources": len(observed),
@@ -184,17 +401,53 @@ def validate_release_assets() -> dict[str, Any]:
     }
 
 
-def _trusted_github_ref(value: object, repository: str) -> bool:
-    if not isinstance(value, str):
-        return False
-    parsed = urlparse(value)
-    if parsed.scheme != "https" or parsed.params or parsed.query or parsed.fragment:
-        return False
-    if parsed.netloc == "github.com":
-        return parsed.path.startswith(f"/{repository}/")
-    if parsed.netloc == "api.github.com":
-        return parsed.path.startswith(f"/repos/{repository}/")
-    return False
+def _approval_from_report(report: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
+    workflow = report["workflow"]
+    verified = {
+        "actor_id": report["actor_id"],
+        "identity_provider": report["identity_provider"],
+        "signature_ref": report["identity_ref"],
+    }
+    environment = {
+        "GITHUB_RUN_ID": workflow["run_id"],
+        "GITHUB_RUN_ATTEMPT": workflow["run_attempt"],
+        "GITHUB_REPOSITORY": report["repository"],
+    }
+    issued = datetime.fromisoformat(report["approval_issued_at"].replace("Z", "+00:00"))
+    return build_scm_conformance_approval(plan, verified, environment, issued)
+
+
+def _validate_typed_scm_object(
+    key: str, record: dict[str, Any], *, proposal_branch: str
+) -> None:
+    repository = EXPECTED_SCM_REPOSITORY
+    provider_id = record["provider_id"]
+    if key == "issue":
+        pattern = rf"https://github\.com/{re.escape(repository)}/issues/[1-9][0-9]*"
+        provider_pattern = r"I_[A-Za-z0-9_-]+"
+    elif key == "draft_pull_request":
+        pattern = rf"https://github\.com/{re.escape(repository)}/pull/[1-9][0-9]*"
+        provider_pattern = r"PR_[A-Za-z0-9_-]+"
+    elif key == "branch":
+        pattern = (
+            rf"https://api\.github\.com/repos/{re.escape(repository)}/git/refs/heads/"
+            + re.escape(proposal_branch)
+        )
+        provider_pattern = r"REF_[A-Za-z0-9_-]+"
+    elif key == "commit":
+        pattern = (
+            rf"https://api\.github\.com/repos/{re.escape(repository)}/git/commits/"
+            + re.escape(provider_id)
+        )
+        provider_pattern = r"[a-f0-9]{40}"
+    else:
+        raise ReleaseAuditError(f"unsupported GitHub SCM object type: {key}")
+    if record.get("object_type") != key:
+        raise ReleaseAuditError(f"GitHub SCM object type differs from its field: {key}")
+    if not re.fullmatch(pattern, str(record.get("external_ref", ""))):
+        raise ReleaseAuditError(f"GitHub SCM object has the wrong typed URL: {key}")
+    if not re.fullmatch(provider_pattern, str(provider_id)):
+        raise ReleaseAuditError(f"GitHub SCM object has the wrong provider identity type: {key}")
 
 
 def validate_scm_evidence_documents(
@@ -204,11 +457,19 @@ def validate_scm_evidence_documents(
 ) -> dict[str, Any]:
     boundaries = profile.get("authority_boundaries")
     if not isinstance(boundaries, dict):
-        raise ReleaseAuditError("v0.8 acceptance profile lacks authority boundaries")
-    if boundaries.get("gate_c_external_write") != "GRANTED_DEDICATED_TEST_ONLY":
-        raise ReleaseAuditError("Gate C lacks completed dedicated-test evidence")
-    if boundaries.get("production_integrations") is not False:
-        raise ReleaseAuditError("acceptance profile unexpectedly enables production integrations")
+        raise ReleaseAuditError("v1.0 acceptance report lacks authority boundaries")
+    if boundaries.get("external_scm_write_scope") != "GRANTED_DEDICATED_TEST_ONLY":
+        raise ReleaseAuditError("external SCM lacks dedicated-test-only authorization")
+    if any(
+        boundaries.get(field) is not False
+        for field in (
+            "production_accounts_used",
+            "automatic_merge",
+            "automatic_deploy",
+            "independent_writer_execution",
+        )
+    ):
+        raise ReleaseAuditError("acceptance report unexpectedly broadens external authority")
 
     schema = _json("schemas/github-scm-conformance-report.schema.json")
     for label, report in (("first", first), ("replay", replay)):
@@ -223,9 +484,16 @@ def validate_scm_evidence_documents(
         "repository_private",
         "base_commit",
         "framework_commit",
+        "framework_repository",
         "plan_digest",
+        "plan_schema_version",
+        "writer_topology",
+        "change_digest",
+        "approval_schema_version",
         "actor_id",
         "identity_provider",
+        "base_branch",
+        "proposal_branch",
     )
     for field in same_fields:
         if first.get(field) != replay.get(field):
@@ -236,18 +504,45 @@ def validate_scm_evidence_documents(
         raise ReleaseAuditError("GitHub SCM evidence has an unexpected repository_id")
     if first.get("repository_private") is not True:
         raise ReleaseAuditError("GitHub SCM evidence repository was not verified Private")
+    if first.get("framework_repository") != FRAMEWORK_REPOSITORY:
+        raise ReleaseAuditError("GitHub SCM evidence names an unexpected framework repository")
     if first.get("actor_id") != EXPECTED_SCM_ACTOR_ID:
         raise ReleaseAuditError("GitHub SCM evidence was not dispatched by the owner identity")
     if first.get("identity_provider") != "github.actions":
         raise ReleaseAuditError("GitHub SCM evidence did not use GitHub Actions identity")
-    if first.get("identity_ref") == replay.get("identity_ref"):
+    if first["workflow"]["run_id"] == replay["workflow"]["run_id"]:
         raise ReleaseAuditError("GitHub SCM evidence must come from two distinct workflow runs")
     if first.get("approval_scope_digest") == replay.get("approval_scope_digest"):
         raise ReleaseAuditError("GitHub SCM replay must use a new short-lived approval scope")
     for report in (first, replay):
-        expected_prefix = f"github-actions://{EXPECTED_SCM_REPOSITORY}/runs/"
-        if not str(report.get("identity_ref", "")).startswith(expected_prefix):
-            raise ReleaseAuditError("GitHub SCM identity reference escapes the evidence repository")
+        workflow = report["workflow"]
+        run_id = workflow["run_id"]
+        expected_identity = (
+            f"github-actions://{EXPECTED_SCM_REPOSITORY}/runs/{run_id}/attempts/1"
+        )
+        expected_workflow = {
+            "path": SCM_WORKFLOW_PATH,
+            "ref": SCM_WORKFLOW_REF,
+            "sha": report["base_commit"],
+            "repository_ref": f"refs/heads/{SCM_BASE_BRANCH}",
+            "run_id": run_id,
+            "run_attempt": "1",
+            "run_url": (
+                f"https://github.com/{EXPECTED_SCM_REPOSITORY}/actions/runs/{run_id}"
+            ),
+        }
+        if workflow != expected_workflow:
+            raise ReleaseAuditError("GitHub SCM workflow identity is not canonically bound")
+        if report["identity_ref"] != expected_identity:
+            raise ReleaseAuditError("GitHub SCM run identity is not canonically bound")
+        if report["approval_id"] != f"approval-github-run-{run_id}-attempt-1":
+            raise ReleaseAuditError("GitHub SCM approval ID is not bound to its workflow run")
+        if report["approval_nonce"] != f"github-run-{run_id}-attempt-1-nonce":
+            raise ReleaseAuditError("GitHub SCM approval nonce is not bound to its workflow run")
+        if report["approval_evidence_ref"] != (
+            f"github-actions://{EXPECTED_SCM_REPOSITORY}/runs/{run_id}"
+        ):
+            raise ReleaseAuditError("GitHub SCM approval evidence is not bound to its run")
         if report.get("merge_performed") is not False:
             raise ReleaseAuditError("GitHub SCM evidence reports a merge")
         if report.get("deployment_performed") is not False:
@@ -258,7 +553,7 @@ def validate_scm_evidence_documents(
         reconciled = replay.get(key)
         if not isinstance(created, dict) or not isinstance(reconciled, dict):
             raise ReleaseAuditError(f"GitHub SCM report lacks object evidence: {key}")
-        expected_keys = {"external_ref", "provider_id", "created"}
+        expected_keys = {"object_type", "external_ref", "provider_id", "created"}
         if set(created) != expected_keys or set(reconciled) != expected_keys:
             raise ReleaseAuditError(f"GitHub SCM object evidence is not minimal: {key}")
         if created.get("created") is not True or reconciled.get("created") is not False:
@@ -267,15 +562,41 @@ def validate_scm_evidence_documents(
             raise ReleaseAuditError(f"GitHub SCM replay changed the external reference: {key}")
         if created.get("provider_id") != reconciled.get("provider_id"):
             raise ReleaseAuditError(f"GitHub SCM replay changed the provider identity: {key}")
-        if not _trusted_github_ref(created.get("external_ref"), EXPECTED_SCM_REPOSITORY):
-            raise ReleaseAuditError(f"GitHub SCM object reference is not trusted: {key}")
-        provider_id = created.get("provider_id")
-        if not isinstance(provider_id, str) or not provider_id or len(provider_id) > 256:
-            raise ReleaseAuditError(f"GitHub SCM provider identity is malformed: {key}")
+        _validate_typed_scm_object(
+            key, created, proposal_branch=str(first["proposal_branch"])
+        )
 
     framework_commit = first.get("framework_commit")
     if not isinstance(framework_commit, str) or not COMMIT_ID.fullmatch(framework_commit):
         raise ReleaseAuditError("GitHub SCM framework commit is malformed")
+    expected_plan = build_scm_conformance_plan(
+        repository_id=EXPECTED_SCM_REPOSITORY_ID,
+        base_commit=str(first.get("base_commit", "")),
+        framework_commit=framework_commit,
+    )
+    expected_change = build_scm_conformance_change(expected_plan, EXPECTED_SCM_REPOSITORY)
+    if first.get("plan_digest") != expected_plan["plan_digest"]:
+        raise ReleaseAuditError("GitHub SCM evidence is not bound to the canonical v1.0 plan")
+    if first.get("change_digest") != digest_value(expected_change):
+        raise ReleaseAuditError("GitHub SCM evidence is not bound to the canonical change set")
+    if first.get("base_branch") != expected_change["base_branch"] or first.get(
+        "proposal_branch"
+    ) != expected_change["proposal_branch"]:
+        raise ReleaseAuditError("GitHub SCM report branch identities differ from the change set")
+    for label, report in (("first", first), ("replay", replay)):
+        expected_approval = _approval_from_report(report, expected_plan)
+        expected_approval_fields = {
+            "approval_id": expected_approval["approval_id"],
+            "approval_scope_digest": expected_approval["scope_digest"],
+            "approval_issued_at": expected_approval["issued_at"],
+            "approval_expires_at": expected_approval["expires_at"],
+            "approval_nonce": expected_approval["nonce"],
+            "approval_evidence_ref": expected_approval["evidence_ref"],
+        }
+        if any(report.get(field) != value for field, value in expected_approval_fields.items()):
+            raise ReleaseAuditError(
+                f"{label} GitHub SCM approval is not the canonical v1.1 authority"
+            )
     return {
         "scm_evidence_repository": EXPECTED_SCM_REPOSITORY,
         "scm_evidence_objects": len(SCM_OBJECT_KEYS),
@@ -302,7 +623,7 @@ def validate_external_scm_evidence() -> dict[str, Any]:
     missing = [relative for relative in SCM_EVIDENCE_PATHS if not (ROOT / relative).is_file()]
     if missing:
         raise ReleaseAuditError("GitHub SCM evidence is missing: " + ", ".join(missing))
-    profile = _json("acceptance/v08-native-conformance.json")
+    profile = _json("acceptance/v10-host-native-conformance.json")
     first = _json(SCM_EVIDENCE_PATHS[0])
     replay = _json(SCM_EVIDENCE_PATHS[1])
     report = validate_scm_evidence_documents(profile, first, replay)
@@ -318,35 +639,51 @@ def validate_external_scm_evidence() -> dict[str, Any]:
     baseline_commit = _git_output(
         ["rev-list", "-n", "1", EXTERNAL_EVIDENCE_BASELINE_TAG]
     )
-    _git_output(["merge-base", "--is-ancestor", framework_commit, baseline_commit])
-    changed_before_baseline = set(
-        filter(
-            None,
-            _git_output(
-                ["diff", "--name-only", f"{framework_commit}..{baseline_commit}"]
-            ).splitlines(),
-        )
-    )
-    unexpected = sorted(changed_before_baseline - POST_EVIDENCE_ALLOWED_PATHS)
-    if unexpected:
-        raise ReleaseAuditError(
-            "v0.8.0 baseline changed unexpectedly after live SCM evidence: "
-            + ", ".join(unexpected)
-        )
+    if baseline_commit != EXTERNAL_EVIDENCE_BASELINE_COMMIT:
+        raise ReleaseAuditError("v0.9.0 external-evidence baseline tag moved")
+    if framework_commit == baseline_commit:
+        raise ReleaseAuditError("v1.0 SCM evidence cannot reuse the v0.9.0 implementation")
+    _git_output(["merge-base", "--is-ancestor", baseline_commit, framework_commit])
     protected_changes = set(
         filter(
             None,
             _git_output(
-                ["diff", "--name-only", f"{baseline_commit}..HEAD"]
+                ["diff", "--name-only", f"{framework_commit}..HEAD"]
             ).splitlines(),
         )
     ) & EXTERNAL_EVIDENCE_PROTECTED_PATHS
     if protected_changes:
         raise ReleaseAuditError(
-            "external SCM implementation changed after the v0.8.0 evidence baseline: "
+            "external SCM implementation changed after the evidenced v1.0 commit: "
             + ", ".join(sorted(protected_changes))
         )
-    report["post_evidence_paths"] = len(changed_before_baseline)
+    gates = profile.get("local_gates")
+    boundaries = profile.get("authority_boundaries")
+    external_gate = gates.get("external_scm") if isinstance(gates, dict) else None
+    if (
+        profile.get("status") != "PRE_RELEASE"
+        or not isinstance(external_gate, dict)
+        or not isinstance(boundaries, dict)
+    ):
+        raise ReleaseAuditError("v1.0 candidate report has invalid source-state semantics")
+    if external_gate.get("status") != "PASS" or external_gate.get("live_runs") != 2:
+        raise ReleaseAuditError("v1.0 acceptance report lacks exactly two live SCM runs")
+    if boundaries.get("dedicated_scm_identity_used") is not True:
+        raise ReleaseAuditError("v1.0 acceptance report lacks dedicated SCM identity evidence")
+    if boundaries.get("ephemeral_scm_token_used") is not True:
+        raise ReleaseAuditError("v1.0 acceptance report lacks ephemeral SCM token evidence")
+    for gate_name in ("isolated_hosts", "cold_start", "release_smoke"):
+        gate = gates.get(gate_name)
+        if not isinstance(gate, dict) or gate.get("status") != "PASS":
+            raise ReleaseAuditError(f"v1.0 release gate is incomplete: {gate_name}")
+    report["post_evidence_paths"] = len(
+        set(
+            filter(
+                None,
+                _git_output(["diff", "--name-only", f"{framework_commit}..HEAD"]).splitlines(),
+            )
+        )
+    )
     report["external_evidence_baseline"] = EXTERNAL_EVIDENCE_BASELINE_TAG
     report["protected_paths_verified_unchanged"] = len(
         EXTERNAL_EVIDENCE_PROTECTED_PATHS
@@ -414,7 +751,7 @@ def scan_git_history(since_tag: str) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--since-tag", default="v0.8.1")
+    parser.add_argument("--since-tag", default="v0.9.0")
     parser.add_argument("--require-external-evidence", action="store_true")
     arguments = parser.parse_args()
     try:

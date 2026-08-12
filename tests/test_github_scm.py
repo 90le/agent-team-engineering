@@ -12,7 +12,14 @@ from core.github_scm import (
     execute_bound_change,
     verify_github_actions_identity,
 )
-from tools.github_scm_conformance import build_approval, build_change, build_plan
+from tools.github_scm_conformance import (
+    SCM_REPOSITORY,
+    SCM_REPOSITORY_ID,
+    SCM_WORKFLOW_REF,
+    build_approval,
+    build_change,
+    build_plan,
+)
 
 NOW = datetime(2026, 8, 11, 8, 5, tzinfo=timezone.utc)
 REPOSITORY = "example/agent-team-conformance"
@@ -63,6 +70,14 @@ def identity() -> dict[str, str]:
         "actor_login": "owner",
         "identity_provider": "github.actions",
         "signature_ref": f"github-actions://{REPOSITORY}/runs/99/attempts/1",
+        "repository_ref": "refs/heads/main",
+        "workflow_ref": (
+            f"{REPOSITORY}/.github/workflows/agent-team-v10-conformance.yml@refs/heads/main"
+        ),
+        "workflow_sha": BASE,
+        "framework_repository": "90le/agent-team-engineering",
+        "run_id": "99",
+        "run_attempt": "1",
     }
 
 
@@ -169,16 +184,37 @@ class GitHubIdentityTests(unittest.TestCase):
             "GITHUB_RUN_ID": "99",
             "GITHUB_RUN_ATTEMPT": "1",
             "APPROVED_PLAN_DIGEST": digest,
+            "APPROVED_BASE_COMMIT": BASE,
+            "APPROVED_FRAMEWORK_COMMIT": "f" * 40,
+            "APPROVED_FRAMEWORK_REPOSITORY": "90le/agent-team-engineering",
+            "GITHUB_REF": "refs/heads/main",
+            "GITHUB_SHA": BASE,
+            "GITHUB_WORKFLOW_REF": identity()["workflow_ref"],
+            "GITHUB_WORKFLOW_SHA": BASE,
         }
         verified = verify_github_actions_identity(
             environment,
             expected_repository=REPOSITORY,
             expected_actor_id="12345",
             expected_plan_digest=digest,
+            expected_workflow_ref=identity()["workflow_ref"],
+            expected_base_commit=BASE,
+            expected_framework_commit="f" * 40,
+            expected_framework_repository="90le/agent-team-engineering",
         )
         self.assertEqual(verified, identity())
 
-        for key in ("GITHUB_REPOSITORY", "GITHUB_ACTOR_ID", "APPROVED_PLAN_DIGEST"):
+        for key in (
+            "GITHUB_REPOSITORY",
+            "GITHUB_ACTOR_ID",
+            "APPROVED_PLAN_DIGEST",
+            "GITHUB_WORKFLOW_REF",
+            "GITHUB_WORKFLOW_SHA",
+            "GITHUB_SHA",
+            "APPROVED_BASE_COMMIT",
+            "APPROVED_FRAMEWORK_COMMIT",
+            "APPROVED_FRAMEWORK_REPOSITORY",
+        ):
             invalid = copy.deepcopy(environment)
             invalid[key] = "wrong"
             with self.subTest(key=key), self.assertRaises(GitHubScmError):
@@ -187,28 +223,59 @@ class GitHubIdentityTests(unittest.TestCase):
                     expected_repository=REPOSITORY,
                     expected_actor_id="12345",
                     expected_plan_digest=digest,
+                    expected_workflow_ref=identity()["workflow_ref"],
+                    expected_base_commit=BASE,
+                    expected_framework_commit="f" * 40,
+                    expected_framework_repository="90le/agent-team-engineering",
+                )
+
+        for key, value in (("GITHUB_RUN_ID", "0"), ("GITHUB_RUN_ATTEMPT", "2")):
+            invalid = copy.deepcopy(environment)
+            invalid[key] = value
+            with self.subTest(key=key), self.assertRaises(GitHubScmError):
+                verify_github_actions_identity(
+                    invalid,
+                    expected_repository=REPOSITORY,
+                    expected_actor_id="12345",
+                    expected_plan_digest=digest,
+                    expected_workflow_ref=identity()["workflow_ref"],
+                    expected_base_commit=BASE,
+                    expected_framework_commit="f" * 40,
+                    expected_framework_repository="90le/agent-team-engineering",
                 )
 
     def test_conformance_documents_are_deterministic_and_exactly_bound(self) -> None:
         value = build_plan(
-            repository_id=REPOSITORY_ID,
+            repository_id=SCM_REPOSITORY_ID,
             base_commit=BASE,
             framework_commit="f" * 40,
         )
         same = build_plan(
-            repository_id=REPOSITORY_ID,
+            repository_id=SCM_REPOSITORY_ID,
             base_commit=BASE,
             framework_commit="f" * 40,
         )
         self.assertEqual(value["plan_digest"], same["plan_digest"])
-        self.assertIn(value["plan_digest"], build_change(value, REPOSITORY)["file_content"])
+        self.assertEqual(value["schema_version"], "1.1.0")
+        self.assertIsNone(value["writer_topology"])
+        self.assertIn(value["plan_digest"], build_change(value, SCM_REPOSITORY)["file_content"])
+        self.assertEqual(
+            build_change(value, SCM_REPOSITORY)["file_path"],
+            "conformance/v10-approved-change.md",
+        )
         environment = {
             "GITHUB_RUN_ID": "99",
             "GITHUB_RUN_ATTEMPT": "1",
-            "GITHUB_REPOSITORY": REPOSITORY,
+            "GITHUB_REPOSITORY": SCM_REPOSITORY,
         }
-        grant = build_approval(value, identity(), environment, NOW)
+        verified = copy.deepcopy(identity())
+        verified["signature_ref"] = (
+            f"github-actions://{SCM_REPOSITORY}/runs/99/attempts/1"
+        )
+        grant = build_approval(value, verified, environment, NOW)
         self.assertEqual(grant["plan_digest"], value["plan_digest"])
+        self.assertEqual(grant["schema_version"], "1.1.0")
+        self.assertIsNone(grant["writer_topology"])
         self.assertEqual(grant["scope_digest"], approval_scope_digest(grant))
 
 
@@ -366,6 +433,27 @@ class BoundedGitHubChangeTests(unittest.TestCase):
         self.assertTrue(first.pop("created"))
         self.assertFalse(replay.pop("created"))
         self.assertEqual(first, replay)
+
+        # The same client boundary must reject a PR-shaped Issue response.
+        client = GitHubJobClient(REPOSITORY, "x" * 20)
+        pull_request = {
+            "number": 7,
+            "node_id": "PR_7",
+            "html_url": f"https://github.com/{REPOSITORY}/pull/7",
+            "pull_request": {},
+            "body": "<!-- marker -->",
+            "draft": True,
+        }
+
+        def request(method: str, path: str, *args, **kwargs):
+            del args, kwargs
+            if method == "GET":
+                return [pull_request]
+            return pull_request
+
+        client._request = request  # type: ignore[method-assign]
+        with self.assertRaises(GitHubScmError):
+            client.ensure_issue("marker", "title", "body")
 
 
 if __name__ == "__main__":
