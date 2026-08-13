@@ -59,7 +59,7 @@ from tools.anonymous_release_worker import (
     _execute_workflow,
     _linux_process_boundary,
 )
-from tools import release_publication
+from tools import anonymous_release_worker, release_publication
 
 
 class ReleaseEvidenceTests(unittest.TestCase):
@@ -1903,15 +1903,21 @@ class ReleaseEvidenceTests(unittest.TestCase):
 
     def test_anonymous_worker_command_enforces_a_separate_no_capability_uid(self) -> None:
         workspace = Path("/tmp/anonymous-workspace")
-        command = _anonymous_worker_command(
-            234567,
-            234567,
-            workspace,
-            "v1.0.0",
-            "a" * 40,
-            "b" * 40,
-            "2026-08-12T06:20:00Z",
+        self.assertEqual(
+            release_publication.ANONYMOUS_BUBBLEWRAP, Path("/usr/bin/bwrap")
         )
+        with mock.patch.object(
+            release_publication, "ANONYMOUS_BUBBLEWRAP", Path("/usr/bin/true")
+        ):
+            command = _anonymous_worker_command(
+                234567,
+                234567,
+                workspace,
+                "v1.0.0",
+                "a" * 40,
+                "b" * 40,
+                "2026-08-12T06:20:00Z",
+            )
         self.assertEqual(command[0], "/usr/bin/systemd-run")
         self.assertIn("--property=KillMode=control-group", command)
         self.assertIn("--property=MemoryMax=1073741824", command)
@@ -2056,14 +2062,20 @@ class ReleaseEvidenceTests(unittest.TestCase):
         )
 
     def test_candidate_sandbox_hides_host_and_disables_network(self) -> None:
+        self.assertEqual(
+            anonymous_release_worker.BUBBLEWRAP, Path("/usr/bin/bwrap")
+        )
         with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
             workspace = Path(temporary).resolve()
-            command = _candidate_sandbox_command(
-                ["/usr/bin/python3", "-c", "print('ok')"],
-                workspace,
-                workspace,
-                _anonymous_environment(workspace),
-            )
+            with mock.patch.object(
+                anonymous_release_worker, "BUBBLEWRAP", Path("/usr/bin/true")
+            ):
+                command = _candidate_sandbox_command(
+                    ["/usr/bin/python3", "-c", "print('ok')"],
+                    workspace,
+                    workspace,
+                    _anonymous_environment(workspace),
+                )
         self.assertIn("--unshare-all", command)
         self.assertIn("--unshare-user", command)
         self.assertNotIn("--share-net", command)
