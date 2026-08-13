@@ -1,0 +1,32 @@
+name: Create Final v1 Candidate Pull Request
+
+on:
+  push:
+    branches:
+      - automation/v1-final-pr-author-20260813
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create-pr:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Create exact candidate branch and bot-authored PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_SHA: d197d9f713bd21833cd823e895048d119461c6da
+          CANDIDATE_BRANCH: release/v1.0.0-final-20260813
+        run: |
+          gh api repos/${{ github.repository }}/git/refs \
+            --method POST \
+            --field ref="refs/heads/${CANDIDATE_BRANCH}" \
+            --field sha="${CANDIDATE_SHA}"
+          gh api repos/${{ github.repository }}/pulls \
+            --method POST \
+            --field title='feat: Agent Team Engineering v1.0' \
+            --field head="${CANDIDATE_BRANCH}" \
+            --field base='main' \
+            --field body='Bot-authored final candidate so repository Owner 90le can approve the exact frozen head d197d9f713bd21833cd823e895048d119461c6da. This workflow creates only the branch ref and PR; it does not create or modify candidate content.'
