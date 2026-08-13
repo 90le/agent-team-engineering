@@ -65,7 +65,7 @@ Say exactly:
 
 If any material field or prior lifecycle baseline changes, regenerate the plan and obtain a new confirmation. An unexecuted v0.9 plan must always go through a fresh `plan → preview → confirm`; never carry its approval into schema `1.1.0`.
 
-Planning rejects the metadata scratch and reserved metadata/initial-intent prefixes; first apply also requires all projected targets, stages, and exact per-file intents absent. After `APPLYING`, each random file intent remains until `ACTIVE` records its target inode. Only those same-inode links may resume or be cleaned. The metadata transition follows the same exact-intent rule. An empty guard without a lock may be reused after guard fsync but grants no deletion authority. Preserve and reject every other intent/stage, including byte-identical content without the operation-bound inode.
+Planning rejects the metadata scratch and reserved metadata/initial-intent prefixes; first apply also requires all projected targets, stages, and exact per-file intents absent. After durable `APPLYING`, each random file intent remains until `ACTIVE` records its target inode. Only those same-inode links may resume or be cleaned. The metadata transition follows the same exact-intent rule. An empty guard without a lock may be reused only when no initial intent or metadata scratch remains. A pre-`APPLYING` intent residue is preserved and requires reconciliation plus a new plan. The guard grants no deletion authority. Preserve and reject every other intent/stage, including byte-identical content without the operation-bound inode.
 
 ## After apply
 

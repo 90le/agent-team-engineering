@@ -2242,7 +2242,12 @@ def apply_install_plan(path: Path) -> dict[str, Any]:
                 )
             intent_present = intent_relative in intents
             metadata_stage_present = _relative_present(handle, METADATA_STAGE_RELATIVE)
-            if metadata_stage_present and not intent_present:
+            if intent_present:
+                raise HostLifecycleError(
+                    "host apply intent appeared without a durable APPLYING record; "
+                    "reconcile the interrupted destination before creating and confirming a new plan"
+                )
+            if metadata_stage_present:
                 raise HostLifecycleError(
                     "host metadata recovery stage changed after planning; "
                     "create and confirm a new plan"
@@ -2300,7 +2305,7 @@ def apply_install_plan(path: Path) -> dict[str, Any]:
             intent_binding = _ensure_apply_intent(
                 handle,
                 intent_relative,
-                may_resume=intent_present and not operation["created"],
+                may_resume=False,
             )
             _assert_directory_binding(resolved, root_binding)
             _atomic_json_relative(
@@ -2309,7 +2314,7 @@ def apply_install_plan(path: Path) -> dict[str, Any]:
                 _lock_document(plan, "APPLYING", guard_binding),
                 expected_current_digest=None,
                 intent_relative=proposal["lifecycle"]["metadata_recovery_intent"],
-                allow_existing_intent=intent_present and not operation["created"],
+                allow_existing_intent=False,
             )
         if intent_binding is not None:
             _assert_directory_binding(resolved, root_binding)

@@ -95,6 +95,7 @@ ANONYMOUS_COMMANDS = (
     "create and validate portable team",
     "host plan; preview; confirm; apply; verify; uninstall-preview; uninstall; replay",
     "native writer-authority-validate",
+    "trusted independent read-back of the tagged installation tree, portable team lock, host lifecycle effects, and WriterTopology authority chain",
 )
 
 
@@ -363,6 +364,8 @@ def _empty_publication(tag: str, tag_object: str, commit: str, environment: dict
             "external_writes_verified": None,
             "candidate_network_isolated": None,
             "candidate_runtime_read_only": None,
+            "independent_effects_verified": None,
+            "independent_effects": [],
             "credential_process_uid_isolated": None,
             "credential_parent_environment_readable": None,
             "supplementary_groups_empty": None,
@@ -616,6 +619,7 @@ def validate_release_evidence(document: dict[str, Any]) -> None:
                     "external_writes_verified",
                     "candidate_network_isolated",
                     "candidate_runtime_read_only",
+                    "independent_effects_verified",
                     "credential_process_uid_isolated",
                     "credential_parent_environment_readable",
                     "supplementary_groups_empty",
@@ -626,6 +630,7 @@ def validate_release_evidence(document: dict[str, Any]) -> None:
                 )
             )
             or anonymous_install["commands"]
+            or anonymous_install["independent_effects"]
         ):
             raise ReleaseEvidenceError("tag workflow cannot self-report review, owner, or anonymous-install facts")
     else:
@@ -726,6 +731,14 @@ def validate_release_evidence(document: dict[str, Any]) -> None:
             or anonymous_install["external_writes_verified"] is not True
             or anonymous_install["candidate_network_isolated"] is not True
             or anonymous_install["candidate_runtime_read_only"] is not True
+            or anonymous_install["independent_effects_verified"] is not True
+            or anonymous_install["independent_effects"]
+            != [
+                "factory-installation-manifest-and-tag-tree",
+                "portable-team-design-lock-and-managed-files",
+                "host-active-lock-files-and-uninstall-tombstone",
+                "writer-topology-plan-approval-digest-chain",
+            ]
             or anonymous_install["credential_process_uid_isolated"] is not True
             or anonymous_install["credential_parent_environment_readable"] is not False
             or anonymous_install["supplementary_groups_empty"] is not True

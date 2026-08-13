@@ -17,6 +17,37 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+TRUSTED_ROOT = Path(__file__).resolve().parents[1]
+if str(TRUSTED_ROOT) not in sys.path:
+    sys.path.insert(0, str(TRUSTED_ROOT))
+
+from core.context_team import (  # noqa: E402
+    DESIGN_RELATIVE,
+    LOCK_RELATIVE,
+    ContextTeamError,
+    compile_context_files,
+    inspect_context_team,
+)
+from core.contracts import (  # noqa: E402
+    ContractViolation,
+    load_contract_file,
+    validate_writer_authority,
+)
+from core.host_lifecycle import (  # noqa: E402
+    HostLifecycleError,
+    INSTALL_LOCK_RELATIVE,
+    METADATA_STAGE_RELATIVE,
+    OPERATION_GUARD_RELATIVE,
+    UNINSTALL_TOMBSTONE_RELATIVE,
+    load_install_plan,
+    preview_uninstall,
+    verify_installation,
+    _source_records,
+    _validate_source,
+)
+from core.installation import InstallationError, verify_factory_installation  # noqa: E402
+from core.instance import _canonical_json  # noqa: E402
+
 COMMIT = re.compile(r"^[a-f0-9]{40}$")
 DIGEST = re.compile(r"^sha256:[a-f0-9]{64}$")
 SOURCE_URL = "https://github.com/90le/agent-team-engineering.git"
@@ -30,9 +61,11 @@ ANONYMOUS_COMMANDS = (
     "create and validate portable team",
     "host plan; preview; confirm; apply; verify; uninstall-preview; uninstall; replay",
     "native writer-authority-validate",
+    "trusted independent read-back of the tagged installation tree, portable team lock, host lifecycle effects, and WriterTopology authority chain",
 )
 COMMAND_TIMEOUT_SECONDS = 300
 MAX_COMMAND_OUTPUT_BYTES = 16 * 1024 * 1024
+MAX_TRUSTED_TREE_BYTES = 100 * 1024 * 1024
 EXPECTED_MEMORY_MAX_BYTES = 1024 * 1024 * 1024
 EXPECTED_MEMORY_SWAP_MAX_BYTES = 0
 EXPECTED_TASKS_MAX = 128
@@ -45,6 +78,243 @@ BUBBLEWRAP = Path("/usr/bin/bwrap")
 
 class AnonymousWorkerError(RuntimeError):
     pass
+
+
+def _snapshot_regular_tree(root: Path) -> dict[str, dict[str, Any]]:
+    """Capture the clean tagged source before any candidate code executes."""
+
+    records: dict[str, dict[str, Any]] = {}
+    total = 0
+    for path in sorted(root.rglob("*")):
+        relative_path = path.relative_to(root)
+        if relative_path.parts and relative_path.parts[0] == ".git":
+            continue
+        if path.is_symlink():
+            raise AnonymousWorkerError(
+                f"tagged source contains a symbolic link: {relative_path.as_posix()}"
+            )
+        metadata = path.stat()
+        if path.is_dir():
+            continue
+        if not path.is_file():
+            raise AnonymousWorkerError(
+                f"tagged source contains a special file: {relative_path.as_posix()}"
+            )
+        content = path.read_bytes()
+        total += len(content)
+        if total > MAX_TRUSTED_TREE_BYTES:
+            raise AnonymousWorkerError("tagged source tree exceeds the trusted size limit")
+        relative = relative_path.as_posix()
+        records[relative] = {
+            "path": relative,
+            "sha256": "sha256:" + hashlib.sha256(content).hexdigest(),
+            "mode": 0o755 if metadata.st_mode & 0o100 else 0o644,
+            "size": len(content),
+        }
+    if not records:
+        raise AnonymousWorkerError("tagged source tree is empty")
+    return records
+
+
+def _verify_factory_effects(
+    installed: Path,
+    source_records: dict[str, dict[str, Any]],
+    release: str,
+    expected_commit: str,
+) -> dict[str, Any]:
+    try:
+        manifest = verify_factory_installation(installed)
+    except (InstallationError, OSError, ValueError) as exc:
+        raise AnonymousWorkerError(f"installed Factory failed trusted verification: {exc}") from None
+    installed_records = {
+        str(record["path"]): {
+            "path": str(record["path"]),
+            "sha256": str(record["sha256"]),
+            "mode": int(record["mode"]),
+            "size": int(record["size"]),
+        }
+        for record in manifest["files"]
+    }
+    if (
+        manifest.get("source_revision") != expected_commit
+        or manifest.get("source_tag") != release
+        or manifest.get("release_verified") is not True
+        or installed_records != source_records
+    ):
+        raise AnonymousWorkerError(
+            "installed Factory differs from the independently captured tag tree"
+        )
+    return manifest
+
+
+def _verify_source_effects(
+    source: Path,
+    expected_records: dict[str, dict[str, Any]],
+) -> None:
+    if _snapshot_regular_tree(source) != expected_records:
+        raise AnonymousWorkerError("tagged source changed after candidate execution")
+
+
+def _verify_team_effects(
+    team: Path,
+    expected_design: dict[str, Any],
+    expected_factory: dict[str, Any],
+) -> dict[str, Any]:
+    try:
+        summary = inspect_context_team(team)
+        actual_design = _loads_strict(
+            (team / DESIGN_RELATIVE).read_text(encoding="utf-8")
+        )
+        actual_lock = _loads_strict(
+            (team / LOCK_RELATIVE).read_text(encoding="utf-8")
+        )
+        expected_files = compile_context_files(
+            expected_design,
+            include_platforms=expected_design["mode"] == "lite",
+        )
+    except (ContextTeamError, OSError, ValueError) as exc:
+        raise AnonymousWorkerError(f"portable team failed trusted verification: {exc}") from None
+    if summary.get("status") != "VALID" or summary.get("errors") != 0:
+        raise AnonymousWorkerError("portable team trusted verification is not VALID")
+    if actual_design != expected_design:
+        raise AnonymousWorkerError("portable team differs from the exact tagged design")
+    if not isinstance(actual_lock, dict) or actual_lock.get("factory") != expected_factory:
+        raise AnonymousWorkerError("portable team lock differs from the exact tagged Factory")
+    expected_content = {
+        DESIGN_RELATIVE: _canonical_json(expected_design).encode("utf-8"),
+        **{
+            relative: content.encode("utf-8")
+            for relative, content in expected_files.items()
+        },
+    }
+    expected_paths = set(expected_content) | {LOCK_RELATIVE}
+    actual_paths: set[str] = set()
+    for path in sorted(team.rglob("*")):
+        relative = path.relative_to(team).as_posix()
+        if path.is_symlink():
+            raise AnonymousWorkerError(f"portable team contains a symbolic link: {relative}")
+        if path.is_dir():
+            continue
+        if not path.is_file():
+            raise AnonymousWorkerError(f"portable team contains a special file: {relative}")
+        actual_paths.add(relative)
+    if actual_paths != expected_paths:
+        raise AnonymousWorkerError("portable team file set differs from the exact tagged design")
+    for relative, content in expected_content.items():
+        if (team / relative).read_bytes() != content:
+            raise AnonymousWorkerError(
+                f"portable team file differs from the exact tagged design: {relative}"
+            )
+    return summary
+
+
+def _verify_candidate_baseline(
+    *,
+    source: Path,
+    source_records: dict[str, dict[str, Any]],
+    installed: Path,
+    team: Path,
+    expected_design: dict[str, Any],
+    release: str,
+    expected_commit: str,
+) -> None:
+    """Recheck every earlier candidate effect after each later candidate command."""
+
+    _verify_source_effects(source, source_records)
+    manifest: dict[str, Any] | None = None
+    if installed.exists() or installed.is_symlink():
+        manifest = _verify_factory_effects(
+            installed,
+            source_records,
+            release,
+            expected_commit,
+        )
+    if team.exists() or team.is_symlink():
+        if manifest is None:
+            raise AnonymousWorkerError("portable team exists without the exact tagged Factory")
+        _verify_team_effects(
+            team,
+            expected_design,
+            {
+                "id": manifest["factory_id"],
+                "version": manifest["factory_version"],
+                "source_revision": expected_commit,
+                "source_dirty": False,
+            },
+        )
+
+
+def _verify_active_host_effects(
+    projection: Path,
+    plan_document: dict[str, Any],
+) -> dict[str, Any]:
+    digest = str(plan_document["proposal_digest"])
+    try:
+        report = verify_installation(projection)
+        install_lock = _loads_strict(
+            (projection / INSTALL_LOCK_RELATIVE).read_text(encoding="utf-8")
+        )
+    except (HostLifecycleError, OSError, ValueError) as exc:
+        raise AnonymousWorkerError(f"host projection failed trusted verification: {exc}") from None
+    if (
+        report.get("status") != "VALID"
+        or report.get("proposal_digest") != digest
+        or not isinstance(install_lock, dict)
+        or install_lock.get("proposal_digest") != digest
+        or install_lock.get("proposal") != plan_document["proposal"]
+    ):
+        raise AnonymousWorkerError("host projection trusted verification differs")
+    return report
+
+
+def _verify_uninstalled_host_effects(
+    projection: Path,
+    plan_document: dict[str, Any],
+    digest: str,
+) -> None:
+    try:
+        preview = preview_uninstall(projection)
+    except (HostLifecycleError, OSError, ValueError) as exc:
+        raise AnonymousWorkerError(f"host uninstall failed trusted verification: {exc}") from None
+    if preview.get("status") != "ALREADY_UNINSTALLED" or preview.get(
+        "proposal_digest"
+    ) != digest:
+        raise AnonymousWorkerError("host uninstall tombstone differs from the exact plan")
+    lifecycle = plan_document["proposal"]["lifecycle"]
+    absent = {
+        INSTALL_LOCK_RELATIVE,
+        METADATA_STAGE_RELATIVE,
+        lifecycle["initial_apply_intent"],
+        lifecycle["metadata_recovery_intent"],
+    }
+    for record in plan_document["proposal"]["files"]:
+        absent.update((record["path"], record["stage_path"], record["intent_path"]))
+    for relative in absent:
+        path = projection / relative
+        if path.exists() or path.is_symlink():
+            raise AnonymousWorkerError("host uninstall retained a managed or transient file")
+    for relative in (OPERATION_GUARD_RELATIVE, UNINSTALL_TOMBSTONE_RELATIVE):
+        path = projection / relative
+        if path.is_symlink() or not path.is_file():
+            raise AnonymousWorkerError("host uninstall retained unsafe lifecycle evidence")
+
+
+def _verify_writer_authority_effects(root: Path) -> dict[str, Any]:
+    fixture = root / "examples/v08-contracts/valid"
+    try:
+        topology = load_contract_file("writer_topology", fixture / "writer-topology.json")
+        plan = load_contract_file("plan_revision", fixture / "plan-revision.json")
+        approval = load_contract_file("approval_grant", fixture / "approval-grant.json")
+        issues = validate_writer_authority(topology, plan, approval)
+    except (ContractViolation, OSError, ValueError) as exc:
+        raise AnonymousWorkerError(f"writer authority failed trusted verification: {exc}") from None
+    if issues:
+        raise AnonymousWorkerError("writer authority failed trusted cross-contract verification")
+    return {
+        "topology_digest": topology["topology_digest"],
+        "plan_digest": plan["plan_digest"],
+        "approval_scope_digest": approval["scope_digest"],
+    }
 
 
 def _strict_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -424,6 +694,16 @@ def _execute_workflow(
         raise AnonymousWorkerError(
             "anonymous working tree is not the clean peeled tag commit"
         )
+    source_records = _snapshot_regular_tree(source)
+    try:
+        expected_design = _loads_strict(
+            (source / "examples/context-first/team-design.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        expected_writer = _verify_writer_authority_effects(source)
+    except (OSError, ValueError) as exc:
+        raise AnonymousWorkerError("tagged release inputs are invalid") from exc
     workflow = [
         [
             sys.executable,
@@ -468,10 +748,88 @@ def _execute_workflow(
     ]
     for command in workflow:
         _run_candidate(command, source, workspace, environment)
+        if command[:4] == [
+            sys.executable,
+            "tools/agent_team.py",
+            "factory",
+            "install",
+        ]:
+            _verify_factory_effects(
+                installed,
+                source_records,
+                release,
+                expected_commit,
+            )
+        elif "create" in command and "--design" in command:
+            manifest = _verify_factory_effects(
+                installed,
+                source_records,
+                release,
+                expected_commit,
+            )
+            _verify_team_effects(
+                team,
+                expected_design,
+                {
+                    "id": manifest["factory_id"],
+                    "version": manifest["factory_version"],
+                    "source_revision": expected_commit,
+                    "source_dirty": False,
+                },
+            )
+        _verify_candidate_baseline(
+            source=source,
+            source_records=source_records,
+            installed=installed,
+            team=team,
+            expected_design=expected_design,
+            release=release,
+            expected_commit=expected_commit,
+        )
     try:
         plan_document = _loads_strict(plan.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         raise AnonymousWorkerError("anonymous host plan is invalid") from None
+    try:
+        trusted_plan = load_install_plan(plan)
+    except (HostLifecycleError, OSError, ValueError) as exc:
+        raise AnonymousWorkerError(
+            f"anonymous host plan failed trusted validation: {exc}"
+        ) from None
+    if trusted_plan != plan_document or trusted_plan.get("state") != "DRAFT":
+        raise AnonymousWorkerError("anonymous host plan differs from trusted validation")
+    proposal = trusted_plan["proposal"]
+    try:
+        trusted_team = _validate_source(trusted_plan)
+    except HostLifecycleError as exc:
+        raise AnonymousWorkerError(
+            f"anonymous host plan source failed trusted validation: {exc}"
+        ) from None
+    if (
+        trusted_team != team.resolve()
+        or proposal["team"]["team_id"] != expected_design["team_id"]
+        or proposal["host"]["id"] != "generic-ai"
+        or Path(proposal["destination"]) != projection.resolve()
+    ):
+        raise AnonymousWorkerError("anonymous host plan differs from the exact requested inputs")
+    expected_projection = [
+        {
+            key: record[key]
+            for key in ("source", "path", "sha256", "management", "stage_path")
+        }
+        for record in _source_records(team.resolve(), "generic-ai")
+    ]
+    actual_projection = [
+        {
+            key: record[key]
+            for key in ("source", "path", "sha256", "management", "stage_path")
+        }
+        for record in proposal["files"]
+    ]
+    if actual_projection != expected_projection:
+        raise AnonymousWorkerError(
+            "anonymous host plan file set differs from the exact team projection"
+        )
     digest = plan_document.get("proposal_digest") if isinstance(plan_document, dict) else None
     if not isinstance(digest, str):
         raise AnonymousWorkerError("anonymous host plan lacks an exact digest")
@@ -534,11 +892,35 @@ def _execute_workflow(
             str(installed / "examples/v08-contracts/valid/approval-grant.json"),
         ],
     ]
-    last = ""
+    writer_output = ""
+    host_active = False
+    host_uninstalled = False
     for command in remainder:
-        last = _run_candidate(command, source, workspace, environment)
+        output = _run_candidate(command, source, workspace, environment)
+        _verify_candidate_baseline(
+            source=source,
+            source_records=source_records,
+            installed=installed,
+            team=team,
+            expected_design=expected_design,
+            release=release,
+            expected_commit=expected_commit,
+        )
+        if command[1:3] == ["host", "apply"]:
+            host_active = True
+            _verify_active_host_effects(projection, plan_document)
+        elif command[1:3] == ["host", "uninstall"]:
+            host_active = False
+            host_uninstalled = True
+            _verify_uninstalled_host_effects(projection, plan_document, digest)
+        elif "writer-authority-validate" in command:
+            writer_output = output
+        elif host_active:
+            _verify_active_host_effects(projection, plan_document)
+        elif host_uninstalled:
+            _verify_uninstalled_host_effects(projection, plan_document, digest)
     try:
-        writer = _loads_strict(last)
+        writer = _loads_strict(writer_output)
     except ValueError:
         raise AnonymousWorkerError(
             "anonymous writer-authority output is invalid"
@@ -550,6 +932,23 @@ def _execute_workflow(
         or writer.get("identity_or_signature_verified") is not False
     ):
         raise AnonymousWorkerError("anonymous writer-authority boundary differs")
+    trusted_writer = _verify_writer_authority_effects(installed)
+    if trusted_writer != expected_writer or any(
+        writer.get(key) != value for key, value in expected_writer.items()
+    ):
+        raise AnonymousWorkerError(
+            "anonymous writer-authority output differs from trusted recomputation"
+        )
+    _verify_candidate_baseline(
+        source=source,
+        source_records=source_records,
+        installed=installed,
+        team=team,
+        expected_design=expected_design,
+        release=release,
+        expected_commit=expected_commit,
+    )
+    _verify_uninstalled_host_effects(projection, plan_document, digest)
     return {
         "status": "PASS",
         "workflow_url": None,
@@ -566,6 +965,13 @@ def _execute_workflow(
         "external_writes_verified": True,
         "candidate_network_isolated": True,
         "candidate_runtime_read_only": True,
+        "independent_effects_verified": True,
+        "independent_effects": [
+            "factory-installation-manifest-and-tag-tree",
+            "portable-team-design-lock-and-managed-files",
+            "host-active-lock-files-and-uninstall-tombstone",
+            "writer-topology-plan-approval-digest-chain",
+        ],
     }
 
 

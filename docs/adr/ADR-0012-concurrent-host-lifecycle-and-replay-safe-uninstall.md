@@ -14,7 +14,7 @@ An uninstall can also stop after deleting some files. Without an explicit transi
 
 ## Decision
 
-Use a persistent POSIX `fcntl` guard for every mutating v1 host lifecycle operation. New v1 installations atomically create `.agent-team/.host-lifecycle.guard` as an `empty-regular-file-v1`; the plan displays its empty-content digest. Apply and uninstall acquire an exclusive, non-blocking kernel lock; v1 verification joins the same lock. If no install lock exists, an exact empty regular guard may be reused after a crash between guard fsync and `APPLYING` publication. Reuse never deletes the guard and the guard alone grants no authority to delete any file.
+Use a persistent POSIX `fcntl` guard for every mutating v1 host lifecycle operation. New v1 installations atomically create `.agent-team/.host-lifecycle.guard` as an `empty-regular-file-v1`; the plan displays its empty-content digest. Apply and uninstall acquire an exclusive, non-blocking kernel lock; v1 verification joins the same lock. If no install lock exists, an exact empty regular guard may be reused only while no initial intent or metadata scratch exists. A crash that leaves an initial intent before `APPLYING` is durable fails closed: preserve it, reconcile explicitly, and confirm a new plan. Reuse never deletes the guard and the guard alone grants no authority to delete any file.
 
 Plan schema `1.1.0` digest-binds the complete proposal: team and descriptor authority, destination, projected files, deterministic file stages and random per-file ownership intents, the empty guard contract, install/tombstone paths, fixed metadata scratch `.agent-team/.host-lifecycle.json.stage` and exact metadata intent, exact prior guard/tombstone identities, effects, retention, directory behavior, and limitations. Lock schema `1.1.0` stores the complete proposal and exact guard binding in addition to the derived managed-file list.
 
@@ -51,7 +51,7 @@ The guard serializes cooperating local Factory commands. No portable userspace p
 - Destination publication remains non-overwriting at the kernel operation.
 - Interrupted uninstall is resumable and completion replay is idempotent.
 - Persistent effects are visible before confirmation and bound into the proposal digest.
-- An exact empty guard supports recovery across the guard-fsync/lock-publication crash window without granting deletion authority.
+- An exact empty guard may be reused after guard creation only if no initial intent or metadata scratch remains; a pre-`APPLYING` intent residue requires reconciliation and a new confirmation.
 - Exact metadata and per-file ownership intents make JSON and projected-file recovery possible without adopting pre-existing or merely byte-identical content.
 
 ### Costs

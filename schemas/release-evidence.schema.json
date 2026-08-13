@@ -169,6 +169,15 @@
                 "resource_isolation": {"type": "object"},
                 "candidate_network_isolated": {"const": true},
                 "candidate_runtime_read_only": {"const": true},
+                "independent_effects_verified": {"const": true},
+                "independent_effects": {
+                  "const": [
+                    "factory-installation-manifest-and-tag-tree",
+                    "portable-team-design-lock-and-managed-files",
+                    "host-active-lock-files-and-uninstall-tombstone",
+                    "writer-topology-plan-approval-digest-chain"
+                  ]
+                },
                 "isolation_mechanism": {"const": "linux-systemd-cgroup-setpriv-bubblewrap-v1"}
               }
             }
@@ -429,7 +438,7 @@
         "anonymous_install": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["status", "workflow_url", "source_url", "tag", "tag_object", "commit", "verified_at", "commands", "unauthenticated_git_transport", "caller_credentials_inherited", "same_uid_filesystem_isolated", "write_isolation", "external_writes_verified", "candidate_network_isolated", "candidate_runtime_read_only", "credential_process_uid_isolated", "credential_parent_environment_readable", "supplementary_groups_empty", "no_new_privileges", "capabilities_empty", "isolation_mechanism", "resource_isolation"],
+          "required": ["status", "workflow_url", "source_url", "tag", "tag_object", "commit", "verified_at", "commands", "unauthenticated_git_transport", "caller_credentials_inherited", "same_uid_filesystem_isolated", "write_isolation", "external_writes_verified", "candidate_network_isolated", "candidate_runtime_read_only", "independent_effects_verified", "independent_effects", "credential_process_uid_isolated", "credential_parent_environment_readable", "supplementary_groups_empty", "no_new_privileges", "capabilities_empty", "isolation_mechanism", "resource_isolation"],
           "properties": {
             "status": {"enum": ["PASS", "FAIL", "NOT_RUN"]},
             "workflow_url": {"type": ["string", "null"]},
@@ -446,6 +455,8 @@
             "external_writes_verified": {"enum": [true, null]},
             "candidate_network_isolated": {"enum": [true, null]},
             "candidate_runtime_read_only": {"enum": [true, null]},
+            "independent_effects_verified": {"enum": [true, null]},
+            "independent_effects": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
             "credential_process_uid_isolated": {"enum": [true, null]},
             "credential_parent_environment_readable": {"enum": [false, null]},
             "supplementary_groups_empty": {"enum": [true, null]},

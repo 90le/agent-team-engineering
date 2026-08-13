@@ -139,6 +139,29 @@
           "type": "object",
           "additionalProperties": false,
           "required": ["status", "load_tests", "hosts"],
+          "oneOf": [
+            {
+              "properties": {
+                "status": {"const": "PASS"},
+                "load_tests": {"minimum": 1},
+                "hosts": {
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "prefixItems": [
+                    {"const": "openclaw"},
+                    {"const": "hermes"}
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "status": {"const": "NOT_RUN"},
+                "load_tests": {"const": 0},
+                "hosts": {"maxItems": 0}
+              }
+            }
+          ],
           "properties": {
             "status": {"enum": ["PASS", "NOT_RUN"]},
             "load_tests": {"type": "integer", "minimum": 0},
@@ -149,6 +172,10 @@
           "type": "object",
           "additionalProperties": false,
           "required": ["status", "runs", "command"],
+          "oneOf": [
+            {"properties": {"status": {"const": "PASS"}, "runs": {"minimum": 1}}},
+            {"properties": {"status": {"const": "NOT_RUN"}, "runs": {"const": 0}}}
+          ],
           "properties": {
             "status": {"enum": ["PASS", "NOT_RUN"]},
             "runs": {"type": "integer", "minimum": 0},
@@ -159,6 +186,10 @@
           "type": "object",
           "additionalProperties": false,
           "required": ["status", "runs", "command"],
+          "oneOf": [
+            {"properties": {"status": {"const": "PASS"}, "runs": {"minimum": 1}}},
+            {"properties": {"status": {"const": "NOT_RUN"}, "runs": {"const": 0}}}
+          ],
           "properties": {
             "status": {"enum": ["PASS", "NOT_RUN"]},
             "runs": {"type": "integer", "minimum": 0},
@@ -169,6 +200,29 @@
           "type": "object",
           "additionalProperties": false,
           "required": ["status", "live_runs", "evidence_files"],
+          "oneOf": [
+            {
+              "properties": {
+                "status": {"const": "PASS"},
+                "live_runs": {"const": 2},
+                "evidence_files": {
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "prefixItems": [
+                    {"const": "acceptance/github-scm-v10-first-run.json"},
+                    {"const": "acceptance/github-scm-v10-replay.json"}
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "status": {"const": "NOT_RUN"},
+                "live_runs": {"const": 0},
+                "evidence_files": {"maxItems": 0}
+              }
+            }
+          ],
           "properties": {
             "status": {"enum": ["PASS", "NOT_RUN"]},
             "live_runs": {"type": "integer", "minimum": 0},

@@ -483,7 +483,7 @@ class HostLifecycleTests(unittest.TestCase):
                 )
                 with self.assertRaisesRegex(
                     HostLifecycleError,
-                    "metadata recovery stage changed|apply intent changed",
+                    "metadata recovery stage changed|apply intent (changed|appeared without a durable APPLYING record)",
                 ):
                     apply_install_plan(plan_path)
                 self.assertEqual(
@@ -1322,7 +1322,7 @@ class HostLifecycleTests(unittest.TestCase):
             with self.assertRaisesRegex(HostLifecycleError, "guard is missing"):
                 verify_installation(destination)
 
-    def test_apply_resumes_after_guard_fsync_before_install_lock(self) -> None:
+    def test_apply_intent_without_durable_applying_record_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
             team = self._team(base)
@@ -1342,10 +1342,17 @@ class HostLifecycleTests(unittest.TestCase):
                 with self.assertRaisesRegex(OSError, "before APPLYING"):
                     apply_install_plan(plan_path)
             guard = destination / ".agent-team/.host-lifecycle.guard"
+            intent = destination / plan["proposal"]["lifecycle"]["initial_apply_intent"]
             self.assertTrue(guard.is_file())
             self.assertEqual(guard.stat().st_size, 0)
+            self.assertTrue(intent.is_file())
             self.assertFalse((destination / ".agent-team/host-install.lock.json").exists())
-            self.assertEqual(apply_install_plan(plan_path)["status"], "VALID")
+            with self.assertRaisesRegex(
+                HostLifecycleError,
+                "appeared without a durable APPLYING record",
+            ):
+                apply_install_plan(plan_path)
+            self.assertTrue(intent.is_file())
 
     def test_new_guard_file_and_parent_are_fsynced_before_applying_record(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -1439,7 +1446,7 @@ class HostLifecycleTests(unittest.TestCase):
             self.assertEqual(stage.read_bytes(), b"partial")
             self.assertFalse(intent.exists() or intent.is_symlink())
 
-    def test_partial_metadata_stage_recovers_and_similar_undeclared_file_is_preserved(self) -> None:
+    def test_partial_pre_applying_metadata_stage_fails_closed_and_is_preserved(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
             team = self._team(base)
@@ -1478,9 +1485,21 @@ class HostLifecycleTests(unittest.TestCase):
                 ".agent-team/.host-lifecycle.json.stage",
                 preview_install_plan(plan),
             )
-            self.assertEqual(apply_install_plan(plan_path)["status"], "VALID")
-            self.assertFalse(metadata_stage.exists() or metadata_stage.is_symlink())
-            uninstall_installation(destination, digest=plan["proposal_digest"])
+            partial = metadata_stage.read_bytes()
+            initial_intent = destination / plan["proposal"]["lifecycle"][
+                "initial_apply_intent"
+            ]
+            self.assertTrue(initial_intent.is_file())
+            with self.assertRaisesRegex(
+                HostLifecycleError,
+                "appeared without a durable APPLYING record",
+            ):
+                apply_install_plan(plan_path)
+            self.assertEqual(metadata_stage.read_bytes(), partial)
+            self.assertTrue(initial_intent.is_file())
+            self.assertFalse(
+                (destination / ".agent-team/host-install.lock.json").exists()
+            )
             self.assertEqual(unrelated.read_text(encoding="utf-8"), "user owned\n")
 
     def test_root_rebind_never_redirects_apply_mutations_to_replacement(self) -> None:

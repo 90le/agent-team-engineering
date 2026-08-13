@@ -122,6 +122,7 @@ ANONYMOUS_COMMANDS = (
     "create and validate portable team",
     "host plan; preview; confirm; apply; verify; uninstall-preview; uninstall; replay",
     "native writer-authority-validate",
+    "trusted independent read-back of the tagged installation tree, portable team lock, host lifecycle effects, and WriterTopology authority chain",
 )
 class ReleasePublicationError(RuntimeError):
     pass
@@ -1871,12 +1872,13 @@ def verify_downloaded_artifact(
 
 
 def verify_live_external_scm_artifacts(
-    contents: dict[str, bytes], token: str
+    contents: dict[str, bytes], token: str, expected_release_commit: str
 ) -> dict[str, Any]:
-    """Requery and byte-bind both private SCM workflow artifacts."""
+    """Requery private SCM artifacts and bind them to the released source tree."""
 
     evidence: list[str] = []
     observed_runs: set[str] = set()
+    reports: list[tuple[str, bytes, dict[str, Any]]] = []
     for _, relative in SCM_REPORT_ASSETS:
         report_bytes = contents.get(f"bundle/{relative}")
         if not isinstance(report_bytes, bytes):
@@ -1889,6 +1891,54 @@ def verify_live_external_scm_artifacts(
             raise ReleasePublicationError(
                 f"bundled SCM report is not strict JSON: {relative}"
             ) from None
+        if (
+            not isinstance(report, dict)
+            or report.get("framework_repository") != REPOSITORY
+            or COMMIT.fullmatch(str(report.get("framework_commit"))) is None
+        ):
+            raise ReleasePublicationError(
+                "bundled SCM report is not bound to the public Factory repository"
+            )
+        reports.append((relative, report_bytes, report))
+
+    framework_commits = {str(report["framework_commit"]) for _, _, report in reports}
+    if len(framework_commits) != 1:
+        raise ReleasePublicationError("bundled SCM reports disagree on the Factory commit")
+    framework_commit = framework_commits.pop()
+    release_commit = _require_commit(expected_release_commit, "released Factory commit")
+    compare = _github_json(
+        f"/repos/{REPOSITORY}/compare/{framework_commit}...{release_commit}",
+        token,
+    )
+    compare_files = compare.get("files") if isinstance(compare, dict) else None
+    observed_paths = {
+        record.get("filename")
+        for record in compare_files or []
+        if isinstance(record, dict)
+    }
+    expected_paths = {relative for _, relative in SCM_REPORT_ASSETS}
+    if (
+        not isinstance(compare, dict)
+        or compare.get("status") != "ahead"
+        or compare.get("ahead_by", 0) < 1
+        or compare.get("behind_by") != 0
+        or compare.get("base_commit", {}).get("sha") != framework_commit
+        or compare.get("merge_base_commit", {}).get("sha") != framework_commit
+        or compare.get("head_commit", {}).get("sha") != release_commit
+        or not isinstance(compare_files, list)
+        or len(compare_files) != len(expected_paths)
+        or observed_paths != expected_paths
+        or any(
+            record.get("status") not in {"added", "modified"}
+            for record in compare_files
+            if isinstance(record, dict)
+        )
+    ):
+        raise ReleasePublicationError(
+            "released Factory tree differs from its exact SCM-evidenced implementation"
+        )
+
+    for relative, report_bytes, report in reports:
         workflow = report.get("workflow") if isinstance(report, dict) else None
         run_id = workflow.get("run_id") if isinstance(workflow, dict) else None
         run_url = workflow.get("run_url") if isinstance(workflow, dict) else None
@@ -1977,7 +2027,12 @@ def verify_live_external_scm_artifacts(
                 "live SCM artifact bytes differ from the tagged evidence report"
             )
         evidence.extend((run_url, f"{artifact_url}@{digest}"))
-    return {"status": "PASS", "evidence": evidence}
+    return {
+        "status": "PASS",
+        "framework_commit": framework_commit,
+        "release_commit": release_commit,
+        "evidence": evidence,
+    }
 
 
 def _anonymous_worker_identity() -> tuple[int, int]:
@@ -2248,6 +2303,13 @@ def run_anonymous_exact_tag_install(
         "external_writes_verified": True,
         "candidate_network_isolated": True,
         "candidate_runtime_read_only": True,
+        "independent_effects_verified": True,
+        "independent_effects": [
+            "factory-installation-manifest-and-tag-tree",
+            "portable-team-design-lock-and-managed-files",
+            "host-active-lock-files-and-uninstall-tombstone",
+            "writer-topology-plan-approval-digest-chain",
+        ],
         "credential_process_uid_isolated": True,
         "credential_parent_environment_readable": False,
         "supplementary_groups_empty": True,
@@ -2297,6 +2359,13 @@ def build_final_release_index(
             "external_writes_verified": True,
             "candidate_network_isolated": True,
             "candidate_runtime_read_only": True,
+            "independent_effects_verified": True,
+            "independent_effects": [
+                "factory-installation-manifest-and-tag-tree",
+                "portable-team-design-lock-and-managed-files",
+                "host-active-lock-files-and-uninstall-tombstone",
+                "writer-topology-plan-approval-digest-chain",
+            ],
             "credential_process_uid_isolated": True,
             "credential_parent_environment_readable": False,
             "supplementary_groups_empty": True,
@@ -2319,6 +2388,8 @@ def build_final_release_index(
         raise ReleasePublicationError("anonymous installation identity or boundary differs")
     if (
         external_scm.get("status") != "PASS"
+        or external_scm.get("release_commit") != request["commit"]
+        or COMMIT.fullmatch(str(external_scm.get("framework_commit"))) is None
         or not isinstance(external_scm.get("evidence"), list)
         or len(external_scm["evidence"]) != 4
         or len(set(external_scm["evidence"])) != 4
@@ -2653,7 +2724,9 @@ def main() -> int:
         publication = verify_publication_snapshot(request, snapshot)
         archive = _github_download(publication["evidence_artifact"]["archive_download_url"], token)
         tag_evidence, contents = verify_downloaded_artifact(archive, publication, request)
-        external_scm = verify_live_external_scm_artifacts(contents, token)
+        external_scm = verify_live_external_scm_artifacts(
+            contents, token, request["commit"]
+        )
         anonymous = run_anonymous_exact_tag_install(
             request["release"],
             publication["annotated_tag"]["object_id"],

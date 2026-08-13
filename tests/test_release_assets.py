@@ -163,6 +163,19 @@ class ReleaseAssetTests(unittest.TestCase):
         altered["hosts"][1]["evidence_scope"] = "different whole object"
         self.assertTrue(validate_schema(altered, schema))
 
+        for gate, fields in {
+            "isolated_hosts": {"load_tests": 0, "hosts": []},
+            "cold_start": {"runs": 0},
+            "release_smoke": {"runs": 0},
+            "external_scm": {"live_runs": 0, "evidence_files": []},
+        }.items():
+            altered = copy.deepcopy(document)
+            altered["local_gates"][gate].update(fields)
+            self.assertTrue(
+                validate_schema(altered, schema),
+                f"PASS gate accepted empty evidence: {gate}",
+            )
+
     def test_live_scm_evidence_requires_one_creation_and_one_exact_replay(self) -> None:
         first = _report(created=True, run_id=101)
         replay = _report(created=False, run_id=102)

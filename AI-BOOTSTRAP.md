@@ -167,7 +167,7 @@ Host plan schema `1.1.0` 把完整 `proposal` 绑定进确认摘要；install-lo
 - 人类 owner 永远不是 Agent；`kind=human`、聊天或模型文本不是认证批准。
 - 产品变更的技术审核不得由作者本人承担，审核者不得改写作者分支，发布者不得重建发布物。v1.0 发布另把“只读独立 AI 技术审查”和“GitHub Owner 风险批准”拆开；当前发布只接受 `90le`（GitHub user ID `68719118`）作为 Owner 批准者，他可以同时是源码控制者，但其他协作者不能替代。Owner 批准不算技术独立审查，二者都必须绑定同一精确 head。
 - 不在生产主机运行不可信生成代码，不挂载 Docker Socket、生产数据卷或管理密钥。
-- 团队输出必须是不存在的新路径；宿主投影可使用已有目录。创建 plan 时，固定元数据 scratch 及所有 metadata/initial-intent 前缀条目必须不存在；首次安装还要求所有投影文件、确定性 stage 与准确 per-file intent 不存在。`APPLYING` 持久化后，每个文件只能由其 plan-bound 随机 intent inode 经 hard link 发布为 stage/target；intent 保留到 `ACTIVE` 锁记录同一 target inode 后才删除。同一 plan 恢复也必须证明 intent/stage/target inode 相同，不能采纳仅字节相同的外来文件。元数据转换使用独立准确 intent。成功时所有 intent/scratch 均不存在；任何其它既有条目原样保留并拒绝。准确空 guard 可在无 lock 时复用但永不授予删除权，旧 tombstone 必须与 plan 基线一致。
+- 团队输出必须是不存在的新路径；宿主投影可使用已有目录。创建 plan 时，固定元数据 scratch 及所有 metadata/initial-intent 前缀条目必须不存在；首次安装还要求所有投影文件、确定性 stage 与准确 per-file intent 不存在。`APPLYING` 持久化后，每个文件只能由其 plan-bound 随机 intent inode 经 hard link 发布为 stage/target；intent 保留到 `ACTIVE` 锁记录同一 target inode 后才删除。同一 plan 恢复也必须证明 intent/stage/target inode 相同，不能采纳仅字节相同的外来文件。元数据转换使用独立准确 intent。成功时所有 intent/scratch 均不存在；任何其它既有条目原样保留并拒绝。准确空 guard 仅在无 lock、无 initial intent、无 metadata scratch 时可复用且永不授予删除权；无 `APPLYING` 锁的 initial-intent 残留必须人工对账并重建计划。旧 tombstone 必须与 plan 基线一致。
 - 不覆盖现有 `AGENTS.md`、`CLAUDE.md`、`.codex/`、`.claude/`、OpenClaw配置、Hermes用户Profile或任何用户文件。
 - Multica `host apply` 只能写离线方案包；不能写工作区或执行方案内命令。
 - 权限不足、权威冲突、revision过期、摘要变化、漂移、验证失败或恢复不明确时安全停止。

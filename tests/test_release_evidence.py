@@ -18,6 +18,8 @@ from unittest import mock
 
 from core.json_support import loads_strict
 from core.schema_validation import validate_schema
+from core.context_team import create_context_team
+from core.installation import INSTALLATION_NAME, _canonical, _tree_digest
 
 from tools.release_evidence import (
     EVIDENCE_ASSETS,
@@ -34,6 +36,7 @@ from tools.release_publication import (
     REVIEW_WORKFLOW_COMMIT,
     RELEASE_REQUIRED_CHECKS,
     RELEASE_REQUIRED_CHECK_WORKFLOWS,
+    SCM_REPORT_ASSETS,
     ReleasePublicationError,
     _anonymous_worker_command,
     _run_anonymous_worker,
@@ -149,6 +152,8 @@ class ReleaseEvidenceTests(unittest.TestCase):
     def _live_scm_fixture(self) -> dict[str, object]:
         return {
             "status": "PASS",
+            "framework_commit": "f" * 40,
+            "release_commit": "b" * 40,
             "evidence": [
                 "https://github.com/90le/agent-team-v10-conformance-private/actions/runs/101",
                 "https://api.github.com/repos/90le/agent-team-v10-conformance-private/actions/artifacts/1001@sha256:"
@@ -1388,6 +1393,13 @@ class ReleaseEvidenceTests(unittest.TestCase):
             "external_writes_verified": True,
             "candidate_network_isolated": True,
             "candidate_runtime_read_only": True,
+            "independent_effects_verified": True,
+            "independent_effects": [
+                "factory-installation-manifest-and-tag-tree",
+                "portable-team-design-lock-and-managed-files",
+                "host-active-lock-files-and-uninstall-tombstone",
+                "writer-topology-plan-approval-digest-chain",
+            ],
             "credential_process_uid_isolated": True,
             "credential_parent_environment_readable": False,
             "supplementary_groups_empty": True,
@@ -1570,6 +1582,13 @@ class ReleaseEvidenceTests(unittest.TestCase):
             "external_writes_verified": True,
             "candidate_network_isolated": True,
             "candidate_runtime_read_only": True,
+            "independent_effects_verified": True,
+            "independent_effects": [
+                "factory-installation-manifest-and-tag-tree",
+                "portable-team-design-lock-and-managed-files",
+                "host-active-lock-files-and-uninstall-tombstone",
+                "writer-topology-plan-approval-digest-chain",
+            ],
             "credential_process_uid_isolated": True,
             "credential_parent_environment_readable": False,
             "supplementary_groups_empty": True,
@@ -1765,6 +1784,8 @@ class ReleaseEvidenceTests(unittest.TestCase):
         for run_id, path in (("101", first_path), ("102", replay_path)):
             report = {
                 "base_commit": "a" * 40,
+                "framework_repository": "90le/agent-team-engineering",
+                "framework_commit": "f" * 40,
                 "workflow": {
                     "run_id": run_id,
                     "run_url": (
@@ -1839,14 +1860,37 @@ class ReleaseEvidenceTests(unittest.TestCase):
                 }
             )
 
-        side_effect = [runs[0], artifact_pages[0], runs[1], artifact_pages[1]]
+        release_commit = "e" * 40
+        compare = {
+            "status": "ahead",
+            "ahead_by": 1,
+            "behind_by": 0,
+            "base_commit": {"sha": "f" * 40},
+            "merge_base_commit": {"sha": "f" * 40},
+            "head_commit": {"sha": release_commit},
+            "files": [
+                {"filename": path, "status": "modified"}
+                for _, path in SCM_REPORT_ASSETS
+            ],
+        }
+        side_effect = [
+            compare,
+            runs[0],
+            artifact_pages[0],
+            runs[1],
+            artifact_pages[1],
+        ]
         with mock.patch(
             "tools.release_publication._github_json", side_effect=side_effect
         ), mock.patch(
             "tools.release_publication._github_download", side_effect=archives
         ):
-            observed = verify_live_external_scm_artifacts(contents, "TOKEN")
+            observed = verify_live_external_scm_artifacts(
+                contents, "TOKEN", release_commit
+            )
         self.assertEqual(observed["status"], "PASS")
+        self.assertEqual(observed["framework_commit"], "f" * 40)
+        self.assertEqual(observed["release_commit"], release_commit)
         self.assertEqual(len(observed["evidence"]), 4)
 
         forged = deepcopy(contents)
@@ -1856,7 +1900,26 @@ class ReleaseEvidenceTests(unittest.TestCase):
         ), mock.patch(
             "tools.release_publication._github_download", side_effect=archives
         ), self.assertRaises(ReleasePublicationError):
-            verify_live_external_scm_artifacts(forged, "TOKEN")
+            verify_live_external_scm_artifacts(forged, "TOKEN", release_commit)
+
+        stale = deepcopy(contents)
+        for _, path in SCM_REPORT_ASSETS:
+            report = json.loads(stale[f"bundle/{path}"])
+            report["framework_commit"] = "9" * 40
+            stale[f"bundle/{path}"] = (json.dumps(report, sort_keys=True) + "\n").encode()
+        stale_compare = deepcopy(compare)
+        stale_compare["base_commit"]["sha"] = "9" * 40
+        stale_compare["merge_base_commit"]["sha"] = "9" * 40
+        stale_compare["files"].append(
+            {"filename": "core/host_lifecycle.py", "status": "modified"}
+        )
+        with mock.patch(
+            "tools.release_publication._github_json", return_value=stale_compare
+        ), self.assertRaisesRegex(
+            ReleasePublicationError,
+            "SCM-evidenced implementation",
+        ):
+            verify_live_external_scm_artifacts(stale, "TOKEN", release_commit)
 
     def test_anonymous_environment_is_literal_minimal_allowlist(self) -> None:
         injected = {
@@ -1991,7 +2054,21 @@ class ReleaseEvidenceTests(unittest.TestCase):
         ) -> str:
             calls.append([str(item) for item in arguments])
             if arguments[:2] == ["git", "clone"]:
-                Path(arguments[-1]).mkdir(parents=True)
+                source = Path(arguments[-1])
+                source.mkdir(parents=True)
+                (source / "README.md").write_text(
+                    "trusted tagged fixture\n", encoding="utf-8"
+                )
+                repository = Path(__file__).resolve().parents[1]
+                for relative in (
+                    "examples/context-first/team-design.json",
+                    "examples/v08-contracts/valid/writer-topology.json",
+                    "examples/v08-contracts/valid/plan-revision.json",
+                    "examples/v08-contracts/valid/approval-grant.json",
+                ):
+                    target = source / relative
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes((repository / relative).read_bytes())
                 return ""
             if arguments[:2] == ["git", "rev-parse"]:
                 target = str(arguments[2])
@@ -2034,14 +2111,17 @@ class ReleaseEvidenceTests(unittest.TestCase):
             "tools.anonymous_release_worker._run_candidate",
             side_effect=fake_candidate,
         ):
-            result = _execute_workflow(
-                "v1.0.0",
-                tag_object,
-                peeled,
-                Path(temporary),
-                "2026-08-12T06:20:00Z",
-            )
-        self.assertEqual(result["status"], "PASS")
+            with self.assertRaisesRegex(
+                anonymous_release_worker.AnonymousWorkerError,
+                "installed Factory failed trusted verification",
+            ):
+                _execute_workflow(
+                    "v1.0.0",
+                    tag_object,
+                    peeled,
+                    Path(temporary),
+                    "2026-08-12T06:20:00Z",
+                )
         clone = next(call for call in calls if call[:2] == ["git", "clone"])
         self.assertIn("--no-checkout", clone)
         self.assertNotIn("--branch", clone)
@@ -2050,16 +2130,100 @@ class ReleaseEvidenceTests(unittest.TestCase):
             for index, call in enumerate(calls)
             if call[:4] == ["git", "-c", "advice.detachedHead=false", "checkout"]
         )
-        first_candidate_index = next(
-            index
-            for index, call in enumerate(calls)
-            if len(call) > 1 and call[1].endswith("tools/agent_team.py")
-        )
-        self.assertLess(checkout_index, first_candidate_index)
-        self.assertIn(
-            ["git", "rev-parse", "HEAD"],
-            calls[checkout_index:first_candidate_index],
-        )
+        self.assertIn(["git", "rev-parse", "HEAD"], calls[checkout_index:])
+
+    def test_trusted_readback_rejects_coherent_install_rewrite_and_other_valid_team(self) -> None:
+        with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
+            root = Path(temporary)
+            source = root / "source"
+            installed = root / "installed"
+            source.mkdir()
+            installed.mkdir()
+            files = {
+                "README.md": b"exact tagged bytes\n",
+                "factory-package.json": b'{"id":"factory.agent-team-engineering","version":"1.0.0"}\n',
+            }
+            for relative, content in files.items():
+                (source / relative).write_bytes(content)
+                (installed / relative).write_bytes(content)
+                (installed / relative).chmod(0o644)
+            records = [
+                {
+                    "path": relative,
+                    "sha256": "sha256:" + hashlib.sha256(content).hexdigest(),
+                    "mode": 0o644,
+                    "size": len(content),
+                }
+                for relative, content in sorted(files.items())
+            ]
+
+            def write_manifest(current_records: list[dict[str, object]]) -> None:
+                current_contents = {
+                    str(record["path"]): (installed / str(record["path"])).read_bytes()
+                    for record in current_records
+                }
+                body = {
+                    "schema_version": "1.0.0",
+                    "factory_id": "factory.agent-team-engineering",
+                    "factory_version": "1.0.0",
+                    "source_revision": "b" * 40,
+                    "source_tag": "v1.0.0",
+                    "release_verified": True,
+                    "tree_digest": _tree_digest(current_records, current_contents),
+                    "files": current_records,
+                }
+                manifest = {
+                    **body,
+                    "installation_id": "installation-"
+                    + hashlib.sha256(_canonical(body).encode("utf-8")).hexdigest()[:32],
+                }
+                (installed / INSTALLATION_NAME).write_text(
+                    json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
+                (installed / INSTALLATION_NAME).chmod(0o644)
+
+            write_manifest(records)
+            source_records = anonymous_release_worker._snapshot_regular_tree(source)
+            anonymous_release_worker._verify_factory_effects(
+                installed, source_records, "v1.0.0", "b" * 40
+            )
+
+            changed = b"coherently rewritten candidate bytes\n"
+            (installed / "README.md").write_bytes(changed)
+            rewritten = deepcopy(records)
+            rewritten[0].update(
+                {
+                    "sha256": "sha256:" + hashlib.sha256(changed).hexdigest(),
+                    "size": len(changed),
+                }
+            )
+            write_manifest(rewritten)
+            with self.assertRaisesRegex(
+                anonymous_release_worker.AnonymousWorkerError,
+                "differs from the independently captured tag tree",
+            ):
+                anonymous_release_worker._verify_factory_effects(
+                    installed, source_records, "v1.0.0", "b" * 40
+                )
+
+            design_path = Path(__file__).resolve().parents[1] / "examples/context-first/team-design.json"
+            team = root / "team"
+            create_context_team(design_path, team)
+            design = loads_strict(design_path.read_text(encoding="utf-8"))
+            lock = loads_strict(
+                (team / ".agent-team/context.lock.json").read_text(encoding="utf-8")
+            )
+            anonymous_release_worker._verify_team_effects(team, design, lock["factory"])
+            other_valid_design = deepcopy(design)
+            other_valid_design["display_name"] = "Another Valid Team"
+            with self.assertRaisesRegex(
+                anonymous_release_worker.AnonymousWorkerError,
+                "differs from the exact tagged design",
+            ):
+                anonymous_release_worker._verify_team_effects(
+                    team, other_valid_design, lock["factory"]
+                )
 
     def test_candidate_sandbox_hides_host_and_disables_network(self) -> None:
         self.assertEqual(
