@@ -500,6 +500,10 @@ class NativeController:
         for field, expected in comparisons.items():
             if grant[field] != expected:
                 raise NativeApprovalDenied(f"approval field does not match plan: {field}")
+        if grant.get("writer_topology") != plan.get("writer_topology"):
+            raise NativeApprovalDenied(
+                "approval field does not match plan: writer_topology"
+            )
         required_capabilities = sorted(
             {
                 capability

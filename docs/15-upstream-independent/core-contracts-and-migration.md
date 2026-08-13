@@ -1,6 +1,6 @@
-# v0.8 core contracts and v0.7 import
+# Portable core contracts, v0.7 import, and the v1 writer authority chain
 
-Status: released v0.8 L1 reference. This document defines the v0.8 contract and v0.7 import boundary; it does not authorize production Runner use, merge, or deployment.
+Status: the v0.8 L1 authority model, `1.0.0` PlanRevision/ApprovalGrant compatibility, and v0.9 history remain preserved; the v1.0 release adds a design-only WriterTopology → PlanRevision → ApprovalGrant authority chain. This document does not authorize a production Runner, multi-writer scheduler, merge, release, or deployment.
 
 ## Why this layer exists
 
@@ -18,22 +18,28 @@ The replaceable implementation boundary is specified separately in [the v0.8 ada
 | `RoleContract` | Responsibilities, non-responsibilities, minimum context, inputs/outputs, actions, limits, handoff, evidence, stop conditions | Session memory or a provider prompt format |
 | `WorkflowSpec` | States, legal events, transition roles, approval/evidence gates, retries, timeouts | External UI or database states |
 | `WorkItem` | Normalized untrusted intake and deduplication facts | An Issue number as internal identity |
-| `PlanRevision` | Immutable repository baseline, task DAG, paths, actions, tests, risk, rollback, budget and time | A mutable “latest plan” |
-| `ApprovalGrant` | A time-bound human grant over the exact plan and execution scope | Natural-language “approved” without verified identity |
+| `PlanRevision` | Immutable repository baseline, task DAG, paths, actions, tests, risk, rollback, budget and time; document `1.1.0` explicitly binds a WriterTopology identity/digest or `null` | A mutable “latest plan” or topology inferred from role names |
+| `ApprovalGrant` | A time-bound human grant over the exact plan, execution scope, and document `1.1.0` topology binding | Natural-language “approved” without verified identity or a topology not bound by the plan |
 | `Run` | One bounded attempt, revision, lease, sessions, cost, artifacts and evidence references | A long-lived agent persona |
 | `EvidenceBundle` | Content-addressed evidence index, producer, time, classification, redaction and retention | Secrets or an unbounded raw model transcript |
 | `AdapterDescriptor` | Ports, supported core range, capabilities, permissions, limits, timeouts, idempotency and health | External SDK types inside core contracts |
 | Command/event envelopes | Optimistic revision, idempotency, causation, actor, time and evidence links | Permission inferred from a prompt |
+| `WriterTopology` | Independent writer identities, disjoint ownership, Git isolation templates, approval-first phases, assurance identities, recovery, safe stop and host degradation | A claim that the current host or Managed runtime enforces the topology |
 
 ## Validation and version rules
 
 - Contract files use strict JSON: duplicate keys, non-finite numbers, unknown fields, unknown schema versions, states, permissions, and side-effect types fail closed.
 - The portable validator intentionally implements a small, declared JSON Schema subset. A keyword it does not implement is an error, not silently ignored documentation.
-- `PlanRevision.plan_digest` binds every other plan field. Any plan edit creates a new revision and digest.
-- `ApprovalGrant.scope_digest` binds actor/provider, work item, plan revision/digest, repository/base commit, paths/actions, runner/capabilities, budget/time, merge/deploy booleans, issuance/expiry, and nonce.
+- `PlanRevision.plan_digest` binds every other plan field, including `writer_topology` when present. Any plan edit creates a new revision and digest.
+- `ApprovalGrant.scope_digest` binds actor/provider, work item, plan revision/digest, repository/base commit, paths/actions, runner/capabilities, budget/time, merge/deploy booleans, issuance/expiry, nonce, and `writer_topology` when present.
 - v0.8 approval always has `merge_allowed=false` and `deploy_allowed=false`; the default autonomy stop is `DRAFT_PR_READY`.
 - `EvidenceBundle.bundle_digest` binds its complete index. Original evidence may live outside Git, but its content reference and digest remain verifiable.
+- `WriterTopology.topology_digest` binds the complete design. Semantic validation rejects overlapping writer roots, shared identities, missing worktree/branch isolation, self-review, unsafe default effects, phase drift, an idempotency identity without `topology_digest`, and overstated host projection.
+- The current PlanRevision and ApprovalGrant schema files have `$id` `1.1.0` and remain compatible with `1.0.0` documents. A `1.1.0` document must explicitly set `writer_topology` to the exact identity/digest object or `null`; a `1.0.0` document must omit it. `null` never implies independent-writer authority.
+- `validate_writer_authority` binds the exact topology into both plan and approval, matches repository/base commit, requires a task for every writer, keeps every allowed path inside one writer root, and checks the approval against the exact plan. The topology declares approval binding `exact-plan-and-topology-digests`, and retry identity includes `topology_digest`.
 - Adapters negotiate a common core version and required capabilities before use. No adapter or core package downloads another implementation at runtime.
+
+The v1.0 product version, WriterTopology schema `1.0.0`, and PlanRevision/ApprovalGrant schema-file `$id` `1.1.0` are distinct version domains. PlanRevision is also unrelated to host installation plan `1.1.0`. The `v0.9.0` tag predates this authority chain; its historical claims and artifacts must not be rewritten as if they already provided it.
 
 ## v0.7 import and rollback
 
@@ -52,6 +58,17 @@ No external service or SDK is required:
 
 ```bash
 python3 -m unittest tests.test_v08_contracts -v
+
+./agent-team native contract-validate \
+  --contract writer_topology \
+  --file examples/v08-contracts/valid/writer-topology.json
+
+./agent-team native writer-authority-validate \
+  --topology examples/v08-contracts/valid/writer-topology.json \
+  --plan examples/v08-contracts/valid/plan-revision.json \
+  --approval examples/v08-contracts/valid/approval-grant.json
 ```
 
-Valid examples are under [`examples/v08-contracts/valid`](../../examples/v08-contracts/valid/). The negative mutation suite proves unknown fields, version mismatch, authority conflict, approval bypass, digest tampering, unsafe grants, invalid leases, evidence tampering, undeclared adapter ports, and revision errors are rejected.
+The single-contract command validates only the topology document. The three-file command validates the canonical digest chain `b4b3e8… → 573616… → 2457ab…` and returns `automatic_execution: false`.
+
+Valid examples are under [`examples/v08-contracts/valid`](../../examples/v08-contracts/valid/). The negative mutation suite proves unknown fields, version mismatch, authority conflict, approval bypass, topology/plan/approval digest tampering, unsafe grants, invalid leases, evidence tampering, undeclared adapter ports, revision errors, and writer-ownership overlap are rejected. See the [independent-writer guide](independent-writer-topology.md) for the exact compatibility and design/runtime boundaries.

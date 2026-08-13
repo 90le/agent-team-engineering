@@ -1,21 +1,22 @@
 {
   "schema_version": "1.0.0",
   "registry_id": "agent-team-native-core",
-  "status": "STABLE_V08_REFERENCE",
-  "contract_version": "1.0.0",
+  "status": "STABLE_V1_REFERENCE",
+  "contract_version": "1.1.0",
   "authority": "agent-team-engineering",
   "contracts": [
     {"name": "team_spec", "schema_id": "urn:agent-team:schema:team-spec:1.0.0", "path": "schemas/team-spec.schema.json"},
     {"name": "role_contract", "schema_id": "urn:agent-team:schema:role-contract:1.0.0", "path": "schemas/role-contract.schema.json"},
     {"name": "workflow_spec", "schema_id": "urn:agent-team:schema:workflow-spec:1.0.0", "path": "schemas/workflow-spec.schema.json"},
     {"name": "work_item", "schema_id": "urn:agent-team:schema:work-item:2.0.0", "path": "schemas/work-item-v2.schema.json"},
-    {"name": "plan_revision", "schema_id": "urn:agent-team:schema:plan-revision:1.0.0", "path": "schemas/plan-revision.schema.json"},
-    {"name": "approval_grant", "schema_id": "urn:agent-team:schema:approval-grant:1.0.0", "path": "schemas/approval-grant.schema.json"},
+    {"name": "plan_revision", "schema_id": "urn:agent-team:schema:plan-revision:1.1.0", "path": "schemas/plan-revision.schema.json"},
+    {"name": "approval_grant", "schema_id": "urn:agent-team:schema:approval-grant:1.1.0", "path": "schemas/approval-grant.schema.json"},
     {"name": "run", "schema_id": "urn:agent-team:schema:run:1.0.0", "path": "schemas/run.schema.json"},
     {"name": "evidence_bundle", "schema_id": "urn:agent-team:schema:evidence-bundle:1.0.0", "path": "schemas/evidence-bundle.schema.json"},
     {"name": "adapter_descriptor", "schema_id": "urn:agent-team:schema:adapter-descriptor:1.0.0", "path": "schemas/adapter-descriptor.schema.json"},
     {"name": "command_envelope", "schema_id": "urn:agent-team:schema:command-envelope:1.0.0", "path": "schemas/command-envelope.schema.json"},
-    {"name": "event_envelope", "schema_id": "urn:agent-team:schema:event-envelope:1.0.0", "path": "schemas/event-envelope.schema.json"}
+    {"name": "event_envelope", "schema_id": "urn:agent-team:schema:event-envelope:1.0.0", "path": "schemas/event-envelope.schema.json"},
+    {"name": "writer_topology", "schema_id": "urn:agent-team:schema:writer-topology:1.0.0", "path": "schemas/writer-topology.schema.json"}
   ],
   "unknown_field_policy": "reject",
   "unknown_state_permission_or_side_effect_policy": "reject",

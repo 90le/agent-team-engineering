@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:host-uninstall-tombstone:1.0.0",
+  "title": "Host-native team uninstall tombstone",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "team_id",
+    "host",
+    "proposal_digest",
+    "destination",
+    "removed_files"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "status": {"const": "UNINSTALLED"},
+    "team_id": {"type": "string", "pattern": "^team\\.[a-z0-9][a-z0-9.-]*$"},
+    "host": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+    "proposal_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "destination": {"type": "string", "minLength": 1},
+    "removed_files": {"type": "integer", "minimum": 1}
+  }
+}

@@ -1,0 +1,190 @@
+{
+  "$schema": "urn:agent-team:schema:writer-topology:1.0.0",
+  "schema_version": "1.0.0",
+  "topology_id": "topology.independent-software-writers",
+  "topology_version": "1.0.0",
+  "status": "DESIGN_ONLY",
+  "team_spec_ref": "team.software-delivery@1.0.0",
+  "repository": {
+    "repository_id": "repo.example-software",
+    "base_ref": "main@0123456789abcdef0123456789abcdef01234567",
+    "source_clean_required": true,
+    "protected_default_branch": true
+  },
+  "approval": {
+    "authority_actor": "human.owner",
+    "binding": "exact-plan-and-topology-digests",
+    "must_precede_writes": true,
+    "self_approval_forbidden": true
+  },
+  "writers": [
+    {
+      "actor_id": "role.frontend",
+      "role_ref": "role.frontend@1.0.0",
+      "ownership_roots": ["apps/web", "packages/ui"],
+      "worktree_template": ".agent-team/worktrees/{work_item_id}/{writer_id}",
+      "branch_template": "agent-team/{work_item_id}/{writer_id}",
+      "allowed_actions": ["commit.create", "owned-paths.write", "repository.read"],
+      "forbidden_actions": ["approval.issue", "default-branch.merge", "outside-owned-paths.write", "production.deploy", "release.publish", "review-own-work"]
+    },
+    {
+      "actor_id": "role.backend",
+      "role_ref": "role.backend@1.0.0",
+      "ownership_roots": ["db/migrations", "services/api"],
+      "worktree_template": ".agent-team/worktrees/{work_item_id}/{writer_id}",
+      "branch_template": "agent-team/{work_item_id}/{writer_id}",
+      "allowed_actions": ["commit.create", "owned-paths.write", "repository.read"],
+      "forbidden_actions": ["approval.issue", "default-branch.merge", "outside-owned-paths.write", "production.deploy", "release.publish", "review-own-work"]
+    }
+  ],
+  "integrator": {
+    "actor_id": "role.integrator",
+    "role_ref": "role.integrator@1.0.0",
+    "allowed_actions": ["commit.read", "draft-pr.create", "integration-branch.compose"],
+    "forbidden_actions": ["approval.issue", "default-branch.merge", "production.deploy", "release.publish", "source-feature.write"]
+  },
+  "assurance_roles": [
+    {
+      "actor_id": "role.tester",
+      "role_ref": "role.tester@1.0.0",
+      "kind": "tester",
+      "read_only": true,
+      "may_review_own_work": false,
+      "allowed_actions": ["evidence.write", "repository.read", "tests.run"],
+      "forbidden_actions": ["approval.issue", "default-branch.merge", "production.deploy", "release.publish", "review-own-work", "source.write"]
+    },
+    {
+      "actor_id": "role.reviewer",
+      "role_ref": "role.reviewer@1.0.0",
+      "kind": "reviewer",
+      "read_only": true,
+      "may_review_own_work": false,
+      "allowed_actions": ["evidence.read", "repository.read", "review.write"],
+      "forbidden_actions": ["approval.issue", "default-branch.merge", "production.deploy", "release.publish", "review-own-work", "source.write"]
+    }
+  ],
+  "phases": [
+    {
+      "sequence": 1,
+      "phase_id": "human-approval",
+      "actors": ["human.owner"],
+      "parallel": false,
+      "requires": ["plan-revision"],
+      "produces": ["approval-grant"],
+      "failure_state": "NEEDS_HUMAN"
+    },
+    {
+      "sequence": 2,
+      "phase_id": "isolated-implementation",
+      "actors": ["role.backend", "role.frontend"],
+      "parallel": true,
+      "requires": ["approval-grant", "base-commit"],
+      "produces": ["writer-commit", "writer-evidence"],
+      "failure_state": "BLOCKED"
+    },
+    {
+      "sequence": 3,
+      "phase_id": "deterministic-integration",
+      "actors": ["role.integrator"],
+      "parallel": false,
+      "requires": ["writer-commit", "writer-evidence"],
+      "produces": ["integration-candidate"],
+      "failure_state": "NEEDS_HUMAN"
+    },
+    {
+      "sequence": 4,
+      "phase_id": "independent-testing",
+      "actors": ["role.tester"],
+      "parallel": false,
+      "requires": ["integration-candidate"],
+      "produces": ["test-evidence"],
+      "failure_state": "FAILED"
+    },
+    {
+      "sequence": 5,
+      "phase_id": "independent-review",
+      "actors": ["role.reviewer"],
+      "parallel": false,
+      "requires": ["integration-candidate", "test-evidence"],
+      "produces": ["independent-review"],
+      "failure_state": "BLOCKED"
+    },
+    {
+      "sequence": 6,
+      "phase_id": "draft-pr-handoff",
+      "actors": ["role.integrator"],
+      "parallel": false,
+      "requires": ["independent-review", "integration-candidate", "test-evidence"],
+      "produces": ["draft-pr"],
+      "failure_state": "NEEDS_HUMAN"
+    }
+  ],
+  "recovery": {
+    "idempotency_fields": ["actor_id", "base_commit", "phase_id", "plan_digest", "topology_digest", "work_item_id"],
+    "retry": "same-revision-and-approval-only",
+    "cancellation": "stop-new-dispatch-and-preserve-evidence",
+    "partial_results": "retain-immutable-commits-and-content-addressed-evidence",
+    "resume": "revalidate-base-approval-ownership-and-evidence"
+  },
+  "default_effects": {
+    "result": "reviewed-draft-pr",
+    "automatic_merge": false,
+    "automatic_release": false,
+    "automatic_deploy": false
+  },
+  "factory_host_catalog": {
+    "catalog_digest": "sha256:c58762fdca69a872335c5afafd4a17b4c9c29554fa99f3c7a0a04c6d29a2af5e",
+    "hosts": ["claude", "codex", "generic-ai", "hermes", "multica", "openclaw"]
+  },
+  "host_degradation": [
+    {
+      "host": "claude",
+      "support_tier": "verified-export",
+      "projection": "role-files-only",
+      "topology_enforced": false,
+      "automatic_execution": false,
+      "limitations": ["Role and context files do not create a durable independent-writer controller."]
+    },
+    {
+      "host": "codex",
+      "support_tier": "verified-export",
+      "projection": "role-files-only",
+      "topology_enforced": false,
+      "automatic_execution": false,
+      "limitations": ["Role and context files do not create a durable independent-writer controller."]
+    },
+    {
+      "host": "generic-ai",
+      "support_tier": "portable",
+      "projection": "portable-documents-only",
+      "topology_enforced": false,
+      "automatic_execution": false,
+      "limitations": ["The receiving AI must map every role and gate without weakening the contract."]
+    },
+    {
+      "host": "hermes",
+      "support_tier": "native-install-verified",
+      "projection": "native-team-files-no-multiwriter-runtime",
+      "topology_enforced": false,
+      "automatic_execution": false,
+      "limitations": ["Native role and Skill files are installed, but the Factory has not verified a durable multi-writer scheduler."]
+    },
+    {
+      "host": "multica",
+      "support_tier": "experimental-plan",
+      "projection": "leader-squad-overlay-no-independent-writer-enforcement",
+      "topology_enforced": false,
+      "automatic_execution": false,
+      "limitations": ["A Squad wakes its leader; role labels do not enforce write ownership or independent approval."]
+    },
+    {
+      "host": "openclaw",
+      "support_tier": "native-install-verified",
+      "projection": "native-team-files-no-multiwriter-runtime",
+      "topology_enforced": false,
+      "automatic_execution": false,
+      "limitations": ["Native role and Skill files are installed, but the Factory has not verified a durable multi-writer scheduler."]
+    }
+  ],
+  "topology_digest": "sha256:b4b3e8ad868889082a871e3ecc7588b00ced58a0555da299061c0aae758de0dd"
+}

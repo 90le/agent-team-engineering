@@ -5,7 +5,7 @@ description: Create, inspect, validate, relock, run, pause, back up, restore, up
 
 # Manage Agent Team Factory
 
-Read the Factory `AI-BOOTSTRAP.md`, constitution, threat model, `factory-package.json`, and `docs/08-factory/instance-lifecycle.md`. For runtime or database recovery work, also read `docs/09-control-plane/persistence-and-recovery.md`. For Factory installation, instance upgrade, lifecycle recovery, or rollback, read `docs/11-lifecycle/installation-upgrade-and-adoption.md` and use `upgrade-agent-team-instance`. For adapter or approval work, read `docs/10-adapters/sdk-isolation-and-approval.md` and use `implement-agent-team-adapter`. When an instance exists, read its `AI-BOOTSTRAP.md`, `.agent-team/instance.json`, and `.agent-team/instance.lock.json` completely.
+Read the Factory `AI-BOOTSTRAP.md`, constitution, threat model, `factory-package.json`, and `docs/08-factory/instance-lifecycle.md`. For runtime or database recovery work, also read `docs/09-control-plane/persistence-and-recovery.md`. For Factory installation, instance upgrade, lifecycle recovery, or rollback, read `docs/11-lifecycle/installation-upgrade-and-adoption.md` and use `upgrade-agent-team-instance`. For a v1.0 release decision, read `docs/16-release/v1.0-acceptance.md` and require real PR/CI/tag/Release/external evidence rather than inferring completion from local metadata. For adapter or approval work, read `docs/10-adapters/sdk-isolation-and-approval.md` and use `implement-agent-team-adapter`. When an instance exists, read its `AI-BOOTSTRAP.md`, `.agent-team/instance.json`, and `.agent-team/instance.lock.json` completely.
 
 ## Establish the boundary
 

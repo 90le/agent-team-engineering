@@ -31,6 +31,8 @@ Factory `host apply` must not write to a real Multica installation or workspace 
 
 No workspace, Agent, Skill, squad, daemon, credential, or external repository is created by the experimental plan.
 
+Materializing that offline package still follows the [common v1 file lifecycle](README.md): complete proposal binding, deterministic file stages, fixed transient metadata scratch, persistent empty guard, exact prior-tombstone disclosure, non-overwrite first apply, read-only uninstall preview, and replay-safe file removal. Apply/uninstall may create or replace and then delete only the exact declared scratch and must leave it absent on success; they never touch similarly named hidden files. The uninstall preview lists that scratch in delete/create/transient fields for `ACTIVE`/`UNINSTALLING`, and returns empty fields for `ALREADY_UNINSTALLED`/`LEGACY_UNBOUND`. These file guarantees do not promote Multica beyond `experimental-plan` and do not authorize execution of any proposed workspace command. A v0.9 file plan must be rebuilt; a v0.9 lock remains `LEGACY_UNBOUND` and cannot be automatically removed.
+
 ## License boundary
 
 Multica's [`v0.4.23` license](https://github.com/multica-ai/multica/blob/v0.4.23/LICENSE) is titled **Multica License**. It combines Apache License 2.0 text with additional conditions, including restrictions and obligations involving hosted/embedded services, branding, attribution, contributions, and redistribution.

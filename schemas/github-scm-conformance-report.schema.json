@@ -1,26 +1,94 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:agent-team:schema:github-scm-conformance-report:1.0.0",
-  "title": "Sanitized GitHub SCM conformance report",
+  "$id": "urn:agent-team:schema:github-scm-conformance-report:1.1.0",
+  "title": "Sanitized GitHub SCM v1 conformance report",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "repository", "repository_id", "repository_private", "base_commit", "framework_commit", "plan_digest", "approval_scope_digest", "actor_id", "identity_provider", "identity_ref", "issue", "branch", "commit", "draft_pull_request", "merge_performed", "deployment_performed"],
+  "required": ["$schema", "schema_version", "evidence_kind", "repository", "repository_id", "repository_private", "base_branch", "proposal_branch", "base_commit", "framework_repository", "framework_commit", "workflow", "plan_schema_version", "plan_digest", "writer_topology", "change_digest", "approval_schema_version", "approval_id", "approval_scope_digest", "approval_issued_at", "approval_expires_at", "approval_nonce", "approval_evidence_ref", "actor_id", "identity_provider", "identity_ref", "issue", "branch", "commit", "draft_pull_request", "merge_performed", "deployment_performed"],
   "properties": {
-    "schema_version": {"const": "1.0.0"},
-    "repository": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"},
-    "repository_id": {"const": "repo.conformance.github.v08"},
+    "$schema": {"const": "urn:agent-team:schema:github-scm-conformance-report:1.1.0"},
+    "schema_version": {"const": "1.1.0"},
+    "evidence_kind": {"const": "github-scm-conformance-v1"},
+    "repository": {"const": "90le/agent-team-v10-conformance-private"},
+    "repository_id": {"const": "repo.conformance.github.v10"},
     "repository_private": {"const": true},
+    "base_branch": {"const": "main"},
+    "proposal_branch": {"type": "string", "pattern": "^agent-team/v10-conformance-[a-f0-9]{40}$"},
     "base_commit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "framework_repository": {"const": "90le/agent-team-engineering"},
     "framework_commit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "workflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "ref", "sha", "repository_ref", "run_id", "run_attempt", "run_url"],
+      "properties": {
+        "path": {"const": ".github/workflows/agent-team-v10-conformance.yml"},
+        "ref": {"const": "90le/agent-team-v10-conformance-private/.github/workflows/agent-team-v10-conformance.yml@refs/heads/main"},
+        "sha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+        "repository_ref": {"const": "refs/heads/main"},
+        "run_id": {"type": "string", "pattern": "^[1-9][0-9]*$", "maxLength": 20},
+        "run_attempt": {"const": "1"},
+        "run_url": {"type": "string", "pattern": "^https://github\\.com/90le/agent-team-v10-conformance-private/actions/runs/[1-9][0-9]*$"}
+      }
+    },
+    "plan_schema_version": {"const": "1.1.0"},
     "plan_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "writer_topology": {"const": null},
+    "change_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "approval_schema_version": {"const": "1.1.0"},
+    "approval_id": {"type": "string", "pattern": "^approval-github-run-[1-9][0-9]*-attempt-1$"},
     "approval_scope_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
-    "actor_id": {"type": "string", "pattern": "^github:[0-9]+$"},
+    "approval_issued_at": {"type": "string", "format": "date-time"},
+    "approval_expires_at": {"type": "string", "format": "date-time"},
+    "approval_nonce": {"type": "string", "pattern": "^github-run-[1-9][0-9]*-attempt-1-nonce$"},
+    "approval_evidence_ref": {"type": "string", "pattern": "^github-actions://90le/agent-team-v10-conformance-private/runs/[1-9][0-9]*$"},
+    "actor_id": {"const": "github:68719118"},
     "identity_provider": {"const": "github.actions"},
-    "identity_ref": {"type": "string", "pattern": "^github-actions://[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/runs/[0-9]+/attempts/[0-9]+$"},
-    "issue": {"type": "object"},
-    "branch": {"type": "object"},
-    "commit": {"type": "object"},
-    "draft_pull_request": {"type": "object"},
+    "identity_ref": {"type": "string", "pattern": "^github-actions://90le/agent-team-v10-conformance-private/runs/[1-9][0-9]*/attempts/1$"},
+    "issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["object_type", "external_ref", "provider_id", "created"],
+      "properties": {
+        "object_type": {"const": "issue"},
+        "external_ref": {"type": "string", "pattern": "^https://github\\.com/90le/agent-team-v10-conformance-private/issues/[1-9][0-9]*$"},
+        "provider_id": {"type": "string", "pattern": "^I_[A-Za-z0-9_-]+$", "maxLength": 256},
+        "created": {"type": "boolean"}
+      }
+    },
+    "branch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["object_type", "external_ref", "provider_id", "created"],
+      "properties": {
+        "object_type": {"const": "branch"},
+        "external_ref": {"type": "string", "pattern": "^https://api\\.github\\.com/repos/90le/agent-team-v10-conformance-private/git/refs/heads/agent-team/v10-conformance-[a-f0-9]{40}$"},
+        "provider_id": {"type": "string", "pattern": "^REF_[A-Za-z0-9_-]+$", "maxLength": 256},
+        "created": {"type": "boolean"}
+      }
+    },
+    "commit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["object_type", "external_ref", "provider_id", "created"],
+      "properties": {
+        "object_type": {"const": "commit"},
+        "external_ref": {"type": "string", "pattern": "^https://api\\.github\\.com/repos/90le/agent-team-v10-conformance-private/git/commits/[a-f0-9]{40}$"},
+        "provider_id": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+        "created": {"type": "boolean"}
+      }
+    },
+    "draft_pull_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["object_type", "external_ref", "provider_id", "created"],
+      "properties": {
+        "object_type": {"const": "draft_pull_request"},
+        "external_ref": {"type": "string", "pattern": "^https://github\\.com/90le/agent-team-v10-conformance-private/pull/[1-9][0-9]*$"},
+        "provider_id": {"type": "string", "pattern": "^PR_[A-Za-z0-9_-]+$", "maxLength": 256},
+        "created": {"type": "boolean"}
+      }
+    },
     "merge_performed": {"const": false},
     "deployment_performed": {"const": false}
   }

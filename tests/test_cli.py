@@ -290,6 +290,30 @@ class FactoryCliTests(unittest.TestCase):
             self.assertEqual(json.loads(applied.stdout)["status"], "VALID")
             verified = run_root_cli("host", "verify", "--root", str(destination))
             self.assertEqual(verified.returncode, 0, verified.stderr)
+            uninstall_preview = run_root_cli(
+                "host", "uninstall-preview", "--root", str(destination)
+            )
+            self.assertEqual(uninstall_preview.returncode, 0, uninstall_preview.stderr)
+            removal = json.loads(uninstall_preview.stdout)
+            self.assertTrue(removal["requires_human_process_confirmation"])
+            self.assertFalse(removal["directories_removed"])
+            self.assertIn(
+                ".agent-team/host-install.lock.json",
+                removal["filesystem_deletes"],
+            )
+            self.assertIn(
+                ".agent-team/.host-lifecycle.json.stage",
+                removal["filesystem_deletes"],
+            )
+            self.assertIn(
+                ".agent-team/.host-lifecycle.json.stage",
+                removal["filesystem_creates"],
+            )
+            plan_document = json.loads(plan.read_text(encoding="utf-8"))
+            projected_stage = plan_document["proposal"]["files"][0]["stage_path"]
+            self.assertIn(projected_stage, removal["filesystem_deletes"])
+            self.assertIn(projected_stage, removal["filesystem_creates"])
+            self.assertIn(projected_stage, removal["transient_files"])
             uninstalled = run_root_cli(
                 "host",
                 "uninstall",
@@ -318,6 +342,22 @@ class FactoryCliTests(unittest.TestCase):
             )
             self.assertEqual(valid.returncode, 0, valid.stderr)
             self.assertEqual(json.loads(valid.stdout)["status"], "VALID")
+
+            authority = run_root_cli(
+                "native",
+                "writer-authority-validate",
+                "--topology",
+                str(ROOT / "examples/v08-contracts/valid/writer-topology.json"),
+                "--plan",
+                str(ROOT / "examples/v08-contracts/valid/plan-revision.json"),
+                "--approval",
+                str(ROOT / "examples/v08-contracts/valid/approval-grant.json"),
+            )
+            self.assertEqual(authority.returncode, 0, authority.stderr)
+            authority_report = json.loads(authority.stdout)
+            self.assertEqual(authority_report["status"], "VALID")
+            self.assertFalse(authority_report["automatic_execution"])
+            self.assertFalse(authority_report["identity_or_signature_verified"])
 
             demo = run_root_cli("native", "demo", "--database", str(database))
             self.assertEqual(demo.returncode, 0, demo.stderr)

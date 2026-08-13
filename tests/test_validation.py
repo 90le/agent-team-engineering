@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from core.contracts import writer_topology_digest
 from core.validation import validate_repository
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -91,6 +92,30 @@ class ValidationTests(unittest.TestCase):
                 copied,
                 ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
             )
+
+    def test_v10_candidate_conformance_requires_every_authority_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            copied = Path(temporary) / "repository"
+            shutil.copytree(
+                ROOT,
+                copied,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            report_path = copied / "acceptance/v10-host-native-conformance.json"
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            del report["local_gates"]["writer_authority"]
+            report_path.write_text(json.dumps(report), encoding="utf-8")
+
+            findings = validate_repository(copied)
+
+            self.assertTrue(
+                any(
+                    finding.path == "acceptance/v10-host-native-conformance.json"
+                    and "$.local_gates.writer_authority" in finding.message
+                    and "required property is missing" in finding.message
+                    for finding in findings
+                )
+            )
             profile_path = copied / "acceptance/cross-ai-takeover.json"
             profile = json.loads(profile_path.read_text(encoding="utf-8"))
             profile["human_replay_required"] = False
@@ -102,6 +127,40 @@ class ValidationTests(unittest.TestCase):
                 any(
                     finding.path == "acceptance/cross-ai-takeover.json"
                     and "must equal True" in finding.message
+                    for finding in findings
+                )
+            )
+
+    def test_reference_core_contract_semantics_are_part_of_repository_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            copied = Path(temporary) / "repository"
+            shutil.copytree(
+                ROOT,
+                copied,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            topology_path = copied / "examples/v08-contracts/valid/writer-topology.json"
+            topology = json.loads(topology_path.read_text(encoding="utf-8"))
+            topology["writers"][0]["ownership_roots"] = ["apps/admin", "packages/ui"]
+            topology_path.write_text(json.dumps(topology), encoding="utf-8")
+
+            findings = validate_repository(copied)
+
+            self.assertTrue(
+                any(
+                    finding.path == "examples/v08-contracts/valid/writer-topology.json"
+                    and "topology_digest" in finding.message
+                    for finding in findings
+                )
+            )
+
+            topology["topology_digest"] = writer_topology_digest(topology)
+            topology_path.write_text(json.dumps(topology), encoding="utf-8")
+            findings = validate_repository(copied)
+            self.assertTrue(
+                any(
+                    finding.path == "examples/v08-contracts/valid/writer-topology.json"
+                    and "writer authority $.plan.writer_topology" in finding.message
                     for finding in findings
                 )
             )

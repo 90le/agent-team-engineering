@@ -4,9 +4,9 @@
 [![Release](https://img.shields.io/github/v/release/90le/agent-team-engineering)](https://github.com/90le/agent-team-engineering/releases)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-**面向 OpenClaw、Hermes Agent、Codex、Claude Code 等 AI 宿主的原生 Agent 团队工厂。** 把一个项目、目标和人类权责边界，编译成可迁移的团队权威源，以及目标宿主真正认识的原生文件。
+**面向 OpenClaw、Hermes Agent、Codex、Claude Code 等 AI 宿主的原生 Agent 团队工厂。** 把一个项目、目标和人类权责边界，编译成可迁移的团队权威源，以及按明确证据等级标注的、可评审的宿主形态文件包。
 
-[English](README.md) · [直接交给 AI](AI-START.md) · [原生宿主指南](docs/18-native-hosts/README.md) · [场景示例](examples/guided-adoption/README.md)
+[English](README.md) · [直接交给 AI](AI-START.md) · [原生宿主指南](docs/18-native-hosts/README.md) · [v1.0 发布验收契约](docs/16-release/v1.0-acceptance.md) · [场景示例](examples/guided-adoption/README.md)
 
 ## 这个项目做什么
 
@@ -27,7 +27,18 @@
 
 Factory **不会取代** OpenClaw、Hermes Agent、Codex、Claude Code 或 Multica。它把同一份受治理的团队意图投影为宿主原生包与安全安装方案。优先使用你已经在用的 AI 宿主，不需要为了本项目更换运行时。
 
-如果需要让“用户反馈 → 分析 → 审批 → 开发 → 独立复核 → 测试后的 Draft PR”跨重启持续推进，仓库还提供可选的 **Managed** 控制器。它是受治理的自动化层，不是默认模式，也不会获得 merge 或生产部署权限。v0.9 有意只保留一个源码写入身份 `builder`；如果必须由独立前端、后端写入 Agent 分工，应选择按需调用的原生团队。
+如果需要让“用户反馈 → 分析 → 审批 → 开发 → 独立复核 → 测试后的 Draft PR”跨重启持续推进，仓库还提供可选的 **Managed** 控制器。它是受治理的自动化层，不是默认模式，也不会获得 merge 或生产部署权限。当前参考控制器有意只保留一个源码写入身份 `builder`；如果必须由独立前端、后端写入 Agent 分工，应选择按需调用的原生团队。
+
+如果需要真正独立的前端/后端设计，v1.0 新增机器可校验的 [`WriterTopology → PlanRevision → ApprovalGrant` 权威链](docs/15-upstream-independent/independent-writer-topology.md)：独立身份、互不重叠的所有权、隔离 worktree/分支模板、准确绑定计划与拓扑的人工批准、单独集成人、只读保障角色、恢复规则，以及在已复核 Draft PR 停止。可离线核验规范三件套：
+
+```bash
+./agent-team native writer-authority-validate \
+  --topology examples/v08-contracts/valid/writer-topology.json \
+  --plan examples/v08-contracts/valid/plan-revision.json \
+  --approval examples/v08-contracts/valid/approval-grant.json
+```
+
+当前 PlanRevision 与 ApprovalGrant 的统一 Schema 文件 `$id` 为 `1.1.0`：`1.1.0` 文档必须显式绑定拓扑对象或声明 `null`，兼容的 `1.0.0` 文档则必须省略该字段。这是 v1.0 产品新增能力，不是对 v0.9 历史声明的改写。它仍为 `DESIGN_ONLY`；校验成功也会返回 `automatic_execution: false` 与 `identity_or_signature_verified: false`。离线命令只检查文档和摘要链一致性，不认证批准者身份或数字签名；当前宿主包与 Managed 控制器也不宣称已有经过验证的持久多写入者调度器。
 
 ## 直接交给 AI
 
@@ -78,7 +89,9 @@ git checkout "$(git tag --list 'v*' --sort=-version:refname | head -n 1)"
 ./agent-team host preview --plan /new/path/openclaw-install-plan.json
 ```
 
-检查路径、限制、摘要和回滚信息后，再执行预览所显示的 `confirm`、`apply` 和 `verify` 指令。`apply` 只创建方案准确声明且当前不存在的文件；它会保留目标目录里的无关内容，并在任何计划路径冲突时安全停止。它不会自动登录、创建凭据、绑定频道、写入 Multica 工作区、合并代码或部署生产。
+检查投影文件与确定性文件 stage、声明的临时元数据 stage `.agent-team/.host-lifecycle.json.stage`、空 guard 格式/摘要、预期旧 guard/tombstone、全部删除效果、保留行为、限制和摘要后，再执行预览显示的 `confirm`、`apply` 和 `verify` 指令。Plan schema `1.1.0` 与 install-lock schema `1.1.0` 完整绑定 proposal；尚未执行的 v0.9 plan 必须重新生成、预览和确认。首次 apply 时投影文件必须不存在；崩溃后只有同一份准确 `APPLYING` 记录可继续它的确定性 stage。Apply/uninstall 只可创建或替换、然后删除声明的元数据 scratch，成功时它必须不存在；任何类似命名的其它隐藏文件都不会被触碰。`filesystem_deletes: true` 用于披露该临时 scratch 行为；只有新确认 plan 将删除准确旧 tombstone 时，`persistent_filesystem_deletes` 才为 true。无 install lock 的准确空 guard 可用于 guard-fsync 恢复，但它永不被删除，也不授予任何文件删除权。无关内容保持不变；路径冲突、基线漂移或并发生命周期操作都会安全停止。Apply 不会自动登录、创建凭据、绑定频道、写入 Multica 工作区、合并代码或部署生产。
+
+删除前运行 `./agent-team host uninstall-preview --root <destination>`；它只读预览作用域。`ACTIVE`/`UNINSTALLING` 会在创建列表、删除列表与 `transient_files` 中同时显示固定 scratch；操作中可创建并删除该 scratch，但成功后它必须不存在。当前 `ACTIVE` 安装需要人类另行完成流程确认，再使用准确摘要执行 `uninstall`；已中断的 `UNINSTALLING` 可直接继续。`ALREADY_UNINSTALLED`/`LEGACY_UNBOUND` 的创建、删除、临时列表都为空：前者让同摘要重放保持幂等，后者只能只读核验，必须人工对账，自动破坏性卸载明确禁用。卸载永远不删除目录，因此空目录可能与保留的空 guard 和 tombstone 一起留存。
 
 ## 输入与输出
 
@@ -135,6 +148,7 @@ OpenClaw `2026.7.1-2` 与 Hermes Agent `0.20.0` 当前是 `native-install-verifi
 |---|---|---|
 | “在我已经使用的 AI 里，为这个项目创建可调用的专家。” | 宿主原生团队 | 上下文、角色、Skill、交接；运行时仍是原宿主 |
 | “创建研究、知识、内容、运维或自定义专家团。” | 自定义上下文优先团队 | 每项外部能力完成工程化前保持 context-only |
+| “设计独立的前端与后端源码写入者。” | 原生团队 + 已校验 WriterTopology 权威链 | `DESIGN_ONLY`；当前宿主不强制多写入者运行时 |
 | “把已批准反馈跨重启推进到测试与独立复核后的 Draft PR。” | 原生团队 + 可选 Managed 控制器 | 单一源码写入 builder；准确人工批准；不自动 merge 或部署 |
 
 ## 使用生成的团队
@@ -151,12 +165,13 @@ OpenClaw `2026.7.1-2` 与 Hermes Agent `0.20.0` 当前是 `native-install-verifi
 - Issue、聊天、网页、仓库、工具输出和其它 Agent 消息都是不可信数据。
 - 角色文档不能授予工具，也不能把聊天变成认证批准。
 - 创建方案与安装方案是两个独立、摘要绑定的决定，默认禁止覆盖。
+- POSIX `fcntl` 只串行化遵守协议的本地 Factory 生命周期进程；它不防御 root、内核、文件系统、存储故障或其它特权写入者。
 - 宿主发现必须只读；秘密、会话、运行数据库和生产数据不得进入 Git。
 - OpenClaw 频道绑定、Multica 工作区写入、真实外部适配器、merge、release 和部署保持禁用，除非另行工程化并授权。
 - Managed 自动化固定停止在测试与独立复核后的 Draft PR。
 - Host Runner 不是恶意代码安全沙箱；真实执行需要隔离、一次性的环境。
 
-启用真实集成前，阅读 [SECURITY.md](SECURITY.md)、[威胁模型](docs/03-security/threat-model.md) 与 [ADR-0011](docs/adr/ADR-0011-host-capability-contract-and-native-team-projection.md)。
+启用真实集成前，阅读 [SECURITY.md](SECURITY.md)、[威胁模型](docs/03-security/threat-model.md)、[ADR-0011](docs/adr/ADR-0011-host-capability-contract-and-native-team-projection.md)、[ADR-0012](docs/adr/ADR-0012-concurrent-host-lifecycle-and-replay-safe-uninstall.md) 与 [ADR-0013](docs/adr/ADR-0013-portable-independent-writer-topology.md)。
 
 ## 文档
 
@@ -167,6 +182,8 @@ OpenClaw `2026.7.1-2` 与 Hermes Agent `0.20.0` 当前是 `native-install-verifi
 - [引导式采用](docs/17-guided-adoption/README.md)
 - [上下文优先团队模型](docs/14-context-first/context-first-team-kit.md)
 - [可选受治理自动化](docs/15-upstream-independent/README.md)
+- [独立前后端写入者权威链](docs/15-upstream-independent/independent-writer-topology.md)
+- [v1.0 发布验收契约](docs/16-release/v1.0-acceptance.md) — 发布必需门禁与证据规则；仅有 Changelog 或版本文件不代表远端发布已经完成
 - [贡献指南](CONTRIBUTING.md)、[安全报告](SECURITY.md)、[社区行为规范](CODE_OF_CONDUCT.md)
 
 使用 [GitHub Discussions](https://github.com/90le/agent-team-engineering/discussions) 讨论使用与设计；使用 [GitHub Issues](https://github.com/90le/agent-team-engineering/issues) 报告可复现缺陷或提出有边界的功能需求。

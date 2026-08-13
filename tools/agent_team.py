@@ -35,7 +35,11 @@ from core.context_team import (  # noqa: E402
     validate_context_team,
     validate_design_document,
 )
-from core.contracts import CONTRACT_SCHEMAS, load_contract_file  # noqa: E402
+from core.contracts import (  # noqa: E402
+    CONTRACT_SCHEMAS,
+    load_contract_file,
+    validate_writer_authority,
+)
 from core.control_plane import ControlPlane  # noqa: E402
 from core.doctor import build_doctor_report, doctor_exit_code  # noqa: E402
 from core.installation import install_factory, verify_factory_installation  # noqa: E402
@@ -66,6 +70,7 @@ from core.host_lifecycle import (  # noqa: E402
     confirm_install_plan as confirm_host_install_plan,
     load_install_plan as load_host_install_plan,
     preview_install_plan as preview_host_install_plan,
+    preview_uninstall as preview_host_uninstall,
     uninstall_installation as uninstall_host_installation,
     verify_installation as verify_host_installation,
     write_install_plan as write_host_install_plan,
@@ -469,6 +474,7 @@ def command_onboard_plan(args: argparse.Namespace) -> int:
         json.dumps(
             {
                 "status": "PLANNED",
+                "schema_version": plan["schema_version"],
                 "state": plan["state"],
                 "plan": str(Path(args.plan).resolve()),
                 "proposal_digest": plan["proposal_digest"],
@@ -867,6 +873,7 @@ def command_host_plan(args: argparse.Namespace) -> int:
                 "host": plan["proposal"]["host"],
                 "destination": plan["proposal"]["destination"],
                 "managed_files": len(plan["proposal"]["files"]),
+                "lifecycle": plan["proposal"]["lifecycle"],
                 "external_writes": False,
                 "next": "preview the plan, then confirm its exact digest",
             },
@@ -883,13 +890,20 @@ def command_host_preview(args: argparse.Namespace) -> int:
     quoted_plan = shlex.quote(str(plan_path))
     quoted_destination = shlex.quote(plan["proposal"]["destination"])
     print(preview_host_install_plan(plan), end="")
-    print(
-        "Next only after the human owner approves this exact digest:\n\n"
-        f"./agent-team host confirm --plan {quoted_plan} "
-        f"--digest {plan['proposal_digest']} --approved-by \"<Human Owner>\"\n"
-        f"./agent-team host apply --plan {quoted_plan}\n"
-        f"./agent-team host verify --root {quoted_destination}\n"
-    )
+    if plan["state"] == "DRAFT":
+        print(
+            "Next only after the human owner approves this exact digest:\n\n"
+            f"./agent-team host confirm --plan {quoted_plan} "
+            f"--digest {plan['proposal_digest']} --approved-by \"<Human Owner>\"\n"
+            f"./agent-team host apply --plan {quoted_plan}\n"
+            f"./agent-team host verify --root {quoted_destination}\n"
+        )
+    else:
+        print(
+            "This exact proposal is already confirmed. Next:\n\n"
+            f"./agent-team host apply --plan {quoted_plan}\n"
+            f"./agent-team host verify --root {quoted_destination}\n"
+        )
     return 0
 
 
@@ -937,6 +951,17 @@ def command_host_verify(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_host_uninstall_preview(args: argparse.Namespace) -> int:
+    print(
+        json.dumps(
+            preview_host_uninstall(Path(args.root)),
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+    return 0
+
+
 def command_host_uninstall(args: argparse.Namespace) -> int:
     print(
         json.dumps(
@@ -957,6 +982,32 @@ def command_native_contract_validate(args: argparse.Namespace) -> int:
                 "contract": args.contract,
                 "schema": document.get("$schema"),
                 "file": str(Path(args.file).resolve()),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+    return 0
+
+
+def command_native_writer_authority_validate(args: argparse.Namespace) -> int:
+    topology = load_contract_file("writer_topology", Path(args.topology).resolve())
+    plan = load_contract_file("plan_revision", Path(args.plan).resolve())
+    approval = load_contract_file("approval_grant", Path(args.approval).resolve())
+    issues = validate_writer_authority(topology, plan, approval)
+    if issues:
+        detail = "; ".join(f"{issue.path}: {issue.message}" for issue in issues)
+        raise ValueError(f"invalid writer authority chain: {detail}")
+    print(
+        json.dumps(
+            {
+                "status": "VALID",
+                "topology_id": topology["topology_id"],
+                "topology_digest": topology["topology_digest"],
+                "plan_digest": plan["plan_digest"],
+                "approval_scope_digest": approval["scope_digest"],
+                "automatic_execution": False,
+                "identity_or_signature_verified": False,
             },
             ensure_ascii=False,
             indent=2,
@@ -1196,6 +1247,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     host_verify.add_argument("--root", required=True)
     host_verify.set_defaults(func=command_host_verify)
+    host_uninstall_preview = host_commands.add_parser(
+        "uninstall-preview",
+        help="show exact managed-file deletion and retained lifecycle evidence without mutation",
+    )
+    host_uninstall_preview.add_argument("--root", required=True)
+    host_uninstall_preview.set_defaults(func=command_host_uninstall_preview)
     host_uninstall = host_commands.add_parser(
         "uninstall", help="remove only unchanged managed files using the exact lock digest"
     )
@@ -1516,15 +1573,23 @@ def build_parser() -> argparse.ArgumentParser:
     runtime_restore.set_defaults(func=command_runtime_restore)
 
     native = subparsers.add_parser(
-        "native", help="validate or run the no-network v0.8 Native reference path"
+        "native", help="validate portable core contracts or run the no-network Native reference path"
     )
     native_commands = native.add_subparsers(dest="native_command", required=True)
     native_contract = native_commands.add_parser(
-        "contract-validate", help="validate one strict v0.8 portable contract"
+        "contract-validate", help="validate one strict portable core contract"
     )
     native_contract.add_argument("--contract", choices=tuple(sorted(CONTRACT_SCHEMAS)), required=True)
     native_contract.add_argument("--file", required=True)
     native_contract.set_defaults(func=command_native_contract_validate)
+    native_writer_authority = native_commands.add_parser(
+        "writer-authority-validate",
+        help="validate the WriterTopology to PlanRevision to ApprovalGrant digest chain",
+    )
+    native_writer_authority.add_argument("--topology", required=True)
+    native_writer_authority.add_argument("--plan", required=True)
+    native_writer_authority.add_argument("--approval", required=True)
+    native_writer_authority.set_defaults(func=command_native_writer_authority_validate)
     native_demo = native_commands.add_parser(
         "demo", help="run deterministic fakes to an independently reviewed Draft PR"
     )

@@ -1,6 +1,6 @@
 {
   "name": "agent-team",
-  "version": "0.9.0",
+  "version": "1.0.0",
   "description": "Build and safely install portable teams in the AI hosts you already use.",
   "author": {
     "name": "90le",

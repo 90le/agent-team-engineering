@@ -11,7 +11,7 @@
       "name": "agent-team",
       "source": "./.agents/plugins/plugins/agent-team",
       "description": "Guide a user from a project outcome to a confirmed team and separate native-host installation plan for Codex, Claude, OpenClaw, Hermes Agent, or Multica.",
-      "version": "0.9.0",
+      "version": "1.0.0",
       "author": {
         "name": "90le"
       },

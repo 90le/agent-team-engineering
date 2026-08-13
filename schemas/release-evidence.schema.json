@@ -1,0 +1,518 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-team:schema:release-evidence:2.1.0",
+  "title": "Tag-workflow evidence and post-publication final release index",
+  "type": "object",
+  "oneOf": [
+    {
+      "required": ["evidence_kind", "status", "release_status", "gates"],
+      "properties": {
+        "evidence_kind": {"const": "TAG_WORKFLOW_EVIDENCE"},
+        "status": {"const": "PARTIAL"},
+        "release_status": {"const": "NOT_PUBLISHED"},
+        "gates": {
+          "type": "array",
+          "minItems": 21,
+          "maxItems": 21,
+          "prefixItems": [
+            {"properties": {"id": {"const": "repository-validation"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "unit-tests"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "writer-authority"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "host-lifecycle"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "instance-migration"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "skills-plugins"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "isolated-hosts"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "cold-start"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "release-smoke"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "external-scm"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "supply-chain"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "public-documentation"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "pull-request"}, "status": {"const": "NOT_RUN"}}},
+            {"properties": {"id": {"const": "technical-review"}, "status": {"const": "NOT_RUN"}}},
+            {"properties": {"id": {"const": "owner-approval"}, "status": {"const": "NOT_RUN"}}},
+            {"properties": {"id": {"const": "merged-main"}, "status": {"const": "NOT_RUN"}}},
+            {"properties": {"id": {"const": "annotated-tag"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "tag-workflow"}, "status": {"const": "NOT_RUN"}}},
+            {"properties": {"id": {"const": "evidence-artifact-download"}, "status": {"const": "NOT_RUN"}}},
+            {"properties": {"id": {"const": "github-release"}, "status": {"const": "NOT_RUN"}}},
+            {"properties": {"id": {"const": "anonymous-install"}, "status": {"const": "NOT_RUN"}}}
+          ]
+        }
+      }
+    },
+    {
+      "required": ["evidence_kind", "status", "release_status", "gates"],
+      "properties": {
+        "evidence_kind": {"const": "FINAL_RELEASE_INDEX"},
+        "status": {"const": "ACCEPTED"},
+        "release_status": {"const": "RELEASED"},
+        "publication": {
+          "type": "object",
+          "properties": {
+            "pull_request": {
+              "properties": {
+                "status": {"const": "PASS"},
+                "number": {"type": "integer", "minimum": 1},
+                "url": {"type": "string", "minLength": 1},
+                "head_commit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+                "merged_at": {"type": "string", "format": "date-time"},
+                "checks": {"type": "array", "minItems": 1}
+              }
+            },
+            "technical_review": {
+              "properties": {
+                "status": {"const": "PASS"},
+                "head_commit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+                "head_tree": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+                "workflow_commit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+                "reviewer_kind": {"const": "independent-ai"},
+                "reviewer_runtime": {"type": "string", "minLength": 1},
+                "evidence_url": {"type": "string", "minLength": 1},
+                "evidence_sha256": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+                "decision": {"const": "PASS"},
+                "generated_at": {"type": "string", "format": "date-time"},
+                "completed_at": {"type": "string", "format": "date-time"}
+              }
+            },
+            "owner_approval": {
+              "properties": {
+                "status": {"const": "PASS"},
+                "head_commit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+                "reviewer": {"type": "string", "minLength": 1},
+                "reviewer_kind": {"const": "github-user"},
+                "url": {"type": "string", "minLength": 1},
+                "decision": {"const": "APPROVED"},
+                "submitted_at": {"type": "string", "format": "date-time"}
+              }
+            },
+            "merged_main": {
+              "properties": {
+                "status": {"const": "PASS"},
+                "ref": {"const": "refs/heads/main"},
+                "commit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+                "tree": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+                "checks": {"type": "array", "minItems": 1}
+              }
+            },
+            "annotated_tag": {
+              "properties": {
+                "status": {"const": "PASS"},
+                "object_type": {"const": "tag"},
+                "object_id": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+                "peeled_commit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+                "tagger_name": {"type": "string", "minLength": 1},
+                "tagger_email": {"type": "string", "minLength": 1},
+                "tagged_at": {"type": "string", "format": "date-time"},
+                "signature_verified": {"type": "boolean"},
+                "signature_reason": {"type": "string", "minLength": 1}
+              }
+            },
+            "tag_workflow": {
+              "properties": {
+                "status": {"const": "PASS"},
+                "run_id": {"type": "string", "minLength": 1},
+                "run_attempt": {"type": "string", "minLength": 1},
+                "url": {"type": "string", "minLength": 1},
+                "actor": {"type": "string", "minLength": 1},
+                "actor_id": {"type": "integer", "minimum": 1},
+                "completed_at": {"type": "string", "format": "date-time"}
+              }
+            },
+            "evidence_artifact": {
+              "properties": {
+                "status": {"const": "PASS"},
+                "id": {"type": "integer", "minimum": 1},
+                "url": {"type": "string", "minLength": 1},
+                "archive_download_url": {"type": "string", "minLength": 1},
+                "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+                "retention_days": {"type": "integer", "minimum": 1},
+                "created_at": {"type": "string", "format": "date-time"},
+                "expires_at": {"type": "string", "format": "date-time"},
+                "download_status": {"const": "PASS"},
+                "downloaded_at": {"type": "string", "format": "date-time"},
+                "downloaded_archive_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+                "tag_evidence_sha256": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+                "checksums_sha256": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+              }
+            },
+            "github_release": {
+              "properties": {
+                "status": {"const": "PASS"},
+                "url": {"type": "string", "minLength": 1},
+                "tag": {"type": "string", "minLength": 1},
+                "draft": {"const": false},
+                "prerelease": {"const": false},
+                "author": {"type": "string", "minLength": 1},
+                "author_id": {"type": "integer", "minimum": 1},
+                "published_at": {"type": "string", "format": "date-time"}
+              }
+            },
+            "anonymous_install": {
+              "properties": {
+                "status": {"const": "PASS"},
+                "source_url": {"type": "string", "minLength": 1},
+                "tag": {"type": "string", "minLength": 1},
+                "tag_object": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+                "commit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+                "verified_at": {"type": "string", "format": "date-time"},
+                "commands": {"type": "array", "minItems": 1},
+                "unauthenticated_git_transport": {"const": true},
+                "caller_credentials_inherited": {"const": false},
+                "same_uid_filesystem_isolated": {"const": true},
+                "write_isolation": {"const": true},
+                "external_writes_verified": {"const": true},
+                "credential_process_uid_isolated": {"const": true},
+                "credential_parent_environment_readable": {"const": false},
+                "supplementary_groups_empty": {"const": true},
+                "no_new_privileges": {"const": true},
+                "capabilities_empty": {"const": true},
+                "resource_isolation": {"type": "object"},
+                "candidate_network_isolated": {"const": true},
+                "candidate_runtime_read_only": {"const": true},
+                "independent_effects_verified": {"const": true},
+                "independent_effects": {
+                  "const": [
+                    "factory-installation-manifest-and-tag-tree",
+                    "portable-team-design-lock-and-managed-files",
+                    "host-active-lock-files-and-uninstall-tombstone",
+                    "writer-topology-plan-approval-digest-chain"
+                  ]
+                },
+                "isolation_mechanism": {"const": "linux-systemd-cgroup-setpriv-bubblewrap-v1"}
+              }
+            }
+          }
+        },
+        "gates": {
+          "type": "array",
+          "minItems": 21,
+          "maxItems": 21,
+          "prefixItems": [
+            {"properties": {"id": {"const": "repository-validation"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "unit-tests"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "writer-authority"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "host-lifecycle"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "instance-migration"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "skills-plugins"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "isolated-hosts"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "cold-start"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "release-smoke"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "external-scm"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "supply-chain"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "public-documentation"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "pull-request"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "technical-review"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "owner-approval"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "merged-main"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "annotated-tag"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "tag-workflow"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "evidence-artifact-download"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "github-release"}, "status": {"const": "PASS"}}},
+            {"properties": {"id": {"const": "anonymous-install"}, "status": {"const": "PASS"}}}
+          ]
+        }
+      }
+    }
+  ],
+  "additionalProperties": false,
+  "required": ["$schema", "schema_version", "evidence_kind", "status", "release_status", "release", "repository", "tag", "tag_object", "commit", "generated_at", "environment", "commands", "assets", "publication", "gates", "boundaries"],
+  "properties": {
+    "$schema": {"const": "schemas/release-evidence.schema.json"},
+    "schema_version": {"const": "2.1.0"},
+    "evidence_kind": {"enum": ["TAG_WORKFLOW_EVIDENCE", "FINAL_RELEASE_INDEX"]},
+    "status": {"enum": ["PARTIAL", "ACCEPTED"]},
+    "release_status": {"enum": ["NOT_PUBLISHED", "RELEASED"]},
+    "release": {"type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "repository": {"const": "90le/agent-team-engineering"},
+    "tag": {"type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "tag_object": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "commit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runner_os", "python_version"],
+      "properties": {
+        "runner_os": {"type": "string", "minLength": 1},
+        "python_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"}
+      }
+    },
+    "commands": {
+      "type": "array",
+      "minItems": 4,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["command", "exit_code"],
+        "properties": {
+          "command": {"type": "string", "minLength": 1},
+          "exit_code": {"const": 0}
+        }
+      }
+    },
+    "assets": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "uniqueItems": true,
+      "prefixItems": [
+        {"properties": {"kind": {"const": "v10-candidate-conformance"}}},
+        {"properties": {"kind": {"const": "sbom"}}},
+        {"properties": {"kind": {"const": "source-provenance"}}},
+        {"properties": {"kind": {"const": "external-scm-first-run"}}},
+        {"properties": {"kind": {"const": "external-scm-replay"}}}
+      ],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "path", "bundle_path", "sha256", "size_bytes"],
+        "properties": {
+          "kind": {"enum": ["v10-candidate-conformance", "sbom", "source-provenance", "external-scm-first-run", "external-scm-replay"]},
+          "path": {"type": "string", "minLength": 1},
+          "bundle_path": {"type": "string", "pattern": "^bundle/[A-Za-z0-9._/-]+$"},
+          "sha256": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+          "size_bytes": {"type": "integer", "minimum": 1}
+        }
+      }
+    },
+    "publication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pull_request", "technical_review", "owner_approval", "merged_main", "annotated_tag", "tag_workflow", "evidence_artifact", "github_release", "anonymous_install"],
+      "properties": {
+        "pull_request": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "number", "url", "head_commit", "checks", "merged_at"],
+          "properties": {
+            "status": {"enum": ["PASS", "FAIL", "NOT_RUN"]},
+            "number": {"type": ["integer", "null"], "minimum": 1},
+            "url": {"type": ["string", "null"]},
+            "head_commit": {"type": ["string", "null"], "pattern": "^[a-f0-9]{40}$"},
+            "merged_at": {"type": ["string", "null"], "format": "date-time"},
+            "checks": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name", "url", "app_id", "completed_at"],
+                "properties": {
+                  "name": {"type": "string", "minLength": 1},
+                  "url": {"type": "string", "pattern": "^https://[^@/]+(?:/.*)?$"},
+                  "app_id": {"type": ["integer", "null"], "minimum": -1},
+                  "completed_at": {"type": "string", "format": "date-time"}
+                }
+              }
+            }
+          }
+        },
+        "technical_review": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "head_commit", "head_tree", "workflow_commit", "reviewer_kind", "reviewer_runtime", "evidence_url", "evidence_sha256", "decision", "authenticated_human", "generated_at", "completed_at"],
+          "properties": {
+            "status": {"enum": ["PASS", "FAIL", "NOT_RUN"]},
+            "head_commit": {"type": ["string", "null"], "pattern": "^[a-f0-9]{40}$"},
+            "head_tree": {"type": ["string", "null"], "pattern": "^[a-f0-9]{40}$"},
+            "workflow_commit": {"type": ["string", "null"], "pattern": "^[a-f0-9]{40}$"},
+            "reviewer_kind": {"enum": ["independent-ai", null]},
+            "reviewer_runtime": {"type": ["string", "null"], "minLength": 1},
+            "evidence_url": {"type": ["string", "null"], "pattern": "^https://github\\.com/90le/agent-team-v10-review-private/actions/runs/[0-9]+$"},
+            "evidence_sha256": {"type": ["string", "null"], "pattern": "^sha256:[a-f0-9]{64}$"},
+            "decision": {"enum": ["PASS", "FAIL", "NOT_RUN"]},
+            "authenticated_human": {"const": false},
+            "generated_at": {"type": ["string", "null"], "format": "date-time"},
+            "completed_at": {"type": ["string", "null"], "format": "date-time"}
+          }
+        },
+        "owner_approval": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "head_commit", "reviewer", "reviewer_kind", "url", "decision", "submitted_at"],
+          "properties": {
+            "status": {"enum": ["PASS", "FAIL", "NOT_RUN"]},
+            "head_commit": {"type": ["string", "null"], "pattern": "^[a-f0-9]{40}$"},
+            "reviewer": {"type": ["string", "null"], "minLength": 1},
+            "reviewer_kind": {"enum": ["github-user", null]},
+            "url": {"type": ["string", "null"], "pattern": "^https://github\\.com/90le/agent-team-engineering/pull/[0-9]+#pullrequestreview-[0-9]+$"},
+            "decision": {"enum": ["APPROVED", "CHANGES_REQUESTED", "DISMISSED", "NOT_RUN"]},
+            "submitted_at": {"type": ["string", "null"], "format": "date-time"}
+          }
+        },
+        "merged_main": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "ref", "commit", "tree", "checks"],
+          "properties": {
+            "status": {"enum": ["PASS", "FAIL", "NOT_RUN"]},
+            "ref": {"enum": ["refs/heads/main", null]},
+            "commit": {"type": ["string", "null"], "pattern": "^[a-f0-9]{40}$"},
+            "tree": {"type": ["string", "null"], "pattern": "^[a-f0-9]{40}$"},
+            "checks": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name", "url", "app_id", "completed_at"],
+                "properties": {
+                  "name": {"type": "string", "minLength": 1},
+                  "url": {"type": "string", "pattern": "^https://[^@/]+(?:/.*)?$"},
+                  "app_id": {"type": ["integer", "null"], "minimum": -1},
+                  "completed_at": {"type": "string", "format": "date-time"}
+                }
+              }
+            }
+          }
+        },
+        "annotated_tag": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "name", "object_type", "object_id", "peeled_commit", "tagger_name", "tagger_email", "tagged_at", "signature_verified", "signature_reason"],
+          "properties": {
+            "status": {"enum": ["PASS", "FAIL", "NOT_RUN"]},
+            "name": {"type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$"},
+            "object_type": {"type": ["string", "null"]},
+            "object_id": {"type": ["string", "null"]},
+            "peeled_commit": {"type": ["string", "null"]},
+            "tagger_name": {"type": ["string", "null"]},
+            "tagger_email": {"type": ["string", "null"]},
+            "tagged_at": {"type": ["string", "null"], "format": "date-time"},
+            "signature_verified": {"type": ["boolean", "null"]},
+            "signature_reason": {"type": ["string", "null"]}
+          }
+        },
+        "tag_workflow": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "provider", "run_id", "run_attempt", "url", "actor", "actor_id", "completed_at"],
+          "properties": {
+            "status": {"enum": ["PASS", "FAIL", "NOT_RUN"]},
+            "provider": {"const": "github.actions"},
+            "run_id": {"type": ["string", "null"]},
+            "run_attempt": {"type": ["string", "null"]},
+            "url": {"type": ["string", "null"]},
+            "actor": {"type": ["string", "null"]},
+            "actor_id": {"type": ["integer", "null"], "minimum": 1},
+            "completed_at": {"type": ["string", "null"], "format": "date-time"}
+          }
+        },
+        "evidence_artifact": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "name", "id", "url", "archive_download_url", "digest", "retention_days", "created_at", "expires_at", "download_status", "downloaded_at", "downloaded_archive_digest", "tag_evidence_sha256", "checksums_sha256"],
+          "properties": {
+            "status": {"enum": ["PASS", "FAIL", "NOT_RUN"]},
+            "name": {"type": "string", "pattern": "^release-evidence-v[0-9]+\\.[0-9]+\\.[0-9]+$"},
+            "id": {"type": ["integer", "null"], "minimum": 1},
+            "url": {"type": ["string", "null"]},
+            "archive_download_url": {"type": ["string", "null"]},
+            "digest": {"type": ["string", "null"]},
+            "retention_days": {"type": ["integer", "null"], "minimum": 1},
+            "created_at": {"type": ["string", "null"]},
+            "expires_at": {"type": ["string", "null"]},
+            "download_status": {"enum": ["PASS", "FAIL", "NOT_RUN"]},
+            "downloaded_at": {"type": ["string", "null"]},
+            "downloaded_archive_digest": {"type": ["string", "null"]},
+            "tag_evidence_sha256": {"type": ["string", "null"]},
+            "checksums_sha256": {"type": ["string", "null"]}
+          }
+        },
+        "github_release": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "url", "tag", "draft", "prerelease", "author", "author_id", "published_at"],
+          "properties": {
+            "status": {"enum": ["PASS", "FAIL", "NOT_RUN"]},
+            "url": {"type": ["string", "null"]},
+            "tag": {"type": ["string", "null"]},
+            "draft": {"type": ["boolean", "null"]},
+            "prerelease": {"type": ["boolean", "null"]},
+            "author": {"type": ["string", "null"]},
+            "author_id": {"type": ["integer", "null"], "minimum": 1},
+            "published_at": {"type": ["string", "null"], "format": "date-time"}
+          }
+        },
+        "anonymous_install": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "workflow_url", "source_url", "tag", "tag_object", "commit", "verified_at", "commands", "unauthenticated_git_transport", "caller_credentials_inherited", "same_uid_filesystem_isolated", "write_isolation", "external_writes_verified", "candidate_network_isolated", "candidate_runtime_read_only", "independent_effects_verified", "independent_effects", "credential_process_uid_isolated", "credential_parent_environment_readable", "supplementary_groups_empty", "no_new_privileges", "capabilities_empty", "isolation_mechanism", "resource_isolation"],
+          "properties": {
+            "status": {"enum": ["PASS", "FAIL", "NOT_RUN"]},
+            "workflow_url": {"type": ["string", "null"]},
+            "source_url": {"type": ["string", "null"]},
+            "tag": {"type": ["string", "null"]},
+            "tag_object": {"type": ["string", "null"]},
+            "commit": {"type": ["string", "null"]},
+            "verified_at": {"type": ["string", "null"]},
+            "commands": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+            "unauthenticated_git_transport": {"enum": [true, null]},
+            "caller_credentials_inherited": {"enum": [false, null]},
+            "same_uid_filesystem_isolated": {"enum": [true, null]},
+            "write_isolation": {"enum": [true, null]},
+            "external_writes_verified": {"enum": [true, null]},
+            "candidate_network_isolated": {"enum": [true, null]},
+            "candidate_runtime_read_only": {"enum": [true, null]},
+            "independent_effects_verified": {"enum": [true, null]},
+            "independent_effects": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+            "credential_process_uid_isolated": {"enum": [true, null]},
+            "credential_parent_environment_readable": {"enum": [false, null]},
+            "supplementary_groups_empty": {"enum": [true, null]},
+            "no_new_privileges": {"enum": [true, null]},
+            "capabilities_empty": {"enum": [true, null]},
+            "isolation_mechanism": {"enum": ["linux-systemd-cgroup-setpriv-bubblewrap-v1", null]},
+            "resource_isolation": {
+              "type": ["object", "null"],
+              "additionalProperties": false,
+              "required": ["cgroup_v2", "process_tree_cgroup_isolated", "bounded_output_capture", "memory_max_bytes", "memory_swap_max_bytes", "tasks_max", "cpu_quota_percent", "file_size_limit_bytes", "temporary_filesystem_limit_bytes"],
+              "properties": {
+                "cgroup_v2": {"const": true},
+                "process_tree_cgroup_isolated": {"const": true},
+                "bounded_output_capture": {"const": true},
+                "memory_max_bytes": {"const": 1073741824},
+                "memory_swap_max_bytes": {"const": 0},
+                "tasks_max": {"const": 128},
+                "cpu_quota_percent": {"const": 200},
+                "file_size_limit_bytes": {"const": 16777216},
+                "temporary_filesystem_limit_bytes": {"const": 536870912}
+              }
+            }
+          }
+        }
+      }
+    },
+    "gates": {
+      "type": "array",
+      "minItems": 21,
+      "maxItems": 21,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "status", "evidence"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+          "status": {"enum": ["PASS", "FAIL", "NOT_RUN"]},
+          "evidence": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+        }
+      }
+    },
+    "boundaries": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["automatic_merge", "automatic_deploy", "production_credentials_read", "tagged_source_modified", "github_api_writes", "standalone_tamper_evident", "cryptographically_authenticated", "authenticity_verification"],
+      "properties": {
+        "automatic_merge": {"const": false},
+        "automatic_deploy": {"const": false},
+        "production_credentials_read": {"const": false},
+        "tagged_source_modified": {"const": false},
+        "github_api_writes": {"const": false},
+        "standalone_tamper_evident": {"const": false},
+        "cryptographically_authenticated": {"const": false},
+        "authenticity_verification": {"const": "REQUERY_GITHUB_AND_REVERIFY_ORIGINAL_ARTIFACTS"}
+      }
+    }
+  }
+}

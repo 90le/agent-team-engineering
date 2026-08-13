@@ -1,19 +1,25 @@
 {
-  "$schema": "urn:agent-team:schema:plan-revision:1.0.0",
-  "schema_version": "1.0.0",
+  "$schema": "urn:agent-team:schema:plan-revision:1.1.0",
+  "schema_version": "1.1.0",
   "plan_id": "plan-example-1",
   "work_item_id": "work-example-1",
   "revision": 1,
   "previous_plan_digest": null,
-  "repository_id": "repo.example",
-  "base_commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-  "objective": "Implement and test the approved account menu without changing deployment configuration.",
+  "repository_id": "repo.example-software",
+  "base_commit": "0123456789abcdef0123456789abcdef01234567",
+  "writer_topology": {
+    "topology_id": "topology.independent-software-writers",
+    "topology_version": "1.0.0",
+    "topology_digest": "sha256:b4b3e8ad868889082a871e3ecc7588b00ced58a0555da299061c0aae758de0dd"
+  },
+  "objective": "Implement and test the approved frontend and backend change without merging or deploying.",
   "assumptions": ["The existing authentication API remains unchanged."],
   "tasks": [
-    {"task_id": "task-frontend", "role_id": "role.implementer", "objective": "Implement the menu.", "depends_on": [], "required_capabilities": ["code.change"], "completion_evidence": ["change-commit"]},
-    {"task_id": "task-test", "role_id": "role.tester", "objective": "Run deterministic tests.", "depends_on": ["task-frontend"], "required_capabilities": ["test.run"], "completion_evidence": ["test-result"]}
+    {"task_id": "task-frontend", "role_id": "role.frontend", "objective": "Implement the bounded frontend change.", "depends_on": [], "allowed_paths": ["apps/web/", "packages/ui/"], "required_capabilities": ["code.change"], "completion_evidence": ["change-commit"]},
+    {"task_id": "task-backend", "role_id": "role.backend", "objective": "Implement the bounded backend change.", "depends_on": [], "allowed_paths": ["db/migrations/", "services/api/"], "required_capabilities": ["code.change"], "completion_evidence": ["change-commit"]},
+    {"task_id": "task-test", "role_id": "role.tester", "objective": "Run deterministic tests.", "depends_on": ["task-backend", "task-frontend"], "allowed_paths": [], "required_capabilities": ["test.run"], "completion_evidence": ["test-result"]}
   ],
-  "allowed_paths": ["src/account/", "tests/account/"],
+  "allowed_paths": ["apps/web/", "db/migrations/", "packages/ui/", "services/api/"],
   "allowed_actions": ["repository.read", "workspace.write", "test.run", "commit.create", "draft-pr.create", "ci.read"],
   "tests": ["python -m unittest discover -s tests"],
   "risk_level": "MEDIUM",
@@ -22,5 +28,5 @@
   "time_limit_seconds": 3600,
   "created_by": "role.planner",
   "created_at": "2026-08-11T05:31:00Z",
-  "plan_digest": "sha256:ec8c649fb1f7496a293d92179b801f6de53fb50ca8ed6cdd04bed9f63532aa37"
+  "plan_digest": "sha256:5736168426ff82d70e78ba52d36c6407894e75922dd569de18db375eaded7efb"
 }

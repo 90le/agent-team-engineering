@@ -25,7 +25,7 @@ The digest covers the complete `proposal` object:
 
 `plan_id` is derived from the same canonical proposal digest. Editing any proposal field invalidates both identity and confirmation.
 
-The current plan schema is `1.1.0`. It embeds the exact Team Design that will be written; `apply` never rebuilds an approved plan from a mutable preset name. Draft or confirmed `1.0.0` plans from v0.8.1 must be recreated and confirmed under v0.9.0. This intentional fail-closed migration prevents an old approval from compiling different roles after a Factory or preset change.
+The current plan schema is `1.1.0`. It embeds the exact Team Design that will be written; `apply` never rebuilds an approved plan from a mutable preset name. Draft or confirmed `1.0.0` plans from v0.8.1 must be recreated by the current Factory and confirmed again before v1.0.0 apply. This intentional fail-closed migration prevents an old approval from compiling different roles after a Factory or preset change.
 
 ## Confirmation semantics
 

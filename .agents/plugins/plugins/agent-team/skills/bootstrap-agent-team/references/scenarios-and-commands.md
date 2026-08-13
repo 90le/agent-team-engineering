@@ -5,6 +5,7 @@
 | User outcome | Recommended shape | Internal mapping | Boundary |
 |---|---|---|---|
 | Specialists invoked in an existing host | Native context-first team | `software-lite` or `custom` | Host remains the runtime |
+| Separate frontend/backend source writers | Native team plus WriterTopology authority chain | v1.0 design contract | `DESIGN_ONLY`; no current host enforces it |
 | Feedback progresses across restarts to a tested, independently reviewed Draft PR | Native team plus optional Managed controller | `software-managed` | No automatic merge or deploy |
 | Custom roles with live external actions | Advanced integration project | No silent mapping | Engineer each capability, identity, approval, isolation, evidence, and recovery |
 
@@ -40,6 +41,17 @@
 ```
 
 After exact confirmation, use the displayed digest with `onboard confirm`, then `onboard apply` and `context validate`.
+
+## Independent-writer authority check
+
+```bash
+./agent-team native writer-authority-validate \
+  --topology examples/v08-contracts/valid/writer-topology.json \
+  --plan examples/v08-contracts/valid/plan-revision.json \
+  --approval examples/v08-contracts/valid/approval-grant.json
+```
+
+This validates the v1.0 canonical topology → plan → approval digest chain and reports `automatic_execution: false`. It does not start a multi-writer runtime. PlanRevision and ApprovalGrant `1.1.0` documents bind an explicit topology object or `null`; legacy `1.0.0` documents omit that field.
 
 ## Separate host lifecycle
 

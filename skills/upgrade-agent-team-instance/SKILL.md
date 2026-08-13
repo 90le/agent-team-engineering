@@ -5,7 +5,7 @@ description: Plan, apply, recover, verify, or roll back a versioned Agent Team i
 
 # Upgrade an Agent Team Instance
 
-Read the Factory `AI-BOOTSTRAP.md`, `docs/08-factory/instance-lifecycle.md`, `docs/11-lifecycle/installation-upgrade-and-adoption.md`, and `docs/03-security/threat-model.md`. Read the target instance `AI-BOOTSTRAP.md`, `.agent-team/instance.json`, and `.agent-team/instance.lock.json` completely. Use `manage-agent-team-factory` for ordinary instance changes and runtime governance; this Skill owns only installation-version transitions and their recovery.
+Read the Factory `AI-BOOTSTRAP.md`, `docs/08-factory/instance-lifecycle.md`, `docs/11-lifecycle/installation-upgrade-and-adoption.md`, `docs/16-release/v1.0-acceptance.md`, and `docs/03-security/threat-model.md`. Read the target instance `AI-BOOTSTRAP.md`, `.agent-team/instance.json`, and `.agent-team/instance.lock.json` completely. Use `manage-agent-team-factory` for ordinary instance changes and runtime governance; this Skill owns only Team Instance version transitions and their recovery, not host projection installation ownership.
 
 ## Establish authority and stop work
 
@@ -17,18 +17,19 @@ Read the Factory `AI-BOOTSTRAP.md`, `docs/08-factory/instance-lifecycle.md`, `do
 ## Plan and apply
 
 1. Run only from an exact, clean, annotated Factory release or a verified Factory installation. Never apply from a development checkout, dirty tree, lightweight tag, or copied directory without `.factory-installation.json` verification.
-2. Write the plan outside the instance:
+2. For Factory `1.0.0`, accept only declared source releases `0.2.0` through `0.9.0`. The `0.9.0 → 1.0.0` path is an explicit digest-bound Team Instance migration. It does not upgrade a v0.9 host-install plan or legacy host lock: regenerate an unexecuted host plan, and handle a `LEGACY_UNBOUND` lock by read-only verification and manual reconciliation rather than automatic destructive uninstall.
+3. Write the plan outside the instance:
 
    `python3 tools/agent_team.py instance upgrade plan --root <instance> --output <external-plan.json>`
 
-3. Have the human owner review the bound instance path and ID, source and target versions, source and target lock digests, every create/replace/remove action, and every preserved seeded file. Regenerate rather than edit a stale plan.
-4. Choose an absent recovery-bundle path outside the instance, preferably on an independently backed-up failure domain. Do not keep the only recovery copy beside the instance on the same disposable disk.
-5. Apply the reviewed plan:
+4. Have the human owner review the bound instance path and ID, source and target versions, source and target lock digests, every create/replace/remove action, and every preserved seeded file. Regenerate rather than edit a stale plan.
+5. Choose an absent recovery-bundle path outside the instance, preferably on an independently backed-up failure domain. Do not keep the only recovery copy beside the instance on the same disposable disk.
+6. Apply the reviewed plan:
 
    `python3 tools/agent_team.py instance upgrade apply --root <instance> --plan <external-plan.json> --recovery <external-recovery-dir>`
 
-6. The Factory changes managed files one at a time and commits the target lock last. This is logical fail-closed atomicity, not a filesystem-wide atomic directory swap. Keep the workers stopped until instance validation, Doctor, runtime status, and audit verification all pass.
-7. Preserve the plan, recovery bundle, command result, validation evidence, source and target revisions, and human decision in the instance evidence history. Resume runtime and workers only with an explicit recorded owner decision.
+7. The Factory changes managed files one at a time and commits the target lock last. This is logical fail-closed atomicity, not a filesystem-wide atomic directory swap. Keep the workers stopped until instance validation, Doctor, runtime status, and audit verification all pass.
+8. Preserve the plan, recovery bundle, command result, validation evidence, source and target revisions, and human decision in the instance evidence history. Resume runtime and workers only with an explicit recorded owner decision.
 
 ## Recover an interrupted operation
 

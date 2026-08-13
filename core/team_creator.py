@@ -346,10 +346,31 @@ def _claude_files(document: dict[str, Any]) -> dict[str, str]:
     return files
 
 
-def _openclaw_tool_policy(role: str) -> dict[str, Any]:
-    denied = ["exec", "process", "write", "edit", "apply_patch", "browser"]
-    if role == "builder":
-        denied = ["browser"]
+OPENCLAW_CONTROL_PLANE_DENIES = (
+    "browser",
+    "group:automation",
+    "group:messaging",
+    "group:nodes",
+    "group:sessions",
+    "group:agents",
+    "group:media",
+    "group:plugins",
+    "group:ui",
+)
+
+
+def _openclaw_tool_policy(*, workspace_write: bool) -> dict[str, Any]:
+    denied = list(OPENCLAW_CONTROL_PLANE_DENIES)
+    if not workspace_write:
+        denied = [
+            "group:runtime",
+            "exec",
+            "process",
+            "write",
+            "edit",
+            "apply_patch",
+            *denied,
+        ]
     return {"deny": denied, "elevated": {"enabled": False}}
 
 
@@ -365,7 +386,7 @@ def _openclaw_files(document: dict[str, Any]) -> dict[str, str]:
             "name": f"{document['instance']['display_name']} / {role}",
             "workspace": f"__TEAM_ROOT__/platforms/openclaw/workspaces/{role}",
             "sandbox": {"mode": "all", "scope": "agent"},
-            "tools": _openclaw_tool_policy(role),
+            "tools": _openclaw_tool_policy(workspace_write=role == "builder"),
         }
         if binding["model"] is not None:
             agent["model"] = str(binding["model"])
@@ -393,10 +414,7 @@ def _openclaw_files(document: dict[str, Any]) -> dict[str, str]:
             "name": f"{document['instance']['display_name']} / approval relay",
             "workspace": "__TEAM_ROOT__/platforms/openclaw/workspaces/approval-relay",
             "sandbox": {"mode": "all", "scope": "agent"},
-            "tools": {
-                "deny": ["exec", "process", "write", "edit", "apply_patch", "browser"],
-                "elevated": {"enabled": False},
-            },
+            "tools": _openclaw_tool_policy(workspace_write=False),
         }
     )
     files["platforms/openclaw/workspaces/approval-relay/AGENTS.md"] = (
@@ -418,8 +436,12 @@ def _openclaw_files(document: dict[str, Any]) -> dict[str, str]:
         "`__TARGET_REPO__` with an isolated target checkout. Merge the fragment through OpenClaw's "
         "validated configuration workflow, then bind public intake and approval relay to different "
         "accounts/channels. Run `openclaw doctor`, `openclaw agents list --bindings` and "
-        "`openclaw sandbox explain --json` before enabling traffic. Empty `bindings` is an intentional "
-        "safe stop; never bind public feedback to the approval relay.\n"
+        "`openclaw sandbox explain --json` before enabling traffic. The fragment intentionally uses "
+        "the top-level per-Agent `tools.deny` and does not emit a per-Agent "
+        "`tools.sandbox.tools` policy: that nested policy replaces, rather than merges with, a stricter "
+        "global sandbox policy. The sandbox inspector reports only that sandbox sub-policy, so its "
+        "candidate allow list is not the final tool authority. Empty `bindings` is an intentional safe "
+        "stop; never bind public feedback to the approval relay.\n"
     )
     return files
 

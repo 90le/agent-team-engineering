@@ -13,6 +13,7 @@
     {"id": "evidence-index-tamper", "contract": "evidence_bundle", "base": "../valid/evidence-bundle.json", "operation": "set", "path": "/items/0/content_ref", "value": "evidence://tampered", "expected_path": "$.bundle_digest"},
     {"id": "undeclared-adapter-port", "contract": "adapter_descriptor", "base": "../valid/adapter-descriptor.json", "operation": "set", "path": "/idempotency/0/port", "value": "secret", "expected_path": "$.idempotency[0].port"},
     {"id": "negative-command-revision", "contract": "command_envelope", "base": "../valid/command-envelope.json", "operation": "set", "path": "/expected_revision", "value": -1, "expected_path": "$.expected_revision"},
-    {"id": "unknown-work-item-field", "contract": "work_item", "base": "../valid/work-item.json", "operation": "set", "path": "/github_issue_number", "value": 42, "expected_path": "$.github_issue_number"}
+    {"id": "unknown-work-item-field", "contract": "work_item", "base": "../valid/work-item.json", "operation": "set", "path": "/github_issue_number", "value": 42, "expected_path": "$.github_issue_number"},
+    {"id": "writer-ownership-overlap", "contract": "writer_topology", "base": "../valid/writer-topology.json", "operation": "set", "path": "/writers/1/ownership_roots/0", "value": "apps/web/components", "expected_path": "$.writers[1].ownership_roots[0]"}
   ]
 }

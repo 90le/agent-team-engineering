@@ -17,7 +17,12 @@ from core.instance import _canonical_json, _factory_metadata, _git_revision, _is
 from core.json_support import loads_strict
 from core.schema_validation import validate_schema
 from core.security import find_inline_secret
-from core.team_creator import compile_team_files, create_team, validate_team_directory
+from core.team_creator import (
+    _openclaw_tool_policy,
+    compile_team_files,
+    create_team,
+    validate_team_directory,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 DESIGN_SCHEMA = ROOT / "schemas" / "team-design.schema.json"
@@ -1088,21 +1093,15 @@ def _platform_files(design: dict[str, Any]) -> dict[str, str]:
         prefix = hashlib.sha256(str(design["team_id"]).encode("utf-8")).hexdigest()[:8]
         agents: list[dict[str, Any]] = []
         for role in roles:
-            deny = ["browser"] if role["sandbox_mode"] == "workspace-write" else [
-                "exec",
-                "process",
-                "write",
-                "edit",
-                "apply_patch",
-                "browser",
-            ]
             agents.append(
                 {
                     "id": f"ate-{prefix}-{role['id']}",
                     "name": f"{design['display_name']} / {role['display_name']}",
                     "workspace": f"__TEAM_ROOT__/platforms/openclaw/workspaces/{role['id']}",
                     "sandbox": {"mode": "all", "scope": "agent"},
-                    "tools": {"deny": deny, "elevated": {"enabled": False}},
+                    "tools": _openclaw_tool_policy(
+                        workspace_write=role["sandbox_mode"] == "workspace-write"
+                    ),
                 }
             )
             files[f"platforms/openclaw/workspaces/{role['id']}/AGENTS.md"] = (
@@ -1122,10 +1121,7 @@ def _platform_files(design: dict[str, Any]) -> dict[str, str]:
                 "name": f"{design['display_name']} / human approval relay",
                 "workspace": "__TEAM_ROOT__/platforms/openclaw/workspaces/approval-relay",
                 "sandbox": {"mode": "all", "scope": "agent"},
-                "tools": {
-                    "deny": ["exec", "process", "write", "edit", "apply_patch", "browser"],
-                    "elevated": {"enabled": False},
-                },
+                "tools": _openclaw_tool_policy(workspace_write=False),
             }
         )
         files["platforms/openclaw/workspaces/approval-relay/AGENTS.md"] = (
@@ -1141,7 +1137,11 @@ def _platform_files(design: dict[str, Any]) -> dict[str, str]:
         files["platforms/openclaw/README.md"] = (
             "# OpenClaw adapter\n\nThe empty `bindings` array is an intentional safe stop. Export "
             "the adapter with shared context, replace path placeholders, bind public intake and "
-            "approval relay to different authenticated channels, then run OpenClaw Doctor and sandbox checks.\n"
+            "approval relay to different authenticated channels, then run OpenClaw Doctor and sandbox checks. "
+            "The adapter intentionally uses top-level per-Agent `tools.deny` and does not emit "
+            "per-Agent `tools.sandbox.tools`, because that nested policy replaces rather than merges "
+            "with a stricter global sandbox policy. The sandbox inspector shows only the sandbox "
+            "sub-policy, not the complete final tool authority.\n"
         )
     if "hermes" in selected:
         prefix = hashlib.sha256(str(design["team_id"]).encode("utf-8")).hexdigest()[:8]

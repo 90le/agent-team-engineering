@@ -119,7 +119,25 @@ class TeamCompilerTests(unittest.TestCase):
             qa = next(item for item in agents if item["id"].endswith("-qa"))
             relay = next(item for item in agents if item["id"].endswith("approval-relay"))
             self.assertNotEqual(intake["workspace"], relay["workspace"])
+            for agent in agents:
+                self.assertEqual(agent["sandbox"], {"mode": "all", "scope": "agent"})
+                self.assertNotIn("sandbox", agent["tools"])
+                self.assertFalse(agent["tools"]["elevated"]["enabled"])
+                self.assertIn("browser", agent["tools"]["deny"])
             self.assertIn("exec", qa["tools"]["deny"])
+            self.assertIn("group:runtime", qa["tools"]["deny"])
+            for agent in agents:
+                for denied_group in (
+                    "group:automation",
+                    "group:messaging",
+                    "group:nodes",
+                    "group:sessions",
+                    "group:agents",
+                    "group:media",
+                    "group:plugins",
+                    "group:ui",
+                ):
+                    self.assertIn(denied_group, agent["tools"]["deny"])
             self.assertEqual(fragment["bindings"], [])
             claude_qa = (
                 team / "platforms/claude/.claude/agents/qa.md"

@@ -1,5 +1,7 @@
 # 实例生成与治理
 
+- 当前适用版本：Factory `1.0.0`
+
 ## 输入和输出
 
 Factory只从通过 `schemas/team-instance.schema.json` 及安全语义检查的JSON生成实例。输入必须声明所有者、团队包、自治上限、批准人、项目、适配器、运行路径和资源限制。配置只能记录 `secret.*` 引用，不能记录秘密值。
@@ -56,6 +58,8 @@ python3 tools/agent_team.py instance validate --root /path/to/team-instance
 
 `relock`只能接受同一Factory版本下经过验证的声明式配置变化，不能修改锁中的Factory版本、替换managed文件或冒充迁移。
 
-v0.9.0提供从v0.2、v0.3、v0.4、v0.5.0、v0.5.1、v0.6.0、v0.7.0、v0.8.0、v0.8.1到v0.9.0的显式迁移：先在实例外输出摘要绑定计划，人工审阅后创建外部恢复包，再逐项迁移managed文件并最后提交目标锁。用户修改过的seeded文件原样保留。运行库存在时必须暂停、审计通过且无活动租约/未决外部效果；操作者还必须另外停止所有Writer进程。旧版本运行批准不会自动迁移为新版本批准。
+当前 Factory `1.0.0` 提供从 `0.2.0`、`0.3.0`、`0.4.0`、`0.5.0`、`0.5.1`、`0.6.0`、`0.7.0`、`0.8.0`、`0.8.1` 与 `0.9.0` 到 `1.0.0` 的显式迁移：先在实例外输出摘要绑定计划，人工审阅后创建外部恢复包，再逐项迁移 managed 文件并最后提交目标锁。用户修改过的 seeded 文件原样保留。运行库存在时必须暂停、审计通过且无活动租约/未决外部效果；操作者还必须另外停止所有 Writer 进程。旧版本运行批准不会自动迁移为新版本批准。
+
+历史 `v0.9.0` 已经提供从 `0.2.0` 至 `0.8.1` 的相同类型显式迁移；这项历史保证保持不变。`0.9.0 → 1.0.0` 是新增的普通 Team Instance 迁移路径，不会升级 v0.9 host-install plan 或为旧 host install lock 补造 proposal ownership。尚未执行的 v0.9 host plan 必须重新生成、预览和确认；旧 host lock 只能 `LEGACY_UNBOUND` 只读核验并由人工对账，不能自动破坏性卸载。
 
 升级和回滚使用 `runtime/.factory-lifecycle-journal.json` 记录崩溃恢复状态；日志存在时不得运行实例或手工删除。恢复命令返回当前操作开始前版本。完整安装、计划、应用、恢复、回滚和证据协议见[Factory安装、实例升级、恢复与项目接入](../11-lifecycle/installation-upgrade-and-adoption.md)。任何不兼容Schema变化仍需要新ADR、主版本和显式迁移。

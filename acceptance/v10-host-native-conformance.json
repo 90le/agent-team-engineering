@@ -1,0 +1,161 @@
+{
+  "$schema": "schemas/v10-release-candidate-conformance.schema.json",
+  "schema_version": "1.0.0",
+  "factory_release": "v1.0.0",
+  "status": "PRE_RELEASE",
+  "observed_at": "2026-08-12",
+  "baseline": {
+    "tag": "v0.9.0",
+    "commit": "a286cfadbfb6f387a4f1fb94c244f57d4dd089e6"
+  },
+  "hosts": [
+    {
+      "host_id": "codex",
+      "support_tier": "verified-export",
+      "evidence_scope": "Deterministic native project-file projection plus proposal-bound install, verify, replay, and uninstall lifecycle tests; no isolated Codex load test or model invocation.",
+      "version_or_release": null,
+      "production_execution": false
+    },
+    {
+      "host_id": "claude",
+      "support_tier": "verified-export",
+      "evidence_scope": "Deterministic native project-file projection plus proposal-bound install, verify, replay, and uninstall lifecycle tests; no isolated Claude Code load test or model invocation.",
+      "version_or_release": null,
+      "production_execution": false
+    },
+    {
+      "host_id": "openclaw",
+      "support_tier": "native-install-verified",
+      "evidence_scope": "Credential-free isolated agent add, list, lint, and delete with zero bindings; no channel, model, account, or task activation.",
+      "version_or_release": "2026.7.1-2",
+      "production_execution": false
+    },
+    {
+      "host_id": "hermes",
+      "support_tier": "native-install-verified",
+      "evidence_scope": "Credential-free isolated profile distribution parse, install, list, describe, and delete; no account, model, or task activation.",
+      "version_or_release": "0.20.0",
+      "production_execution": false
+    },
+    {
+      "host_id": "multica",
+      "support_tier": "experimental-plan",
+      "evidence_scope": "Official v0.4.23 contract and custom license reviewed; a version-pinned, data-only overlay plan is generated without authenticated import or daemon execution.",
+      "version_or_release": "v0.4.23@e0d0b3815342a80460f8a1c66c56ddfc662c7d46",
+      "production_execution": false
+    },
+    {
+      "host_id": "generic-ai",
+      "support_tier": "portable",
+      "evidence_scope": "Portable Markdown and JSON roles, Skills, workflows, context authority, WriterTopology design contract, and deterministic projection package.",
+      "version_or_release": null,
+      "production_execution": false
+    }
+  ],
+  "unknown_hosts": [
+    {
+      "name": "Leda",
+      "support_tier": "research-unknown",
+      "reason": "No authoritative repository, product identity, or occurrence in the supplied discussion evidence was available; the Factory does not guess a similarly named product."
+    }
+  ],
+  "local_gates": {
+    "repository_validation": {
+      "status": "PASS",
+      "command": "./agent-team validate",
+      "errors": 0,
+      "findings": 0
+    },
+    "unit_tests": {
+      "status": "PASS",
+      "command": "python3 -m unittest discover -s tests -v",
+      "count": 371
+    },
+    "writer_authority": {
+      "status": "PASS",
+      "test_count": 16,
+      "topology_digest": "sha256:b4b3e8ad868889082a871e3ecc7588b00ced58a0555da299061c0aae758de0dd",
+      "plan_digest": "sha256:5736168426ff82d70e78ba52d36c6407894e75922dd569de18db375eaded7efb",
+      "approval_scope_digest": "sha256:2457ab8a7d297122c9f82322445b79bb7a90ba59f649bba9e5f315b5b0dfc4b7",
+      "automatic_execution": false,
+      "identity_or_signature_verified": false
+    },
+    "host_lifecycle": {
+      "status": "PASS",
+      "test_count": 35,
+      "plan_schema": "1.1.0",
+      "lock_schema": "1.1.0",
+      "guard_mode": "empty-regular-file-v1",
+      "legacy_destructive_uninstall": false
+    },
+    "instance_migration": {
+      "status": "PASS",
+      "source_versions": ["0.2.0", "0.3.0", "0.4.0", "0.5.0", "0.5.1", "0.6.0", "0.7.0", "0.8.0", "0.8.1", "0.9.0"],
+      "target_version": "1.0.0",
+      "rollback_tested": true
+    },
+    "skills_and_plugins": {
+      "status": "PASS",
+      "skill_packages": 15,
+      "plugin_manifests": 2
+    },
+    "isolated_hosts": {
+      "status": "PASS",
+      "load_tests": 2,
+      "hosts": ["openclaw", "hermes"]
+    },
+    "cold_start": {
+      "status": "PASS",
+      "runs": 1,
+      "command": "tools/cold-start.sh"
+    },
+    "release_smoke": {
+      "status": "PASS",
+      "runs": 1,
+      "command": "tools/release-smoke.sh"
+    },
+    "external_scm": {
+      "status": "PASS",
+      "live_runs": 2,
+      "evidence_files": [
+        "acceptance/github-scm-v10-first-run.json",
+        "acceptance/github-scm-v10-replay.json"
+      ]
+    }
+  },
+  "supply_chain": {
+    "sbom": {
+      "path": "sbom/agent-team-engineering.spdx.json",
+      "sha256": "sha256:23e83148aa4719c65523c2733bf4ff9e1df041afc43aee575c2e1cf4cc1eb72b"
+    },
+    "source_provenance": {
+      "path": "supply-chain/source-provenance.json",
+      "sha256": "sha256:48d957746f0ec770521316e0a8c8d89aada95c66e4fcd6750fb51828dd5fa248"
+    },
+    "copied_external_source_files": false
+  },
+  "authority_boundaries": {
+    "ai_host_credentials_read": false,
+    "production_credentials_read": false,
+    "ai_host_accounts_used": false,
+    "production_accounts_used": false,
+    "channels_bound": false,
+    "models_invoked": false,
+    "tasks_started": false,
+    "automatic_merge": false,
+    "automatic_deploy": false,
+    "identity_or_signature_verified_offline": false,
+    "independent_writer_execution": false,
+    "dedicated_scm_identity_used": true,
+    "ephemeral_scm_token_used": true,
+    "external_scm_write_scope": "GRANTED_DEDICATED_TEST_ONLY"
+  },
+  "remote_gates": {
+    "pull_request_ci": "NOT_RUN_IN_SOURCE",
+    "merged_main_ci": "NOT_RUN_IN_SOURCE",
+    "annotated_tag": "NOT_RUN_IN_SOURCE",
+    "tag_workflow": "NOT_RUN_IN_SOURCE",
+    "github_release": "NOT_RUN_IN_SOURCE",
+    "anonymous_install": "NOT_RUN_IN_SOURCE"
+  }
+}

@@ -11,9 +11,10 @@ Guide from the user's outcome. Do not begin with Lite, Managed, Custom, controll
 
 1. Locate an `agent-team-engineering` stable checkout by its root `agent-team` executable and `AI-START.md`. If absent, obtain approval for a new checkout path, clone `https://github.com/90le/agent-team-engineering`, and select the latest stable release.
 2. Read `AI-START.md`, `docs/18-native-hosts/README.md`, and `docs/18-native-hosts/support-matrix.md` completely.
-3. Keep plans and generated teams in new paths outside the Factory and target project.
-4. Inspect the target project and candidate installed hosts read-only. Do not inspect credentials, sessions, messages, private runtime state, or account data.
-5. Identify the human owner. Never generate the owner as an Agent.
+3. If independent source writers are required, also read `docs/15-upstream-independent/independent-writer-topology.md`; validate the canonical WriterTopology → PlanRevision → ApprovalGrant chain and disclose that it is v1.0 `DESIGN_ONLY` authority, with no current host mapping enforcing a durable multi-writer scheduler.
+4. Keep plans and generated teams in new paths outside the Factory and target project.
+5. Inspect the target project and candidate installed hosts read-only. Do not inspect credentials, sessions, messages, private runtime state, or account data.
+6. Identify the human owner. Never generate the owner as an Agent.
 
 Read [the conversation workflow](references/conversation-workflow.md) before interviewing a new adopter. Read [the scenario and command guide](references/scenarios-and-commands.md) when recommending a team, selecting a host, or creating a plan.
 
@@ -28,6 +29,8 @@ Read [the conversation workflow](references/conversation-workflow.md) before int
 7. Treat host installation as a second decision. Route to `$install-agent-team-host` for a separate probe, plan, preview, confirmation, apply, and verify lifecycle.
 
 If any material answer changes, generate a new plan and digest.
+
+For an independent-writer recommendation, run `./agent-team native writer-authority-validate --topology examples/v08-contracts/valid/writer-topology.json --plan examples/v08-contracts/valid/plan-revision.json --approval examples/v08-contracts/valid/approval-grant.json`. Report the topology digest, plan digest, approval scope digest, `automatic_execution: false`, and `identity_or_signature_verified: false`. The offline command checks document and digest coherence; it does not authenticate the approver or verify a digital signature. PlanRevision and ApprovalGrant `1.1.0` documents must explicitly bind the exact topology or declare `null`; compatible `1.0.0` documents omit the field. Do not infer authority from role labels, reuse an approval after topology drift, attribute this v1.0 chain to v0.9, treat `VALID` as production identity authority, or dispatch independent writers from validation.
 
 ## Preserve authority
 

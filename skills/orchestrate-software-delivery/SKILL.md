@@ -17,6 +17,21 @@ Read `AI-BOOTSTRAP.md` and all policy JSON files in `team-packs/software-deliver
 6. Persist actor, transition, revision, evidence references, skill version and outcome before dispatching another step.
 7. Pause at every human or risk-policy gate. Resume only with approval bound to the exact work item revision and artifact digest.
 
+## Refuse unsupported independent-writer dispatch
+
+If a PlanRevision `1.1.0` carries a non-null `writer_topology`, require the exact WriterTopology, PlanRevision, and ApprovalGrant files and run:
+
+```bash
+./agent-team native writer-authority-validate \
+  --topology <writer-topology.json> \
+  --plan <plan-revision.json> \
+  --approval <approval-grant.json>
+```
+
+Treat success as `DESIGN_ONLY` document validation with `automatic_execution: false` and `identity_or_signature_verified: false`. The offline command does not authenticate an approver or verify a digital signature. The current Managed controller and host mappings do not enforce independent writer identities, ownership roots, worktrees, or scheduling. Stop before dispatch rather than map multiple writers to one `builder` or writable workspace. A future runtime may proceed only after separate authenticated authority and live conformance are available.
+
+For PlanRevision/ApprovalGrant `1.1.0`, require `writer_topology` to be explicit in both documents, as the same exact object or `null`. Compatible `1.0.0` documents omit it. Reject stale approval or retry identity after any topology digest change; `topology_digest` is part of the complete retry identity.
+
 ## Enforce ownership
 
 - Keep one active lease per work item and one writable workspace per implementation task.

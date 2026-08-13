@@ -54,6 +54,7 @@ SUPPORTED_UPGRADE_SOURCES = frozenset(
         "0.7.0",
         "0.8.0",
         "0.8.1",
+        "0.9.0",
     }
 )
 MAX_LIFECYCLE_FILE_BYTES = 10 * 1024 * 1024
