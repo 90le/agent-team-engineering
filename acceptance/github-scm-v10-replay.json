@@ -1,50 +1,50 @@
 {
   "$schema": "urn:agent-team:schema:github-scm-conformance-report:1.1.0",
   "actor_id": "github:68719118",
-  "approval_evidence_ref": "github-actions://90le/agent-team-v10-conformance-private/runs/31684760648",
-  "approval_expires_at": "2026-08-13T09:12:28Z",
-  "approval_id": "approval-github-run-31684760648-attempt-1",
-  "approval_issued_at": "2026-08-13T09:02:28Z",
-  "approval_nonce": "github-run-31684760648-attempt-1-nonce",
+  "approval_evidence_ref": "github-actions://90le/agent-team-v10-conformance-private/runs/31690204903",
+  "approval_expires_at": "2026-08-13T10:24:31Z",
+  "approval_id": "approval-github-run-31690204903-attempt-1",
+  "approval_issued_at": "2026-08-13T10:14:31Z",
+  "approval_nonce": "github-run-31690204903-attempt-1-nonce",
   "approval_schema_version": "1.1.0",
-  "approval_scope_digest": "sha256:806226f968b09da9e179cb91231e5d7da38a5f37f76d65edf2f1d7b87e238791",
+  "approval_scope_digest": "sha256:1e424dde68212dabea6faa7846c127ab869bb86e1057434bef05c3c4c19eea9e",
   "base_branch": "main",
   "base_commit": "2cbc622bad2c790e7b342537d58c1b52a0fd5722",
   "branch": {
     "created": false,
-    "external_ref": "https://api.github.com/repos/90le/agent-team-v10-conformance-private/git/refs/heads/agent-team/v10-conformance-1fafd3d98fbd0030ad5d3bf7df36a52962717f87",
+    "external_ref": "https://api.github.com/repos/90le/agent-team-v10-conformance-private/git/refs/heads/agent-team/v10-conformance-b79a67be7c68d359594602f8d4a6fb89225a3d73",
     "object_type": "branch",
-    "provider_id": "REF_kwDOT10Vg9oATnJlZnMvaGVhZHMvYWdlbnQtdGVhbS92MTAtY29uZm9ybWFuY2UtMWZhZmQzZDk4ZmJkMDAzMGFkNWQzYmY3ZGYzNmE1Mjk2MjcxN2Y4Nw"
+    "provider_id": "REF_kwDOT10Vg9oATnJlZnMvaGVhZHMvYWdlbnQtdGVhbS92MTAtY29uZm9ybWFuY2UtYjc5YTY3YmU3YzY4ZDM1OTU5NDYwMmY4ZDRhNmZiODkyMjVhM2Q3Mw"
   },
-  "change_digest": "sha256:ad2260be46a1b9cefe533ea73ab24cda715d6e6a8aeb47d199cf63978dfad3a9",
+  "change_digest": "sha256:94dc5505dddcbdf1e5ce540b5b8ce9131cf9a9f4ce738c089164b921a4f9c37a",
   "commit": {
     "created": false,
-    "external_ref": "https://api.github.com/repos/90le/agent-team-v10-conformance-private/git/commits/bfe0944109f45f82f74e4d211ba00dfbc3a2ecd5",
+    "external_ref": "https://api.github.com/repos/90le/agent-team-v10-conformance-private/git/commits/a2f8b2eea7b4f39dc27ae4f37a619e0e0c5e423f",
     "object_type": "commit",
-    "provider_id": "bfe0944109f45f82f74e4d211ba00dfbc3a2ecd5"
+    "provider_id": "a2f8b2eea7b4f39dc27ae4f37a619e0e0c5e423f"
   },
   "deployment_performed": false,
   "draft_pull_request": {
     "created": false,
-    "external_ref": "https://github.com/90le/agent-team-v10-conformance-private/pull/45",
+    "external_ref": "https://github.com/90le/agent-team-v10-conformance-private/pull/47",
     "object_type": "draft_pull_request",
-    "provider_id": "PR_kwDOT10Vg87-fW9W"
+    "provider_id": "PR_kwDOT10Vg87-hQdk"
   },
   "evidence_kind": "github-scm-conformance-v1",
-  "framework_commit": "1fafd3d98fbd0030ad5d3bf7df36a52962717f87",
+  "framework_commit": "b79a67be7c68d359594602f8d4a6fb89225a3d73",
   "framework_repository": "90le/agent-team-engineering",
   "identity_provider": "github.actions",
-  "identity_ref": "github-actions://90le/agent-team-v10-conformance-private/runs/31684760648/attempts/1",
+  "identity_ref": "github-actions://90le/agent-team-v10-conformance-private/runs/31690204903/attempts/1",
   "issue": {
     "created": false,
-    "external_ref": "https://github.com/90le/agent-team-v10-conformance-private/issues/44",
+    "external_ref": "https://github.com/90le/agent-team-v10-conformance-private/issues/46",
     "object_type": "issue",
-    "provider_id": "I_kwDOT10Vg88AAAABMljg4A"
+    "provider_id": "I_kwDOT10Vg88AAAABMmHYgQ"
   },
   "merge_performed": false,
-  "plan_digest": "sha256:14d064a956177ce23134be94f6e59fc59f84e09620228edbec7707355598714a",
+  "plan_digest": "sha256:397169f12ac4e52c0342115233469e52a5550e4a54035417575c32e0e2ab914f",
   "plan_schema_version": "1.1.0",
-  "proposal_branch": "agent-team/v10-conformance-1fafd3d98fbd0030ad5d3bf7df36a52962717f87",
+  "proposal_branch": "agent-team/v10-conformance-b79a67be7c68d359594602f8d4a6fb89225a3d73",
   "repository": "90le/agent-team-v10-conformance-private",
   "repository_id": "repo.conformance.github.v10",
   "repository_private": true,
@@ -54,8 +54,8 @@
     "ref": "90le/agent-team-v10-conformance-private/.github/workflows/agent-team-v10-conformance.yml@refs/heads/main",
     "repository_ref": "refs/heads/main",
     "run_attempt": "1",
-    "run_id": "31684760648",
-    "run_url": "https://github.com/90le/agent-team-v10-conformance-private/actions/runs/31684760648",
+    "run_id": "31690204903",
+    "run_url": "https://github.com/90le/agent-team-v10-conformance-private/actions/runs/31690204903",
     "sha": "2cbc622bad2c790e7b342537d58c1b52a0fd5722"
   },
   "writer_topology": null
