@@ -499,6 +499,126 @@ class ReleaseEvidenceTests(unittest.TestCase):
             self.assertTrue(output.is_file())
             self.assertEqual(len(checksums.read_text(encoding="utf-8").splitlines()), 6)
 
+    def test_tag_evidence_schema_requires_every_asset_kind_once(self) -> None:
+        schema = loads_strict(
+            (Path(__file__).resolve().parents[1] / "schemas/release-evidence.schema.json")
+            .read_text(encoding="utf-8")
+        )
+        document, _ = self._tag_evidence()
+        altered = deepcopy(document)
+        altered["assets"][1] = {
+            **altered["assets"][1],
+            "kind": "v10-candidate-conformance",
+        }
+        self.assertTrue(validate_schema(altered, schema))
+        with self.assertRaises(ReleaseEvidenceError):
+            validate_release_evidence(altered)
+
+    def test_tag_evidence_refuses_symlinked_or_preexisting_bundle_destinations(self) -> None:
+        document, contents = self._tag_evidence()
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            absent = base / "artifacts"
+            write_release_evidence(
+                document,
+                absent / "release-evidence.json",
+                absent / "SHA256SUMS",
+                asset_loader=lambda path: contents[path],
+            )
+            self.assertTrue((absent / "release-evidence.json").is_file())
+            self.assertTrue((absent / "bundle").is_dir())
+
+            real = base / "real"
+            real.mkdir()
+            alias = base / "alias"
+            alias.symlink_to(real, target_is_directory=True)
+            with self.assertRaises(ReleaseEvidenceError):
+                write_release_evidence(
+                    document,
+                    alias / "release-evidence.json",
+                    alias / "SHA256SUMS",
+                    asset_loader=lambda path: contents[path],
+                )
+            self.assertEqual(list(real.iterdir()), [])
+
+            output = real / "release-evidence.json"
+            checksums = real / "SHA256SUMS"
+            (real / "bundle").symlink_to(base, target_is_directory=True)
+            with self.assertRaisesRegex(ReleaseEvidenceError, "destination must be absent"):
+                write_release_evidence(
+                    document,
+                    output,
+                    checksums,
+                    asset_loader=lambda path: contents[path],
+                )
+            self.assertFalse(output.exists())
+
+    def test_tag_evidence_parent_rebind_and_concurrent_collision_never_redirect_or_overwrite(self) -> None:
+        document, contents = self._tag_evidence()
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            root = base / "artifacts"
+            root.mkdir()
+            moved = base / "moved-artifacts"
+            original = __import__(
+                "tools.release_evidence", fromlist=["_rename_noreplace"]
+            )._rename_noreplace
+            rebound = False
+
+            def rebind_then_publish(*args: object, **kwargs: object) -> None:
+                nonlocal rebound
+                if not rebound:
+                    rebound = True
+                    root.rename(moved)
+                    root.mkdir()
+                original(*args, **kwargs)
+
+            with mock.patch(
+                "tools.release_evidence._rename_noreplace",
+                side_effect=rebind_then_publish,
+            ):
+                with self.assertRaisesRegex(ReleaseEvidenceError, "root changed"):
+                    write_release_evidence(
+                        document,
+                        root / "release-evidence.json",
+                        root / "SHA256SUMS",
+                        asset_loader=lambda path: contents[path],
+                    )
+            self.assertEqual(list(root.iterdir()), [])
+            self.assertTrue((moved / "release-evidence.json").is_file())
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "artifacts"
+            root.mkdir()
+            original = __import__(
+                "tools.release_evidence", fromlist=["_rename_noreplace"]
+            )._rename_noreplace
+            foreign = b"user-owned\n"
+            collided = False
+
+            def collide_then_publish(*args: object, **kwargs: object) -> None:
+                nonlocal collided
+                if not collided:
+                    collided = True
+                    (root / "bundle").mkdir()
+                    (root / "bundle/user-owned.txt").write_bytes(foreign)
+                original(*args, **kwargs)
+
+            with mock.patch(
+                "tools.release_evidence._rename_noreplace",
+                side_effect=collide_then_publish,
+            ):
+                with self.assertRaisesRegex(ReleaseEvidenceError, "appeared concurrently"):
+                    write_release_evidence(
+                        document,
+                        root / "release-evidence.json",
+                        root / "SHA256SUMS",
+                        asset_loader=lambda path: contents[path],
+                    )
+            self.assertEqual((root / "bundle/user-owned.txt").read_bytes(), foreign)
+            self.assertFalse((root / "release-evidence.json").exists())
+            self.assertFalse((root / "SHA256SUMS").exists())
+
     def test_tag_evidence_rejects_self_reported_publication(self) -> None:
         document, _ = self._tag_evidence()
         document["publication"]["github_release"].update(
@@ -1067,6 +1187,13 @@ class ReleaseEvidenceTests(unittest.TestCase):
         for label, altered in mutations:
             with self.subTest(label=label), self.assertRaises(ReleasePublicationError):
                 verify_publication_snapshot(request, altered)
+
+    def test_release_identity_chain_records_unsigned_tag_boundary(self) -> None:
+        request = self._request()
+        snapshot = self._snapshot(request)
+        publication = verify_publication_snapshot(request, snapshot)
+        self.assertFalse(publication["annotated_tag"]["signature_verified"])
+        self.assertEqual(publication["annotated_tag"]["signature_reason"], "unsigned")
 
     def test_active_ruleset_required_check_cannot_be_omitted(self) -> None:
         request = self._request()

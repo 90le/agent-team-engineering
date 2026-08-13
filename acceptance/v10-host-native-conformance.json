@@ -69,7 +69,7 @@
     "unit_tests": {
       "status": "PASS",
       "command": "python3 -m unittest discover -s tests -v",
-      "count": 363
+      "count": 370
     },
     "writer_authority": {
       "status": "PASS",
@@ -82,7 +82,7 @@
     },
     "host_lifecycle": {
       "status": "PASS",
-      "test_count": 33,
+      "test_count": 35,
       "plan_schema": "1.1.0",
       "lock_schema": "1.1.0",
       "guard_mode": "empty-regular-file-v1",

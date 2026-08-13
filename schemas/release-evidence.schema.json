@@ -247,6 +247,13 @@
       "minItems": 5,
       "maxItems": 5,
       "uniqueItems": true,
+      "prefixItems": [
+        {"properties": {"kind": {"const": "v10-candidate-conformance"}}},
+        {"properties": {"kind": {"const": "sbom"}}},
+        {"properties": {"kind": {"const": "source-provenance"}}},
+        {"properties": {"kind": {"const": "external-scm-first-run"}}},
+        {"properties": {"kind": {"const": "external-scm-replay"}}}
+      ],
       "items": {
         "type": "object",
         "additionalProperties": false,

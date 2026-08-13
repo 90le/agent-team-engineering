@@ -30,10 +30,11 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["path", "stage_path", "sha256", "binding", "state"],
+        "required": ["path", "stage_path", "intent_path", "sha256", "binding", "state"],
         "properties": {
           "path": {"type": "string", "minLength": 1},
           "stage_path": {"type": "string", "minLength": 1},
+          "intent_path": {"type": "string", "minLength": 1},
           "sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
           "binding": {
             "type": ["object", "null"],

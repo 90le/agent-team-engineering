@@ -144,6 +144,25 @@ class ReleaseAssetTests(unittest.TestCase):
         self.assertGreaterEqual(report["evaluated_upstreams"], 8)
         self.assertEqual(report["host_claims"], 6)
 
+    def test_candidate_schema_requires_each_catalog_host_exactly_once(self) -> None:
+        from core.json_support import loads_strict
+        from core.schema_validation import validate_schema
+
+        document = loads_strict(
+            (ROOT / "acceptance/v10-host-native-conformance.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        schema = loads_strict(
+            (ROOT / "schemas/v10-release-candidate-conformance.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        altered = copy.deepcopy(document)
+        altered["hosts"][1]["host_id"] = "codex"
+        altered["hosts"][1]["evidence_scope"] = "different whole object"
+        self.assertTrue(validate_schema(altered, schema))
+
     def test_live_scm_evidence_requires_one_creation_and_one_exact_replay(self) -> None:
         first = _report(created=True, run_id=101)
         replay = _report(created=False, run_id=102)

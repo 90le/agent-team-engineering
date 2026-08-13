@@ -8,16 +8,19 @@ that happen after the tag workflow are owned by ``release_publication.py``.
 from __future__ import annotations
 
 import argparse
+import ctypes
+import errno
 import hashlib
 import json
 import os
 import platform
 import re
+import stat
 import subprocess
 import sys
-import tempfile
 import urllib.parse
 from collections.abc import Callable
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -97,6 +100,114 @@ ANONYMOUS_COMMANDS = (
 
 class ReleaseEvidenceError(RuntimeError):
     pass
+
+
+def _rename_noreplace(
+    source: str,
+    destination: str,
+    *,
+    source_fd: int,
+    destination_fd: int,
+) -> None:
+    """Publish one top-level bundle entry without a check/rename race."""
+
+    libc = ctypes.CDLL(None, use_errno=True)
+    renameat2 = getattr(libc, "renameat2", None)
+    if renameat2 is None:
+        raise ReleaseEvidenceError("atomic no-replace rename is unavailable")
+    renameat2.argtypes = [
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    ]
+    renameat2.restype = ctypes.c_int
+    if renameat2(
+        source_fd,
+        os.fsencode(source),
+        destination_fd,
+        os.fsencode(destination),
+        1,  # RENAME_NOREPLACE
+    ) != 0:
+        error = ctypes.get_errno()
+        if error == errno.EEXIST:
+            raise ReleaseEvidenceError(
+                f"release evidence destination appeared concurrently: {destination}"
+            )
+        raise ReleaseEvidenceError(
+            f"cannot publish release evidence destination: {destination}"
+        ) from OSError(error, os.strerror(error))
+
+
+def _open_directory_nofollow(path: Path, *, create_leaf: bool = False) -> int:
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+    )
+    if ".." in path.parts:
+        raise ReleaseEvidenceError("release evidence bundle root is not canonical")
+    descriptor = os.open("/" if path.is_absolute() else ".", flags)
+    try:
+        components = path.parts[1:] if path.is_absolute() else path.parts
+        for index, component in enumerate(components):
+            if component in {"", "."}:
+                continue
+            try:
+                following = os.open(component, flags, dir_fd=descriptor)
+            except FileNotFoundError:
+                if not create_leaf or index != len(components) - 1:
+                    raise
+                os.mkdir(component, 0o755, dir_fd=descriptor)
+                os.fsync(descriptor)
+                following = os.open(component, flags, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = following
+        return descriptor
+    except Exception:
+        os.close(descriptor)
+        raise
+
+
+@contextmanager
+def _bound_bundle_root(output: Path, checksums: Path):
+    """Bind one real directory, creating only its absent leaf, without symlinks."""
+
+    if output.parent != checksums.parent or output.name in {"", ".", ".."}:
+        raise ReleaseEvidenceError(
+            "release evidence and SHA256SUMS must share one literal bundle root"
+        )
+    if checksums.name in {"", ".", ".."} or output.name == checksums.name:
+        raise ReleaseEvidenceError("release evidence output names are invalid")
+    try:
+        descriptor = _open_directory_nofollow(output.parent, create_leaf=True)
+    except (OSError, ReleaseEvidenceError) as exc:
+        raise ReleaseEvidenceError(
+            "release evidence bundle root must be a real directory with safe parents"
+        ) from exc
+    try:
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISDIR(metadata.st_mode):
+            raise ReleaseEvidenceError("release evidence bundle root is not a directory")
+        yield descriptor, (metadata.st_dev, metadata.st_ino)
+        try:
+            reopened = _open_directory_nofollow(output.parent)
+        except OSError as exc:
+            raise ReleaseEvidenceError(
+                "release evidence bundle root changed during publication"
+            ) from exc
+        try:
+            current = os.fstat(reopened)
+            if (current.st_dev, current.st_ino) != (metadata.st_dev, metadata.st_ino):
+                raise ReleaseEvidenceError(
+                    "release evidence bundle root changed during publication"
+                )
+        finally:
+            os.close(reopened)
+    finally:
+        os.close(descriptor)
 
 
 def _git(*arguments: str) -> str:
@@ -960,10 +1071,6 @@ def write_release_evidence(
             raise ReleaseEvidenceError("release evidence bundle path is unsafe")
         loaded.append((record, content))
 
-    output.parent.mkdir(parents=True, exist_ok=True)
-    checksums.parent.mkdir(parents=True, exist_ok=True)
-    if output.parent.resolve() != checksums.parent.resolve():
-        raise ReleaseEvidenceError("release evidence and SHA256SUMS must share one bundle root")
     document_bytes = (json.dumps(document, indent=2, sort_keys=True) + "\n").encode("utf-8")
     records = [
         (hashlib.sha256(content).hexdigest(), record["bundle_path"])
@@ -974,21 +1081,89 @@ def write_release_evidence(
         f"{digest}  {path}\n" for digest, path in sorted(records, key=lambda item: item[1])
     ).encode("utf-8")
 
-    with tempfile.TemporaryDirectory(dir=output.parent) as temporary:
-        stage = Path(temporary)
-        for record, content in loaded:
-            bundled = stage / record["bundle_path"]
-            bundled.parent.mkdir(parents=True, exist_ok=True)
-            bundled.write_bytes(content)
-        (stage / output.name).write_bytes(document_bytes)
-        (stage / checksums.name).write_bytes(checksum_bytes)
-        for path in sorted(stage.rglob("*")):
-            if path.is_dir():
+    with _bound_bundle_root(output, checksums) as (root_fd, root_binding):
+        for existing in (output.name, checksums.name, "bundle"):
+            try:
+                os.stat(existing, dir_fd=root_fd, follow_symlinks=False)
+            except FileNotFoundError:
                 continue
-            relative = path.relative_to(stage)
-            destination = output.parent / relative
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            os.replace(path, destination)
+            raise ReleaseEvidenceError(
+                f"release evidence destination must be absent: {existing}"
+            )
+        stage_name = f".release-evidence-stage-{os.urandom(16).hex()}"
+        try:
+            os.mkdir(stage_name, 0o700, dir_fd=root_fd)
+            os.fsync(root_fd)
+        except OSError as exc:
+            raise ReleaseEvidenceError("cannot create release evidence staging directory") from exc
+        stage_fd = os.open(
+            stage_name,
+            os.O_RDONLY
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_CLOEXEC", 0),
+            dir_fd=root_fd,
+        )
+        stage = Path(f"/proc/self/fd/{stage_fd}")
+        try:
+            for record, content in loaded:
+                bundled = stage / record["bundle_path"]
+                bundled.parent.mkdir(parents=True, exist_ok=True)
+                bundled.write_bytes(content)
+            (stage / output.name).write_bytes(document_bytes)
+            (stage / checksums.name).write_bytes(checksum_bytes)
+            for path in sorted(stage.rglob("*"), reverse=True):
+                if path.is_file():
+                    descriptor = os.open(
+                        path,
+                        os.O_RDONLY | getattr(os, "O_CLOEXEC", 0),
+                    )
+                    try:
+                        os.fsync(descriptor)
+                    finally:
+                        os.close(descriptor)
+                elif path.is_dir():
+                    descriptor = os.open(
+                        path,
+                        os.O_RDONLY
+                        | getattr(os, "O_DIRECTORY", 0)
+                        | getattr(os, "O_NOFOLLOW", 0)
+                        | getattr(os, "O_CLOEXEC", 0),
+                    )
+                    try:
+                        os.fsync(descriptor)
+                    finally:
+                        os.close(descriptor)
+            os.fsync(stage_fd)
+            current_fd = _open_directory_nofollow(output.parent)
+            try:
+                current = os.fstat(current_fd)
+            finally:
+                os.close(current_fd)
+            if (current.st_dev, current.st_ino) != root_binding:
+                raise ReleaseEvidenceError(
+                    "release evidence bundle root changed during publication"
+                )
+            # Publish the generated bundle only into the exact pre-bound root.
+            # The top-level names were proven absent, so rename cannot follow a
+            # tagged-source symlink or replace unrelated runner content.
+            for name in ("bundle", output.name, checksums.name):
+                _rename_noreplace(
+                    name,
+                    name,
+                    source_fd=stage_fd,
+                    destination_fd=root_fd,
+                )
+            os.fsync(root_fd)
+        finally:
+            os.close(stage_fd)
+            try:
+                os.rmdir(stage_name, dir_fd=root_fd)
+                os.fsync(root_fd)
+            except OSError:
+                # A failed publication leaves only this random private staging
+                # directory.  It is never adopted by a later invocation.
+                pass
 
 
 def main() -> int:

@@ -552,13 +552,14 @@ class HostLifecycleTests(unittest.TestCase):
                 destination_root: Path,
                 target_relative: str,
                 stage_relative: str,
+                intent_relative: str,
                 expected_digest: str,
                 *,
                 resuming: bool,
             ) -> None:
                 nonlocal calls
                 calls += 1
-                if calls == 2:
+                if calls == 1:
                     raise OSError("simulated interruption")
                 original(
                     source_root,
@@ -566,6 +567,7 @@ class HostLifecycleTests(unittest.TestCase):
                     destination_root,
                     target_relative,
                     stage_relative,
+                    intent_relative,
                     expected_digest,
                     resuming=resuming,
                 )
@@ -579,6 +581,95 @@ class HostLifecycleTests(unittest.TestCase):
             self.assertEqual(lock["status"], "APPLYING")
             resumed = apply_install_plan(plan_path)
             self.assertEqual(resumed["status"], "VALID")
+
+    def test_apply_resumes_after_target_publish_before_active_lock(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            team = self._team(base)
+            destination = base / "destination"
+            plan = build_install_plan(team, "codex", destination)
+            plan_path = base / "plan.json"
+            write_install_plan(plan, plan_path)
+            confirm_install_plan(
+                plan_path,
+                digest=plan["proposal_digest"],
+                approved_by="Owner",
+            )
+            original = host_lifecycle._copy_exclusive
+            calls = 0
+
+            def stop_after_first_publish(*args: object, **kwargs: object) -> None:
+                nonlocal calls
+                original(*args, **kwargs)
+                calls += 1
+                if calls == 1:
+                    raise OSError("simulated exit after target publication")
+
+            with mock.patch(
+                "core.host_lifecycle._copy_exclusive",
+                side_effect=stop_after_first_publish,
+            ):
+                with self.assertRaisesRegex(OSError, "after target publication"):
+                    apply_install_plan(plan_path)
+
+            first = plan["proposal"]["files"][0]
+            target = destination / first["path"]
+            intent = destination / first["intent_path"]
+            stage = destination / first["stage_path"]
+            self.assertTrue(target.is_file())
+            self.assertTrue(intent.is_file())
+            self.assertEqual((target.stat().st_dev, target.stat().st_ino), (intent.stat().st_dev, intent.stat().st_ino))
+            self.assertFalse(stage.exists() or stage.is_symlink())
+
+            self.assertEqual(apply_install_plan(plan_path)["status"], "VALID")
+            self.assertFalse(intent.exists() or intent.is_symlink())
+            self.assertEqual(verify_installation(destination)["status"], "VALID")
+
+    def test_resuming_apply_never_adopts_unbound_byte_identical_entries(self) -> None:
+        for collision_kind in ("target", "stage", "target-and-stage"):
+            with self.subTest(collision_kind=collision_kind), tempfile.TemporaryDirectory() as temporary:
+                base = Path(temporary)
+                team = self._team(base)
+                destination = base / "destination"
+                plan = build_install_plan(team, "codex", destination)
+                plan_path = base / "plan.json"
+                write_install_plan(plan, plan_path)
+                confirm_install_plan(
+                    plan_path,
+                    digest=plan["proposal_digest"],
+                    approved_by="Owner",
+                )
+                with mock.patch(
+                    "core.host_lifecycle._copy_exclusive",
+                    side_effect=OSError("stop before first intent"),
+                ):
+                    with self.assertRaisesRegex(OSError, "before first intent"):
+                        apply_install_plan(plan_path)
+
+                first = plan["proposal"]["files"][0]
+                content = (team / first["source"]).read_bytes()
+                paths: list[Path] = []
+                if collision_kind in {"target", "target-and-stage"}:
+                    paths.append(destination / first["path"])
+                if collision_kind in {"stage", "target-and-stage"}:
+                    paths.append(destination / first["stage_path"])
+                for collision in paths:
+                    collision.parent.mkdir(parents=True, exist_ok=True)
+                    collision.write_bytes(content)
+                snapshots = [(path, path.stat().st_ino, path.read_bytes()) for path in paths]
+
+                with self.assertRaisesRegex(
+                    HostLifecycleError,
+                    "lacks its operation-bound intent",
+                ):
+                    apply_install_plan(plan_path)
+                for collision, inode, expected in snapshots:
+                    self.assertEqual(collision.stat().st_ino, inode)
+                    self.assertEqual(collision.read_bytes(), expected)
+                self.assertFalse(
+                    (destination / first["intent_path"]).exists()
+                    or (destination / first["intent_path"]).is_symlink()
+                )
 
     def test_concurrent_different_plans_are_serialized_without_overwrite(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -657,6 +748,7 @@ class HostLifecycleTests(unittest.TestCase):
                 destination_root: Path,
                 target_relative: str,
                 stage_relative: str,
+                intent_relative: str,
                 expected_digest: str,
                 *,
                 resuming: bool,
@@ -671,6 +763,7 @@ class HostLifecycleTests(unittest.TestCase):
                     destination_root,
                     target_relative,
                     stage_relative,
+                    intent_relative,
                     expected_digest,
                     resuming=resuming,
                 )
@@ -850,12 +943,15 @@ class HostLifecycleTests(unittest.TestCase):
                 protected.write_text("keep\n", encoding="utf-8")
                 if stage_kind == "regular":
                     stage.write_text("torn scratch\n", encoding="utf-8")
-                    result = uninstall_installation(
-                        destination,
-                        digest=plan["proposal_digest"],
-                    )
-                    self.assertEqual(result["status"], "UNINSTALLED")
-                    self.assertFalse(stage.exists() or stage.is_symlink())
+                    with self.assertRaisesRegex(
+                        HostLifecycleError,
+                        "recovery stage is not operation-bound",
+                    ):
+                        uninstall_installation(
+                            destination,
+                            digest=plan["proposal_digest"],
+                        )
+                    self.assertEqual(stage.read_text(encoding="utf-8"), "torn scratch\n")
                 else:
                     stage.symlink_to(protected)
                     with self.assertRaisesRegex(HostLifecycleError, "recovery stage"):
@@ -1332,10 +1428,16 @@ class HostLifecycleTests(unittest.TestCase):
                     apply_install_plan(plan_path)
             first = plan["proposal"]["files"][0]
             stage = destination / first["stage_path"]
+            intent = destination / first["intent_path"]
             stage.parent.mkdir(parents=True, exist_ok=True)
             stage.write_bytes(b"partial")
-            self.assertEqual(apply_install_plan(plan_path)["status"], "VALID")
-            self.assertFalse(stage.exists() or stage.is_symlink())
+            with self.assertRaisesRegex(
+                HostLifecycleError,
+                "recovery (target or stage lacks|stage is not bound)",
+            ):
+                apply_install_plan(plan_path)
+            self.assertEqual(stage.read_bytes(), b"partial")
+            self.assertFalse(intent.exists() or intent.is_symlink())
 
     def test_partial_metadata_stage_recovers_and_similar_undeclared_file_is_preserved(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -1501,6 +1603,7 @@ class HostLifecycleTests(unittest.TestCase):
             legacy.pop("proposal")
             for record in legacy["files"]:
                 record.pop("stage_path")
+                record.pop("intent_path")
                 record.pop("binding")
                 record.pop("state")
             lock_path.write_text(json.dumps(legacy, indent=2, sort_keys=True) + "\n", encoding="utf-8")

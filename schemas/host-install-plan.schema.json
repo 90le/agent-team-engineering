@@ -39,7 +39,7 @@
         "lifecycle": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["operation_guard", "operation_guard_format", "operation_guard_content_sha256", "unbound_empty_guard_reuse", "install_record", "uninstall_tombstone", "metadata_recovery_stage", "metadata_recovery_stage_retained", "expected_prior_metadata_recovery_stage", "initial_apply_intent_prefix", "initial_apply_intent_format", "initial_apply_intent", "initial_apply_intent_retained", "locking", "retained_files_after_uninstall", "directories_removed", "expected_prior_guard", "expected_prior_uninstall_tombstone", "remove_prior_uninstall_tombstone"],
+          "required": ["operation_guard", "operation_guard_format", "operation_guard_content_sha256", "unbound_empty_guard_reuse", "install_record", "uninstall_tombstone", "metadata_recovery_stage", "metadata_recovery_stage_retained", "metadata_recovery_intent_prefix", "metadata_recovery_intent", "metadata_recovery_intent_retained", "expected_prior_metadata_recovery_stage", "initial_apply_intent_prefix", "initial_apply_intent_format", "initial_apply_intent", "initial_apply_intent_retained", "locking", "retained_files_after_uninstall", "directories_removed", "expected_prior_guard", "expected_prior_uninstall_tombstone", "remove_prior_uninstall_tombstone"],
           "properties": {
             "operation_guard": {"const": ".agent-team/.host-lifecycle.guard"},
             "operation_guard_format": {"const": "empty-regular-file-v1"},
@@ -49,6 +49,9 @@
             "uninstall_tombstone": {"const": ".agent-team/host-uninstall.tombstone.json"},
             "metadata_recovery_stage": {"const": ".agent-team/.host-lifecycle.json.stage"},
             "metadata_recovery_stage_retained": {"const": false},
+            "metadata_recovery_intent_prefix": {"const": ".agent-team/.host-metadata.intent-"},
+            "metadata_recovery_intent": {"type": "string", "pattern": "^\\.agent-team/\\.host-metadata\\.intent-[0-9a-f]{32}$"},
+            "metadata_recovery_intent_retained": {"const": false},
             "expected_prior_metadata_recovery_stage": {"type": "null"},
             "initial_apply_intent_prefix": {"const": ".agent-team/.host-apply.intent-"},
             "initial_apply_intent_format": {"const": "plan-bound-random-empty-regular-file-v1"},
@@ -97,11 +100,12 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["source", "path", "stage_path", "sha256", "management"],
+            "required": ["source", "path", "stage_path", "intent_path", "sha256", "management"],
             "properties": {
               "source": {"type": "string", "minLength": 1},
               "path": {"type": "string", "minLength": 1},
               "stage_path": {"type": "string", "minLength": 1},
+              "intent_path": {"type": "string", "minLength": 1},
               "sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
               "management": {"const": "factory-created"}
             }

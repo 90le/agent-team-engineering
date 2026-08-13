@@ -25,6 +25,14 @@
       "minItems": 6,
       "maxItems": 6,
       "uniqueItems": true,
+      "prefixItems": [
+        {"properties": {"host_id": {"const": "codex"}}},
+        {"properties": {"host_id": {"const": "claude"}}},
+        {"properties": {"host_id": {"const": "openclaw"}}},
+        {"properties": {"host_id": {"const": "hermes"}}},
+        {"properties": {"host_id": {"const": "multica"}}},
+        {"properties": {"host_id": {"const": "generic-ai"}}}
+      ],
       "items": {
         "type": "object",
         "additionalProperties": false,

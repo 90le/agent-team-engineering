@@ -78,6 +78,8 @@ def _lifecycle_contract(destination: Path | None = None) -> dict[str, Any]:
         "uninstall_tombstone": UNINSTALL_TOMBSTONE_RELATIVE,
         "metadata_recovery_stage": METADATA_STAGE_RELATIVE,
         "metadata_recovery_stage_retained": False,
+        "metadata_recovery_intent_prefix": ".agent-team/.host-metadata.intent-",
+        "metadata_recovery_intent_retained": False,
         "initial_apply_intent_prefix": APPLY_INTENT_PREFIX,
         "initial_apply_intent_format": "plan-bound-random-empty-regular-file-v1",
         "initial_apply_intent_retained": False,
@@ -100,10 +102,12 @@ def _proposal_lifecycle_contract(
     destination: Path,
     prior_guard: dict[str, Any] | None,
     prior_tombstone: dict[str, Any] | None,
+    metadata_intent: str | None = None,
 ) -> dict[str, Any]:
     return {
         **_lifecycle_contract(destination),
         "expected_prior_metadata_recovery_stage": None,
+        "metadata_recovery_intent": metadata_intent,
         "expected_prior_guard": prior_guard,
         "expected_prior_uninstall_tombstone": prior_tombstone,
         "remove_prior_uninstall_tombstone": prior_tombstone is not None,
@@ -547,8 +551,10 @@ def _atomic_json_relative(
     value: dict[str, Any],
     *,
     expected_current_digest: str | None,
+    intent_relative: str,
+    allow_existing_intent: bool,
 ) -> None:
-    """Crash-recoverable JSON publication through one bound root descriptor."""
+    """Publish JSON through a plan-bound hard-link intent and one bound root."""
 
     content = _canonical(value).encode("utf-8")
     desired_digest = _sha256_bytes(content)
@@ -559,6 +565,15 @@ def _atomic_json_relative(
                 "host lifecycle JSON target must share the declared recovery-stage directory"
             )
         stage_name = stage_path.name
+        intent_path = Path(intent_relative)
+        if (
+            intent_path.parent != stage_path.parent
+            or not intent_relative.startswith(".agent-team/.host-metadata.intent-")
+        ):
+            raise HostLifecycleError(
+                "host lifecycle JSON intent differs from the exact plan"
+            )
+        intent_name = intent_path.name
 
         def read_name(candidate: str, label: str) -> tuple[bytes, os.stat_result] | None:
             try:
@@ -581,17 +596,34 @@ def _atomic_json_relative(
 
         current = read_name(name, f"host lifecycle JSON {relative}")
         stage = read_name(stage_name, f"host lifecycle JSON recovery stage for {relative}")
+        intent = read_name(intent_name, f"host lifecycle JSON intent for {relative}")
+        intent_preexisting = intent is not None
+        if not allow_existing_intent and (intent is not None or stage is not None):
+            raise HostLifecycleError(
+                f"host lifecycle JSON scratch appeared after planning: {relative}"
+            )
         if current is not None and _sha256_bytes(current[0]) == desired_digest:
             if stage is not None:
-                stage_now = os.stat(stage_name, dir_fd=parent, follow_symlinks=False)
-                if (stage_now.st_dev, stage_now.st_ino) != (
-                    stage[1].st_dev,
-                    stage[1].st_ino,
+                raise HostLifecycleError(
+                    f"host lifecycle JSON recovery stage is not operation-bound: {relative}"
+                )
+            if intent is not None:
+                if (intent[1].st_dev, intent[1].st_ino) != (
+                    current[1].st_dev,
+                    current[1].st_ino,
                 ):
                     raise HostLifecycleError(
-                        f"host lifecycle JSON recovery stage changed: {relative}"
+                        f"host lifecycle JSON intent is not bound to the published target: {relative}"
                     )
-                os.unlink(stage_name, dir_fd=parent)
+                intent_now = os.stat(intent_name, dir_fd=parent, follow_symlinks=False)
+                if (intent_now.st_dev, intent_now.st_ino) != (
+                    intent[1].st_dev,
+                    intent[1].st_ino,
+                ):
+                    raise HostLifecycleError(
+                        f"host lifecycle JSON intent changed: {relative}"
+                    )
+                os.unlink(intent_name, dir_fd=parent)
                 os.fsync(parent)
             return
         if expected_current_digest is None:
@@ -604,22 +636,49 @@ def _atomic_json_relative(
                 f"host lifecycle JSON target changed before transition: {relative}"
             )
 
-        if stage is not None and _sha256_bytes(stage[0]) != desired_digest:
-            stage_now = os.stat(stage_name, dir_fd=parent, follow_symlinks=False)
-            if (stage_now.st_dev, stage_now.st_ino) != (
-                stage[1].st_dev,
-                stage[1].st_ino,
+        # A crash after rename but before intent cleanup leaves the prior JSON
+        # target and intent as two names for the same recorded inode.  Consume
+        # only that exact relationship, then start the next transition with a
+        # fresh empty intent.  A separately created intent is preserved.
+        if (
+            current is not None
+            and stage is None
+            and intent is not None
+            and expected_current_digest is not None
+            and _sha256_bytes(current[0]) == expected_current_digest
+        ):
+            if (intent[1].st_dev, intent[1].st_ino) != (
+                current[1].st_dev,
+                current[1].st_ino,
             ):
                 raise HostLifecycleError(
-                    f"host lifecycle JSON recovery stage changed: {relative}"
+                    f"host lifecycle JSON intent is not bound to the prior target: {relative}"
                 )
-            os.unlink(stage_name, dir_fd=parent)
+            current_intent = os.stat(
+                intent_name,
+                dir_fd=parent,
+                follow_symlinks=False,
+            )
+            if (current_intent.st_dev, current_intent.st_ino) != (
+                intent[1].st_dev,
+                intent[1].st_ino,
+            ):
+                raise HostLifecycleError(
+                    f"host lifecycle JSON intent changed: {relative}"
+                )
+            os.unlink(intent_name, dir_fd=parent)
             os.fsync(parent)
-            stage = None
-        if stage is None:
+            intent = None
+            intent_preexisting = False
+
+        if intent is None:
+            if stage is not None:
+                raise HostLifecycleError(
+                    f"host lifecycle JSON recovery stage lacks its plan-bound intent: {relative}"
+                )
             descriptor = os.open(
-                stage_name,
-                os.O_WRONLY
+                intent_name,
+                os.O_RDWR
                 | os.O_CREAT
                 | os.O_EXCL
                 | getattr(os, "O_NOFOLLOW", 0)
@@ -628,24 +687,81 @@ def _atomic_json_relative(
                 dir_fd=parent,
             )
             try:
-                offset = 0
-                while offset < len(content):
-                    written = os.write(descriptor, content[offset:])
-                    if written <= 0:
-                        raise HostLifecycleError(
-                            f"host lifecycle JSON recovery stage made no write progress: {relative}"
-                        )
-                    offset += written
                 os.fsync(descriptor)
+                intent_metadata = os.fstat(descriptor)
             finally:
                 os.close(descriptor)
             os.fsync(parent)
+            intent = (b"", intent_metadata)
+        elif stage is None and intent_preexisting:
+            raise HostLifecycleError(
+                f"host lifecycle JSON intent lacks its bound recovery stage: {relative}"
+            )
+        if stage is None:
+            os.link(
+                intent_name,
+                stage_name,
+                src_dir_fd=parent,
+                dst_dir_fd=parent,
+                follow_symlinks=False,
+            )
+            os.fsync(parent)
+            stage = read_name(stage_name, f"host lifecycle JSON recovery stage for {relative}")
+        if stage is None or intent is None or (stage[1].st_dev, stage[1].st_ino) != (
+            intent[1].st_dev,
+            intent[1].st_ino,
+        ):
+            raise HostLifecycleError(
+                f"host lifecycle JSON recovery stage is not bound to its intent: {relative}"
+            )
+        descriptor = os.open(
+            stage_name,
+            os.O_WRONLY
+            | os.O_TRUNC
+            | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_CLOEXEC", 0),
+            dir_fd=parent,
+        )
+        try:
+            rewritten = os.fstat(descriptor)
+            if (rewritten.st_dev, rewritten.st_ino) != (
+                intent[1].st_dev,
+                intent[1].st_ino,
+            ):
+                raise HostLifecycleError(
+                    f"host lifecycle JSON recovery stage identity changed: {relative}"
+                )
+            offset = 0
+            while offset < len(content):
+                written = os.write(descriptor, content[offset:])
+                if written <= 0:
+                    raise HostLifecycleError(
+                        f"host lifecycle JSON recovery stage made no write progress: {relative}"
+                    )
+                offset += written
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
         os.replace(
             stage_name,
             name,
             src_dir_fd=parent,
             dst_dir_fd=parent,
         )
+        os.fsync(parent)
+        published = read_name(name, f"host lifecycle JSON {relative}")
+        owner = read_name(intent_name, f"host lifecycle JSON intent for {relative}")
+        if (
+            published is None
+            or owner is None
+            or _sha256_bytes(published[0]) != desired_digest
+            or (published[1].st_dev, published[1].st_ino)
+            != (owner[1].st_dev, owner[1].st_ino)
+        ):
+            raise HostLifecycleError(
+                f"host lifecycle JSON publication lost its intent binding: {relative}"
+            )
+        os.unlink(intent_name, dir_fd=parent)
         os.fsync(parent)
 
 
@@ -784,6 +900,10 @@ def _source_records(team_root: Path, host_id: str) -> list[dict[str, str]]:
     )
     for record in records:
         record["stage_path"] = _stage_relative(record["path"], record["sha256"])
+        target = Path(record["path"])
+        record["intent_path"] = (
+            target.parent / f".{target.name}.host-intent-{uuid.uuid4().hex}"
+        ).as_posix()
     paths = [record["path"] for record in records]
     if len(paths) != len(set(paths)):
         raise HostLifecycleError("compiled host projection contains duplicate destination paths")
@@ -820,6 +940,18 @@ def build_install_plan(team: Path, host_id: str, destination: Path) -> dict[str,
             "host destination contains the reserved initial apply intent; "
             "reconcile it before creating a plan"
         )
+    if target.is_dir():
+        try:
+            with _parent_directory_fd(target, INSTALL_LOCK_RELATIVE, create=False) as (
+                parent,
+                _,
+            ):
+                if any(name.startswith(".host-metadata.intent-") for name in os.listdir(parent)):
+                    raise HostLifecycleError(
+                        "host destination contains a reserved metadata intent; reconcile it before creating a plan"
+                    )
+        except FileNotFoundError:
+            pass
     prior_guard = _guard_binding(target) if target.is_dir() else None
     prior_tombstone = _tombstone_binding(target) if target.is_dir() else None
     lock_path = team_root / LOCK_RELATIVE
@@ -866,6 +998,12 @@ def build_install_plan(team: Path, host_id: str, destination: Path) -> dict[str,
     proposal["lifecycle"]["initial_apply_intent"] = (
         APPLY_INTENT_PREFIX + uuid.uuid4().hex
     )
+    metadata_identity = hashlib.sha256(
+        (_canonical(proposal) + "\0metadata-intent").encode("utf-8")
+    ).hexdigest()[:32]
+    proposal["lifecycle"]["metadata_recovery_intent"] = (
+        ".agent-team/.host-metadata.intent-" + metadata_identity
+    )
     plan = {
         "schema_version": "1.1.0",
         "state": "DRAFT",
@@ -891,10 +1029,23 @@ def _validate_proposal_semantics(proposal: dict[str, Any]) -> None:
         destination=destination,
         prior_guard=lifecycle["expected_prior_guard"],
         prior_tombstone=lifecycle["expected_prior_uninstall_tombstone"],
+        metadata_intent=lifecycle.get("metadata_recovery_intent"),
     )
     expected_lifecycle["initial_apply_intent"] = lifecycle.get("initial_apply_intent")
     if (
         lifecycle != expected_lifecycle
+        or not isinstance(lifecycle.get("metadata_recovery_intent"), str)
+        or not lifecycle["metadata_recovery_intent"].startswith(
+            ".agent-team/.host-metadata.intent-"
+        )
+        or len(lifecycle["metadata_recovery_intent"])
+        != len(".agent-team/.host-metadata.intent-") + 32
+        or any(
+            character not in "0123456789abcdef"
+            for character in lifecycle["metadata_recovery_intent"][
+                len(".agent-team/.host-metadata.intent-") :
+            ]
+        )
         or not isinstance(lifecycle.get("initial_apply_intent"), str)
         or not lifecycle["initial_apply_intent"].startswith(APPLY_INTENT_PREFIX)
         or len(lifecycle["initial_apply_intent"]) != len(APPLY_INTENT_PREFIX) + 32
@@ -916,10 +1067,12 @@ def _validate_proposal_semantics(proposal: dict[str, Any]) -> None:
         relative = record["path"]
         source = record["source"]
         stage_path = record["stage_path"]
+        intent_path = record["intent_path"]
         if (
             not _safe_relative(relative)
             or not _safe_relative(source)
             or not _safe_relative(stage_path)
+            or not _safe_relative(intent_path)
         ):
             raise HostLifecycleError("host installation file paths must be safe relative paths")
         if relative in RESERVED_DESTINATIONS or relative in seen:
@@ -931,14 +1084,33 @@ def _validate_proposal_semantics(proposal: dict[str, Any]) -> None:
             or stage_path != _stage_relative(relative, record["sha256"])
             or relative.startswith(APPLY_INTENT_PREFIX)
             or stage_path.startswith(APPLY_INTENT_PREFIX)
+            or relative == lifecycle["metadata_recovery_intent"]
+            or stage_path == lifecycle["metadata_recovery_intent"]
+            or intent_path in RESERVED_DESTINATIONS
+            or intent_path in seen
+            or intent_path in stages
+            or Path(intent_path).parent != Path(relative).parent
+            or not Path(intent_path).name.startswith(
+                f".{Path(relative).name}.host-intent-"
+            )
+            or len(Path(intent_path).name)
+            != len(f".{Path(relative).name}.host-intent-") + 32
+            or any(
+                character not in "0123456789abcdef"
+                for character in Path(intent_path).name[
+                    len(f".{Path(relative).name}.host-intent-") :
+                ]
+            )
         ):
             raise HostLifecycleError("host installation stage path is reserved or inconsistent")
         seen.add(relative)
         stages.add(stage_path)
+        stages.add(intent_path)
         if (
             find_inline_secret(relative)
             or find_inline_secret(source)
             or find_inline_secret(stage_path)
+            or find_inline_secret(intent_path)
         ):
             raise HostLifecycleError("host installation plan contains a credential-like path")
     if seen & stages:
@@ -1034,7 +1206,7 @@ def preview_install_plan(plan: dict[str, Any]) -> str:
         "",
     ]
     lines.extend(
-        f"- `{record['path']}` ← `{record['source']}` ({record['sha256']}; recovery stage `{record['stage_path']}`)"
+        f"- `{record['path']}` ← `{record['source']}` ({record['sha256']}; recovery stage `{record['stage_path']}`; owner intent `{record['intent_path']}`)"
         for record in proposal["files"]
     )
     lifecycle = proposal["lifecycle"]
@@ -1048,7 +1220,8 @@ def preview_install_plan(plan: dict[str, Any]) -> str:
             f"- Operation guard content digest: `{lifecycle['operation_guard_content_sha256']}`",
             f"- Install record: `{lifecycle['install_record']}`",
             f"- Uninstall tombstone: `{lifecycle['uninstall_tombstone']}`",
-            f"- Transient metadata recovery stage: `{lifecycle['metadata_recovery_stage']}` (retained: `false`)",
+        f"- Transient metadata recovery stage: `{lifecycle['metadata_recovery_stage']}` (retained: `false`)",
+            f"- Exact metadata recovery intent: `{lifecycle['metadata_recovery_intent']}` (retained: `false`)",
             "- Expected prior metadata recovery stage: `absent`",
             f"- Initial apply intent prefix: `{lifecycle['initial_apply_intent_prefix']}` (retained: `false`)",
             f"- Initial apply intent format: `{lifecycle['initial_apply_intent_format']}`",
@@ -1184,6 +1357,7 @@ def _lock_document(
             {
                 "path": record["path"],
                 "stage_path": record["stage_path"],
+                "intent_path": record["intent_path"],
                 "sha256": record["sha256"],
                 "binding": (
                     file_bindings.get(record["path"])
@@ -1203,11 +1377,18 @@ def _copy_exclusive(
     destination_root: RootHandle,
     target_relative: str,
     stage_relative: str,
+    intent_relative: str,
     expected_digest: str,
     *,
     resuming: bool,
 ) -> None:
-    """Publish exact bytes through a deterministic, crash-recoverable stage."""
+    """Publish exact bytes through one operation-owned inode.
+
+    The random intent is created only after the exact APPLYING lock is durable.
+    It remains as a hard link to the projected target until the ACTIVE lock has
+    recorded that inode.  A retry can therefore distinguish our interrupted
+    publication from an unrelated byte-identical target or stage.
+    """
 
     content, _ = _read_bound_relative(
         source_root,
@@ -1217,95 +1398,151 @@ def _copy_exclusive(
     )
     target = Path(target_relative)
     stage = Path(stage_relative)
-    if target.parent != stage.parent or stage_relative != _stage_relative(
-        target_relative, expected_digest
+    intent_path = Path(intent_relative)
+    if (
+        target.parent != stage.parent
+        or target.parent != intent_path.parent
+        or stage_relative != _stage_relative(target_relative, expected_digest)
     ):
         raise HostLifecycleError("host installation stage path differs from the exact plan")
     with _parent_directory_fd(destination_root, target_relative, create=True) as (parent, name):
         stage_name = stage.name
-        flags = (
-            os.O_WRONLY
-            | os.O_CREAT
-            | os.O_EXCL
-            | getattr(os, "O_NOFOLLOW", 0)
-            | getattr(os, "O_CLOEXEC", 0)
-        )
-        stage_ready = False
-        try:
-            existing = os.open(
-                stage_name,
-                _nonblocking_read_flags(),
-                dir_fd=parent,
-            )
-        except FileNotFoundError:
-            existing = None
-        except OSError as exc:
-            raise HostLifecycleError(f"host recovery stage is unsafe: {stage_relative}: {exc}") from exc
-        if existing is not None:
-            try:
-                metadata = os.fstat(existing)
-                if not stat.S_ISREG(metadata.st_mode):
-                    raise HostLifecycleError(
-                        f"host recovery stage is not a regular file: {stage_relative}"
-                    )
-                existing_content = _read_descriptor_bytes(existing)
-                if not resuming:
-                    raise HostLifecycleError(
-                        f"host installation never overwrites a recovery stage: {stage_relative}"
-                    )
-                if _sha256_bytes(existing_content) == expected_digest:
-                    stage_ready = True
-                else:
-                    # An exact APPLYING lock proves this stage path was absent at
-                    # preflight and was reserved by this proposal. Recheck the
-                    # open inode immediately before removing a torn write.
-                    current = os.stat(stage_name, dir_fd=parent, follow_symlinks=False)
-                    if (current.st_dev, current.st_ino) != (
-                        metadata.st_dev,
-                        metadata.st_ino,
-                    ):
-                        raise HostLifecycleError(
-                            f"host recovery stage identity changed: {stage_relative}"
-                        )
-                    os.unlink(stage_name, dir_fd=parent)
-                    os.fsync(parent)
-            finally:
-                os.close(existing)
-        if not stage_ready:
-            descriptor = os.open(stage_name, flags, 0o644, dir_fd=parent)
-            with os.fdopen(descriptor, "wb") as handle:
-                handle.write(content)
-                handle.flush()
-                os.fsync(handle.fileno())
-            os.fsync(parent)
+        intent_name = intent_path.name
 
-        try:
-            target_descriptor = os.open(
-                name,
-                _nonblocking_read_flags(),
+        def read_entry(candidate: str, label: str) -> tuple[bytes, os.stat_result] | None:
+            try:
+                descriptor = os.open(
+                    candidate,
+                    _nonblocking_read_flags(),
+                    dir_fd=parent,
+                )
+            except FileNotFoundError:
+                return None
+            except OSError as exc:
+                raise HostLifecycleError(f"{label} is unsafe: {exc}") from exc
+            try:
+                metadata = os.fstat(descriptor)
+                if not stat.S_ISREG(metadata.st_mode):
+                    raise HostLifecycleError(f"{label} is not a regular file")
+                return _read_descriptor_bytes(descriptor), metadata
+            finally:
+                os.close(descriptor)
+
+        intent = read_entry(intent_name, f"host recovery intent {intent_relative}")
+        stage_entry = read_entry(stage_name, f"host recovery stage {stage_relative}")
+        target_entry = read_entry(name, f"host installation target {target_relative}")
+        if not resuming and any(item is not None for item in (intent, stage_entry, target_entry)):
+            raise HostLifecycleError(
+                f"host installation never overwrites target, stage, or intent: {target_relative}"
+            )
+        if intent is None:
+            if stage_entry is not None or target_entry is not None:
+                raise HostLifecycleError(
+                    f"host recovery target or stage lacks its operation-bound intent: {target_relative}"
+                )
+            flags = (
+                os.O_WRONLY
+                | os.O_CREAT
+                | os.O_EXCL
+                | getattr(os, "O_NOFOLLOW", 0)
+                | getattr(os, "O_CLOEXEC", 0)
+            )
+            intent_descriptor = os.open(intent_name, flags, 0o644, dir_fd=parent)
+            try:
+                with os.fdopen(intent_descriptor, "wb") as handle:
+                    handle.write(content)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                intent_metadata = os.stat(
+                    intent_name,
+                    dir_fd=parent,
+                    follow_symlinks=False,
+                )
+            except Exception:
+                raise
+            os.fsync(parent)
+            intent = (content, intent_metadata)
+        elif not resuming:
+            raise HostLifecycleError(
+                f"host installation never overwrites a recovery intent: {intent_relative}"
+            )
+
+        if intent is None:  # pragma: no cover - guarded above
+            raise HostLifecycleError(f"host recovery intent is missing: {intent_relative}")
+        intent_identity = (intent[1].st_dev, intent[1].st_ino)
+        if _sha256_bytes(intent[0]) != expected_digest:
+            if stage_entry is not None or target_entry is not None:
+                raise HostLifecycleError(
+                    f"host recovery intent drifted and is preserved: {intent_relative}"
+                )
+            # A process exit while creating the exclusively named intent can
+            # leave only that inode partially written.  No target or stage has
+            # been published, so the exact APPLYING plan may safely rebuild it.
+            descriptor = os.open(
+                intent_name,
+                os.O_WRONLY
+                | os.O_TRUNC
+                | getattr(os, "O_NOFOLLOW", 0)
+                | getattr(os, "O_CLOEXEC", 0),
                 dir_fd=parent,
             )
-        except FileNotFoundError:
-            target_descriptor = None
-        except OSError as exc:
-            raise HostLifecycleError(
-                f"host installation target is unsafe: {target_relative}: {exc}"
-            ) from exc
-        if target_descriptor is not None:
             try:
-                metadata = os.fstat(target_descriptor)
-                if not stat.S_ISREG(metadata.st_mode):
+                metadata = os.fstat(descriptor)
+                if (metadata.st_dev, metadata.st_ino) != intent_identity:
                     raise HostLifecycleError(
-                        f"host installation target is unsafe: {target_relative}"
+                        f"host recovery intent identity changed: {target_relative}"
                     )
-                target_content = _read_descriptor_bytes(target_descriptor)
-                if not resuming or _sha256_bytes(target_content) != expected_digest:
-                    raise HostLifecycleError(
-                        f"host installation never overwrites: {target_relative}"
-                    )
+                offset = 0
+                while offset < len(content):
+                    written = os.write(descriptor, content[offset:])
+                    if written <= 0:
+                        raise HostLifecycleError(
+                            f"host recovery intent made no write progress: {target_relative}"
+                        )
+                    offset += written
+                os.fsync(descriptor)
             finally:
-                os.close(target_descriptor)
-        else:
+                os.close(descriptor)
+            intent = read_entry(intent_name, f"host recovery intent {intent_relative}")
+            if intent is None or _sha256_bytes(intent[0]) != expected_digest:
+                raise HostLifecycleError(f"host recovery intent drifted: {intent_relative}")
+            intent_identity = (intent[1].st_dev, intent[1].st_ino)
+
+        for entry, label in (
+            (stage_entry, "stage"),
+            (target_entry, "target"),
+        ):
+            if entry is not None and (
+                _sha256_bytes(entry[0]) != expected_digest
+                or (entry[1].st_dev, entry[1].st_ino) != intent_identity
+            ):
+                raise HostLifecycleError(
+                    f"host recovery {label} is not bound to this operation: {target_relative}"
+                )
+
+        if stage_entry is None and target_entry is None:
+            os.link(
+                intent_name,
+                stage_name,
+                src_dir_fd=parent,
+                dst_dir_fd=parent,
+                follow_symlinks=False,
+            )
+            os.fsync(parent)
+            stage_entry = read_entry(stage_name, f"host recovery stage {stage_relative}")
+        elif stage_entry is None and target_entry is not None:
+            # Publication finished before interruption.  Keep the intent until
+            # ACTIVE records the target inode; no scratch stage is needed.
+            return
+
+        if stage_entry is None or (
+            stage_entry[1].st_dev,
+            stage_entry[1].st_ino,
+        ) != intent_identity:
+            raise HostLifecycleError(
+                f"host recovery stage is not bound to this operation: {stage_relative}"
+            )
+        if target_entry is None:
             try:
                 os.link(
                     stage_name,
@@ -1319,21 +1556,50 @@ def _copy_exclusive(
                     f"host installation never overwrites: {target_relative}"
                 ) from exc
             os.fsync(parent)
-        stage_content, stage_metadata = _read_regular_relative(
-            destination_root,
-            stage_relative,
-            label="host recovery stage",
-        )
-        if _sha256_bytes(stage_content) != expected_digest:
-            raise HostLifecycleError(f"host recovery stage drifted: {stage_relative}")
-        current_stage = os.stat(stage_name, dir_fd=parent, follow_symlinks=False)
-        if (current_stage.st_dev, current_stage.st_ino) != (
-            stage_metadata.st_dev,
-            stage_metadata.st_ino,
+        final_target = read_entry(name, f"host installation target {target_relative}")
+        if final_target is None or (
+            _sha256_bytes(final_target[0]) != expected_digest
+            or (final_target[1].st_dev, final_target[1].st_ino) != intent_identity
         ):
+            raise HostLifecycleError(
+                f"host installation target lost its intent binding: {target_relative}"
+            )
+        current_stage = os.stat(stage_name, dir_fd=parent, follow_symlinks=False)
+        if (current_stage.st_dev, current_stage.st_ino) != intent_identity:
             raise HostLifecycleError(f"host recovery stage identity changed: {stage_relative}")
         os.unlink(stage_name, dir_fd=parent)
         os.fsync(parent)
+
+
+def _cleanup_active_install_intents(root: RootHandle, lock: dict[str, Any]) -> None:
+    """Remove only intents whose inode is recorded by the durable ACTIVE lock."""
+
+    if lock["status"] != "ACTIVE":
+        raise HostLifecycleError("host recovery intents require an active install record")
+    for record in lock["files"]:
+        if _relative_present(root, record["stage_path"]):
+            raise HostLifecycleError(
+                f"active host installation retains a recovery stage: {record['stage_path']}"
+            )
+        content, metadata = _read_bound_relative(
+            root,
+            record["path"],
+            record["sha256"],
+            label="managed host file",
+        )
+        binding = _file_binding(content, metadata)
+        if binding != record["binding"]:
+            raise HostLifecycleError(
+                f"managed host file identity differs from the installed baseline: {record['path']}"
+            )
+        if _relative_present(root, record["intent_path"]):
+            _unlink_bound_relative(
+                root,
+                record["intent_path"],
+                record["sha256"],
+                allow_missing=False,
+                expected_binding=record["binding"],
+            )
 
 
 def _load_install_lock(
@@ -1382,11 +1648,11 @@ def _load_install_lock(
         if _digest(proposal) != lock["proposal_digest"]:
             raise HostLifecycleError("host installation lock authority digest is invalid")
         expected_files = [
-            (record["path"], record["stage_path"], record["sha256"])
+            (record["path"], record["stage_path"], record["intent_path"], record["sha256"])
             for record in proposal["files"]
         ]
         actual_files = [
-            (record["path"], record["stage_path"], record["sha256"])
+            (record["path"], record["stage_path"], record["intent_path"], record["sha256"])
             for record in lock["files"]
         ]
         if actual_files != expected_files:
@@ -1650,6 +1916,10 @@ def _verify_installation_locked(
                 raise HostLifecycleError(
                     f"active host installation retains a recovery stage: {record['stage_path']}"
                 )
+            if _relative_present(handle, record["intent_path"]):
+                raise HostLifecycleError(
+                    f"active host installation retains a recovery intent: {record['intent_path']}"
+                )
         metadata_recovery_stage_present = _relative_present(
             handle, METADATA_STAGE_RELATIVE
         )
@@ -1912,6 +2182,22 @@ def apply_install_plan(path: Path) -> dict[str, Any]:
             if lock["guard_binding"] != guard_binding:
                 raise HostLifecycleError("host lifecycle guard differs from the install authority")
             if lock["proposal_digest"] == plan["proposal_digest"] and lock["status"] == "ACTIVE":
+                # ACTIVE is durable before transient ownership links are
+                # removed.  Replaying the exact plan finishes only those
+                # cleanup operations bound to the recorded target inodes.
+                _atomic_json_relative(
+                    handle,
+                    INSTALL_LOCK_RELATIVE,
+                    lock,
+                    expected_current_digest=_sha256_bytes(
+                        _canonical(lock).encode("utf-8")
+                    ),
+                    intent_relative=lock["proposal"]["lifecycle"][
+                        "metadata_recovery_intent"
+                    ],
+                    allow_existing_intent=True,
+                )
+                _cleanup_active_install_intents(handle, lock)
                 report = _verify_installation_locked(resolved, handle)
                 report["status"] = "ALREADY_APPLIED"
                 report["concurrency_guarded"] = True
@@ -1999,6 +2285,16 @@ def apply_install_plan(path: Path) -> dict[str, Any]:
                     record["stage_path"],
                     label="host recovery stage",
                 )
+            if _relative_present(handle, record["intent_path"]):
+                if not resuming:
+                    raise HostLifecycleError(
+                        f"host installation never overwrites a recovery intent: {record['intent_path']}"
+                    )
+                _read_regular_relative(
+                    handle,
+                    record["intent_path"],
+                    label="host recovery intent",
+                )
 
         if not resuming:
             intent_binding = _ensure_apply_intent(
@@ -2012,6 +2308,8 @@ def apply_install_plan(path: Path) -> dict[str, Any]:
                 INSTALL_LOCK_RELATIVE,
                 _lock_document(plan, "APPLYING", guard_binding),
                 expected_current_digest=None,
+                intent_relative=proposal["lifecycle"]["metadata_recovery_intent"],
+                allow_existing_intent=intent_present and not operation["created"],
             )
         if intent_binding is not None:
             _assert_directory_binding(resolved, root_binding)
@@ -2040,6 +2338,7 @@ def apply_install_plan(path: Path) -> dict[str, Any]:
                 handle,
                 record["path"],
                 record["stage_path"],
+                record["intent_path"],
                 record["sha256"],
                 resuming=resuming,
             )
@@ -2054,19 +2353,24 @@ def apply_install_plan(path: Path) -> dict[str, Any]:
             )
             installed_bindings[record["path"]] = _file_binding(content, metadata)
         applying_document = _lock_document(plan, "APPLYING", guard_binding)
+        active_document = _lock_document(
+            plan,
+            "ACTIVE",
+            guard_binding,
+            installed_bindings,
+        )
         _atomic_json_relative(
             handle,
             INSTALL_LOCK_RELATIVE,
-            _lock_document(
-                plan,
-                "ACTIVE",
-                guard_binding,
-                installed_bindings,
-            ),
+            active_document,
             expected_current_digest=_sha256_bytes(
                 _canonical(applying_document).encode("utf-8")
             ),
+            intent_relative=proposal["lifecycle"]["metadata_recovery_intent"],
+            allow_existing_intent=True,
         )
+        _assert_directory_binding(resolved, root_binding)
+        _cleanup_active_install_intents(handle, active_document)
         _assert_directory_binding(resolved, root_binding)
         report = _verify_installation_locked(resolved, handle)
         report["concurrency_guarded"] = True
@@ -2146,6 +2450,8 @@ def uninstall_installation(destination: Path, *, digest: str) -> dict[str, Any]:
                 INSTALL_LOCK_RELATIVE,
                 lock,
                 expected_current_digest=active_digest,
+                intent_relative=lock["proposal"]["lifecycle"]["metadata_recovery_intent"],
+                allow_existing_intent=True,
             )
         elif lock["status"] != "UNINSTALLING":
             raise HostLifecycleError("host installation is not uninstallable in its current state")
@@ -2185,6 +2491,8 @@ def uninstall_installation(destination: Path, *, digest: str) -> dict[str, Any]:
                     INSTALL_LOCK_RELATIVE,
                     lock,
                     expected_current_digest=before_digest,
+                    intent_relative=lock["proposal"]["lifecycle"]["metadata_recovery_intent"],
+                    allow_existing_intent=True,
                 )
             if record["state"] != "QUARANTINED":
                 raise HostLifecycleError("managed host file removal state is invalid")
@@ -2215,6 +2523,8 @@ def uninstall_installation(destination: Path, *, digest: str) -> dict[str, Any]:
                 INSTALL_LOCK_RELATIVE,
                 lock,
                 expected_current_digest=before_digest,
+                intent_relative=lock["proposal"]["lifecycle"]["metadata_recovery_intent"],
+                allow_existing_intent=True,
             )
             _unlink_bound_relative(
                 handle,
@@ -2234,6 +2544,8 @@ def uninstall_installation(destination: Path, *, digest: str) -> dict[str, Any]:
             UNINSTALL_TOMBSTONE_RELATIVE,
             expected_tombstone,
             expected_current_digest=None,
+            intent_relative=lock["proposal"]["lifecycle"]["metadata_recovery_intent"],
+            allow_existing_intent=True,
         )
         _assert_directory_binding(root, root_binding)
         _unlink_bound_relative(

@@ -16,13 +16,13 @@ An uninstall can also stop after deleting some files. Without an explicit transi
 
 Use a persistent POSIX `fcntl` guard for every mutating v1 host lifecycle operation. New v1 installations atomically create `.agent-team/.host-lifecycle.guard` as an `empty-regular-file-v1`; the plan displays its empty-content digest. Apply and uninstall acquire an exclusive, non-blocking kernel lock; v1 verification joins the same lock. If no install lock exists, an exact empty regular guard may be reused after a crash between guard fsync and `APPLYING` publication. Reuse never deletes the guard and the guard alone grants no authority to delete any file.
 
-Plan schema `1.1.0` digest-binds the complete proposal: team and descriptor authority, destination, projected files and deterministic file stages, the empty guard contract, install/tombstone paths, the fixed transient metadata scratch `.agent-team/.host-lifecycle.json.stage`, exact expected prior guard/tombstone identities, all effects, retention, directory behavior, and limitations. Lock schema `1.1.0` stores the complete proposal and exact guard binding in addition to the derived managed-file list.
+Plan schema `1.1.0` digest-binds the complete proposal: team and descriptor authority, destination, projected files, deterministic file stages and random per-file ownership intents, the empty guard contract, install/tombstone paths, fixed metadata scratch `.agent-team/.host-lifecycle.json.stage` and exact metadata intent, exact prior guard/tombstone identities, effects, retention, directory behavior, and limitations. Lock schema `1.1.0` stores the complete proposal and exact guard binding in addition to the derived managed-file list.
 
 `filesystem_deletes` is always true because apply removes its exact plan-bound empty intent and apply/uninstall may rebuild and remove the declared metadata scratch during crash recovery. `persistent_filesystem_deletes` is true only when the new plan binds and confirms removal of an exact prior tombstone. The lifecycle may never delete the guard, infer delete authority from an unbound empty guard, adopt a pre-existing intent/scratch, or touch another similarly named hidden file. Any prior-tombstone baseline change fails closed.
 
-Every source file is opened through no-follow directory descriptors and its exact bytes are checked against the proposal digest immediately before staging. Each file stage path is deterministic from the destination path and source digest. Publication uses an exclusive hard link, so it cannot replace an existing destination name. First apply requires projected files and their file stages to be absent. After an interruption, only an exact same-proposal `APPLYING` lock permits the same confirmed plan to validate an existing full file stage, discard and rebuild its own torn file stage, accept its own already-published matching file, and continue.
+Every source file is opened through no-follow directory descriptors and its bytes are checked against the proposal immediately before publication. Each deterministic stage is paired with a random per-file intent whose exact path is digest-bound by the plan. After `APPLYING` is durable, the implementation exclusively creates and fsyncs the intent, hard-links that inode to the stage and target, removes the stage, and retains the intent until an `ACTIVE` lock records the target digest/size/device/inode. It then removes only an intent with that exact binding. A crash before `ACTIVE` can resume through the same intent inode; a crash after `ACTIVE` can finish exact intent cleanup. A stage or target with equal bytes but no same-inode plan intent is unrelated content and is preserved with a fail-closed error.
 
-The first lifecycle JSON transition creates one random empty intent whose exact path is bound by the confirmed plan. Only that plan may use the intent to recover its fixed metadata scratch after interruption. Later lifecycle JSON transitions use the same fixed scratch. Successful apply and verification require both the intent prefix and metadata scratch to be absent; successful uninstall requires the scratch to be absent. An `ACTIVE` installation must also have no remaining projected-file stages. Verification uses the same digest-bound descriptor reads.
+Lifecycle JSON transitions likewise use one exact plan-bound metadata intent. The fixed scratch must be the same inode as that intent before it can be rewritten or renamed; a pre-existing unbound scratch or intent is preserved and refused. Successful apply/verify require metadata intent/scratch, all per-file intents/stages, and the initial-apply intent to be absent. Successful uninstall requires its metadata scratch/intent and quarantine stages absent. Verification uses the same no-follow descriptor and inode bindings.
 
 Uninstall follows this state machine:
 
@@ -52,7 +52,7 @@ The guard serializes cooperating local Factory commands. No portable userspace p
 - Interrupted uninstall is resumable and completion replay is idempotent.
 - Persistent effects are visible before confirmation and bound into the proposal digest.
 - An exact empty guard supports recovery across the guard-fsync/lock-publication crash window without granting deletion authority.
-- One fixed metadata scratch plus one plan-digest-bound random empty initial-apply intent make the first JSON transition recoverable without adopting pre-existing scratch or similarly named hidden files.
+- Exact metadata and per-file ownership intents make JSON and projected-file recovery possible without adopting pre-existing or merely byte-identical content.
 
 ### Costs
 
@@ -84,11 +84,11 @@ Rejected because it prevents deterministic recovery after an ordinary crash betw
 
 - concurrent different-plan apply fails before a second mutation;
 - source mutation after initial validation fails before publication;
-- the plan and lock bind the complete proposal, exact empty guard contract/binding, deterministic file stages, fixed metadata scratch, exact random empty initial-apply intent, prior tombstone, and transient/persistent delete effects;
+- the plan and lock bind the complete proposal, empty guard contract/binding, every random per-file intent and deterministic stage, fixed metadata scratch and exact metadata intent, random initial-apply intent, prior tombstone, and delete effects;
 - planning rejects any metadata scratch or `.host-apply.intent-` prefix entry; after confirmation and collision checks, apply creates one exact plan-bound empty intent and only the same plan may use it to recover the first metadata transition;
-- apply remains resumable after later interruption only for the exact same `APPLYING` proposal;
+- apply remains resumable only for exact same-plan intent/stage/target inode bindings under `APPLYING`, or exact intent cleanup recorded by `ACTIVE`; byte equality alone never grants ownership;
 - an exact empty guard without an install lock can be reused but cannot authorize any deletion;
-- apply may remove only its exact plan-bound empty intent and lifecycle operations may rebuild/remove only `.agent-team/.host-lifecycle.json.stage`; every unrelated/pre-existing collision is preserved and rejected, and success leaves neither transient path;
+- apply may remove only exact plan-bound initial, metadata, and per-file intents plus their same-inode stages; every unrelated/pre-existing collision is preserved and rejected, and success leaves no transient path;
 - uninstall rechecks content and identity immediately before removal;
 - uninstall preview is read-only and distinguishes `ACTIVE`, `UNINSTALLING`, `ALREADY_UNINSTALLED`, and `LEGACY_UNBOUND`; the first two expose the scratch in delete/create/transient lists while the latter two expose empty lists;
 - `ACTIVE` removal requires human process confirmation and the exact digest while the CLI records no authenticated approval;
